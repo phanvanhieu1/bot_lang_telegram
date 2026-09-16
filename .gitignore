@@ -1,0 +1,6 @@
+.env
+node_modules/
+.DS_Store
+database.json
+cache_audio/
+cache_index.json
