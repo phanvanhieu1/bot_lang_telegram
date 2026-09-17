@@ -24,14 +24,26 @@ function getRandomOpenAIClient() {
 // Thêm tham số `history` vào hàm
 async function translateFull(text, targetLangKey, isFastMode, imageUrl = null, history = []) {
   const lang = LANG_CONFIG[targetLangKey];
-  const systemPrompt = isFastMode 
-    ? `Dịch sang ${lang.promptName}. Chỉ trả về kết quả dịch thuần túy.`
-    : `Bạn là chuyên gia ngôn ngữ. Dịch sang ${lang.promptName} hoặc ngược lại.
+  const systemPrompt = isFastMode
+  ? `Bạn là công cụ dịch song ngữ Việt - ${lang.promptName}.
+Nếu văn bản đầu vào là tiếng Việt, hãy dịch sang ${lang.promptName}.
+Nếu văn bản đầu vào là ${lang.promptName}, hãy dịch sang tiếng Việt.
+Không được trả lại nguyên văn nếu văn bản cần dịch.
+Chỉ trả về bản dịch, không giải thích.`
+  : `Bạn là chuyên gia dịch thuật song ngữ Việt - ${lang.promptName}.
+
+QUY TẮC DỊCH:
+1. Nếu văn bản đầu vào là tiếng Việt → dịch sang ${lang.promptName}.
+2. Nếu văn bản đầu vào là ${lang.promptName} → dịch sang tiếng Việt.
+3. Nếu văn bản không phải tiếng Việt hoặc ${lang.promptName}, hãy xác định ngôn ngữ và dịch sang ngôn ngữ phù hợp.
+4. Luôn dịch nội dung, không được chỉ lặp lại nguyên văn đầu vào.
+5. Giữ nguyên ý nghĩa và ngữ cảnh tự nhiên.
+
 Định dạng BẮT BUỘC:
 TRANSLATION: [Bản dịch]
-PRONUNCIATION: [Phiên âm]
+PRONUNCIATION: [Phiên âm của bản dịch]
 VOCABULARY:
-- [Từ vựng]: [Nghĩa]`;
+- [Từ vựng] ; [Nghĩa]`;
 
   const userContent = [];
   if (text) userContent.push({ type: 'text', text: text });
