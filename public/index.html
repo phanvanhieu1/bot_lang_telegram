@@ -1,0 +1,111 @@
+
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Language Translator</title>
+
+  <link rel="stylesheet" href="/style.css">
+</head>
+
+<body>
+
+  <main class="container">
+
+    <header class="header">
+      <h1>Language Translator</h1>
+      <p>Dịch nhanh giữa tiếng Việt và các ngôn ngữ phổ biến</p>
+    </header>
+
+    <section class="translator-card">
+
+      <div class="controls">
+        <select id="targetLang" class="language-select">
+          <option value="zh">🇨🇳 Tiếng Trung</option>
+          <option value="en">🇺🇸 Tiếng Anh</option>
+          <option value="ja">🇯🇵 Tiếng Nhật</option>
+          <option value="ko">🇰🇷 Tiếng Hàn</option>
+        </select>
+      </div>
+
+      <div class="textarea-wrapper">
+        <textarea
+          id="text"
+          placeholder="Nhập nội dung cần dịch..."
+        ></textarea>
+
+        <div class="input-hint">
+          Enter để dịch · Ctrl + Enter để xuống dòng
+        </div>
+      </div>
+
+      <div class="translate-row">
+        <button id="translateBtn">
+          <span id="translateText">Dịch</span>
+          <span id="loadingSpinner" class="spinner"></span>
+        </button>
+      </div>
+
+      <div id="status" class="status"></div>
+      <div class="usage-dashboard">
+  <div class="usage-item">
+    <span>Hôm nay</span>
+    <strong id="todayCost">$0.000000</strong>
+    <small id="todayStats">0 request · 0 tokens</small>
+  </div>
+
+  <div class="usage-item">
+    <span>Tổng cộng</span>
+    <strong id="totalCost">$0.000000</strong>
+    <small id="totalStats">0 request · 0 tokens</small>
+    <div class="billing-link">
+  <a
+    href="https://platform.openai.com/settings/organization/billing/overview"
+    target="_blank"
+    rel="noopener noreferrer"
+  >
+    💳 Xem số dư API OpenAI
+  </a>
+</div>
+  </div>
+</div>
+
+<div id="usageInfo" class="usage-info"></div>
+<div id="usageInfo" class="usage-info"></div>
+      <div class="results">
+
+        <div class="result-box">
+          <div class="result-header">
+            <h3 class="result-title">Bản dịch</h3>
+
+            <button id="copyBtn" class="copy-btn" type="button">
+              📋 Copy
+            </button>
+          </div>
+
+          <div id="translation" class="result-content"></div>
+        </div>
+
+        <div class="result-box">
+          <h3 class="result-title">Phát âm</h3>
+          <div id="pronunciation" class="result-content"></div>
+        </div>
+
+        <div class="result-box">
+          <h3 class="result-title">Từ vựng</h3>
+          <div id="vocabulary" class="vocabulary-content"></div>
+        </div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+  <script src="/app.js"></script>
+
+</body>
+</html>

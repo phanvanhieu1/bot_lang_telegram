@@ -22,28 +22,51 @@ function getRandomOpenAIClient() {
 
 // 3. CORE 1: Dịch thuật & Phân tích ảnh có FAILOVER (Chống sập)
 // Thêm tham số `history` vào hàm
-async function translateFull(text, targetLangKey, isFastMode, imageUrl = null, history = []) {
+async function translateFull(
+  text,
+  targetLangKey,
+  isFastMode,
+  imageUrl = null,
+  history = [],
+  returnUsage = false
+) {
   const lang = LANG_CONFIG[targetLangKey];
   const systemPrompt = isFastMode
-  ? `Bạn là công cụ dịch song ngữ Việt - ${lang.promptName}.
-Nếu văn bản đầu vào là tiếng Việt, hãy dịch sang ${lang.promptName}.
-Nếu văn bản đầu vào là ${lang.promptName}, hãy dịch sang tiếng Việt.
-Không được trả lại nguyên văn nếu văn bản cần dịch.
-Chỉ trả về bản dịch, không giải thích.`
-  : `Bạn là chuyên gia dịch thuật song ngữ Việt - ${lang.promptName}.
+  ? `Bạn là công cụ dịch Việt - ${lang.promptName}.
+
+Hãy tự động nhận diện ngôn ngữ của văn bản đầu vào:
+- Nếu đầu vào là tiếng Việt → dịch sang ${lang.promptName}.
+- Nếu đầu vào là ${lang.promptName} → dịch sang tiếng Việt.
+- Không được trả lại nguyên văn đầu vào.
+- Chỉ trả về bản dịch.`
+  : `Bạn là chuyên gia ngôn ngữ và dịch thuật.
+
+NGÔN NGỮ:
+- Ngôn ngữ người học: Tiếng Việt
+- Ngôn ngữ đang học: ${lang.promptName}
+
+Hãy tự động nhận diện ngôn ngữ của văn bản đầu vào.
 
 QUY TẮC DỊCH:
-1. Nếu văn bản đầu vào là tiếng Việt → dịch sang ${lang.promptName}.
-2. Nếu văn bản đầu vào là ${lang.promptName} → dịch sang tiếng Việt.
-3. Nếu văn bản không phải tiếng Việt hoặc ${lang.promptName}, hãy xác định ngôn ngữ và dịch sang ngôn ngữ phù hợp.
-4. Luôn dịch nội dung, không được chỉ lặp lại nguyên văn đầu vào.
-5. Giữ nguyên ý nghĩa và ngữ cảnh tự nhiên.
+- Tiếng Việt → dịch sang ${lang.promptName}.
+- ${lang.promptName} → dịch sang tiếng Việt.
+- Nếu đầu vào là ngôn ngữ khác, hãy dịch sang tiếng Việt.
+- Không được lặp lại nguyên văn đầu vào.
+- Bản dịch phải tự nhiên và đúng ngữ cảnh.
+
+QUY TẮC PHIÊN ÂM:
+- Nếu ${lang.promptName} là tiếng Trung, PRONUNCIATION bắt buộc phải là Pinyin.
+- Pinyin phải có dấu thanh, ví dụ: nǐ hǎo, wǒ ài nǐ.
+- Khi dịch Việt → Trung, PRONUNCIATION là Pinyin của câu tiếng Trung vừa dịch.
+- Khi dịch Trung → Việt, PRONUNCIATION vẫn phải là Pinyin của câu tiếng Trung gốc.
+- Tuyệt đối không viết PRONUNCIATION bằng tiếng Việt.
+- Không dịch nội dung sang tiếng Việt trong trường PRONUNCIATION.
 
 Định dạng BẮT BUỘC:
 TRANSLATION: [Bản dịch]
-PRONUNCIATION: [Phiên âm của bản dịch]
+PRONUNCIATION: [Pinyin]
 VOCABULARY:
-- [Từ vựng] ; [Nghĩa]`;
+- [Từ vựng] : [Nghĩa]`;
 
   const userContent = [];
   if (text) userContent.push({ type: 'text', text: text });
@@ -74,7 +97,16 @@ VOCABULARY:
         messages: messages, // Đã bao gồm cả system, history và tin nhắn mới
         temperature: 0.3,
       });
-      return response.choices[0].message.content.trim();
+      const content = response.choices[0].message.content.trim();
+
+if (returnUsage) {
+  return {
+    content,
+    usage: response.usage
+  };
+}
+
+return content;
     } catch (error) {
       attempts++;
       if (attempts >= maxAttempts) throw new Error('❌ Hết Key.');
