@@ -6,3 +6,6 @@ cache_audio/
 cache_index.json
 usage.json
 history.json
+sessions.sqlite
+sessions.sqlite-shm
+sessions.sqlite-wal

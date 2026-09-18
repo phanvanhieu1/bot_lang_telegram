@@ -4,6 +4,7 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const session = require('express-session');
+const SQLiteStore = require('connect-sqlite3')(session);
 const bcrypt = require('bcrypt');
 const rateLimit = require('express-rate-limit');
 
@@ -32,6 +33,10 @@ app.use(express.urlencoded({ extended: true }));
 app.set('trust proxy', 1);
 
 app.use(session({
+  store: new SQLiteStore({
+    db: 'sessions.sqlite',
+    dir: __dirname
+  }),
   secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
