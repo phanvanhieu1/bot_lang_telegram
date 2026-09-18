@@ -1,0 +1,8 @@
+{
+  "watch": [
+    "server.js",
+    "ai.js",
+    "public"
+  ],
+  "ext": "js,html,css"
+}

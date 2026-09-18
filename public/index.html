@@ -16,20 +16,42 @@
   <main class="container">
 
     <header class="header">
-      <h1>Language Translator</h1>
-      <p>Dịch nhanh giữa tiếng Việt và các ngôn ngữ phổ biến</p>
-    </header>
+  <div>
+    <h1>Language Translator</h1>
+    <p>Dịch nhanh giữa tiếng Việt và các ngôn ngữ phổ biến</p>
+  </div>
+
+  <button id="historyBtn" class="history-btn" type="button">
+    🕘 Lịch sử
+  </button>
+
+   <button id="logoutBtn" class="logout-btn" type="button">
+    Đăng xuất
+  </button>
+</header>
 
     <section class="translator-card">
 
       <div class="controls">
-        <select id="targetLang" class="language-select">
+        <div id="languageSelector">
+  <select id="targetLang" class="language-select">
           <option value="zh">🇨🇳 Tiếng Trung</option>
           <option value="en">🇺🇸 Tiếng Anh</option>
           <option value="ja">🇯🇵 Tiếng Nhật</option>
           <option value="ko">🇰🇷 Tiếng Hàn</option>
         </select>
+</div>
       </div>
+
+      <div class="mode-tabs">
+  <button id="translateModeBtn" class="mode-tab active" type="button">
+    🌐 Dịch thuật
+  </button>
+
+  <button id="practiceModeBtn" class="mode-tab" type="button">
+    🇨🇳 Luyện tiếng Trung
+  </button>
+</div>
 
       <div class="textarea-wrapper">
         <textarea
@@ -76,8 +98,8 @@
 <div id="usageInfo" class="usage-info"></div>
 <div id="usageInfo" class="usage-info"></div>
       <div class="results">
-
-        <div class="result-box">
+        <div id="translationResult">
+  <div class="result-box">
           <div class="result-header">
             <h3 class="result-title">Bản dịch</h3>
 
@@ -89,6 +111,11 @@
           <div id="translation" class="result-content"></div>
         </div>
 
+        <div id="backTranslationWrapper" class="back-translation hidden">
+  <div class="back-translation-label">↩ Dịch ngược để đối chiếu</div>
+  <div id="backTranslation"></div>
+</div>
+
         <div class="result-box">
           <h3 class="result-title">Phát âm</h3>
           <div id="pronunciation" class="result-content"></div>
@@ -98,12 +125,96 @@
           <h3 class="result-title">Từ vựng</h3>
           <div id="vocabulary" class="vocabulary-content"></div>
         </div>
+</div>
+
 
       </div>
+
+      <div id="practiceResult" class="practice-result hidden">
+
+  <div class="practice-score">
+    <span>Điểm</span>
+    <strong id="practiceScore">-</strong>
+  </div>
+
+  <div class="practice-scores">
+    <div>
+      <span>Ngữ pháp</span>
+      <strong id="grammarScore">-</strong>
+    </div>
+
+    <div>
+      <span>Từ vựng</span>
+      <strong id="vocabularyScore">-</strong>
+    </div>
+
+    <div>
+      <span>Tự nhiên</span>
+      <strong id="naturalScore">-</strong>
+    </div>
+  </div>
+
+  <div class="result-box">
+  <h3>Câu của bạn</h3>
+
+  <div id="originalText" class="result-content"></div>
+  <div id="originalPinyin" class="practice-pinyin"></div>
+  <div id="originalTranslation" class="practice-translation"></div>
+</div>
+
+  <div class="result-box">
+  <h3>✨ Cách nói tự nhiên hơn</h3>
+
+  <div id="naturalText" class="result-content"></div>
+  <div id="naturalPinyin" class="practice-pinyin"></div>
+  <div id="naturalTranslation" class="practice-translation"></div>
+</div>
+
+  <div class="result-box">
+    <h3>Nhận xét</h3>
+    <div id="practiceFeedback" class="result-content"></div>
+  </div>
+
+  <div class="result-box">
+    <h3>Giải thích</h3>
+    <div id="practiceExplanation" class="result-content"></div>
+  </div>
+
+</div>
 
     </section>
 
   </main>
+
+  <div id="historyOverlay" class="history-overlay"></div>
+
+<aside id="historySidebar" class="history-sidebar">
+
+  <div class="history-header">
+    <h2>Lịch sử dịch</h2>
+
+    <button id="closeHistoryBtn" class="history-close" type="button">
+      ✕
+    </button>
+  </div>
+
+  <div class="history-search">
+    <input
+      id="historySearch"
+      type="text"
+      placeholder="Tìm trong lịch sử..."
+    >
+  </div>
+
+  <div id="historyList" class="history-list"></div>
+
+  <div class="history-footer">
+    <button id="clearHistoryBtn" class="clear-history-btn" type="button">
+      🗑 Xóa lịch sử
+    </button>
+  </div>
+
+</aside>
 
   <script src="/app.js"></script>
 
