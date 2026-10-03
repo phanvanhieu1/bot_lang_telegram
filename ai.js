@@ -28,18 +28,103 @@ async function translateFull(
   isFastMode,
   imageUrl = null,
   history = [],
-  returnUsage = false
+  returnUsage = false,
+  options = {}
 ) {
+  const {
+  backTranslation = true,
+  pronunciation = true,
+  vocabulary = true,
+  existingTranslation = null
+} = options;
+const isSupplement = Boolean(existingTranslation);
   const lang = LANG_CONFIG[targetLangKey];
-  const systemPrompt = isFastMode
-  ? `Bạn là công cụ dịch Việt - ${lang.promptName}.
+  let systemPrompt;
+
+if (isSupplement) {
+  systemPrompt = `Bạn đang bổ sung dữ liệu cho một bản dịch đã có.
+
+NGUYÊN VĂN:
+${text}
+
+BẢN DỊCH ĐÃ CÓ:
+${existingTranslation}
+
+Không dịch lại và không thay đổi bản dịch trên.`;
+
+  if (backTranslation) {
+    systemPrompt += `
+
+QUY TẮC DỊCH NGƯỢC:
+- Chỉ tạo BACK_TRANSLATION khi NGUYÊN VĂN là tiếng Việt và BẢN DỊCH ĐÃ CÓ là tiếng Trung.
+- Dịch chính BẢN DỊCH ĐÃ CÓ từ tiếng Trung ngược lại sang tiếng Việt.
+- Phải dựa vào câu tiếng Trung trong BẢN DỊCH ĐÃ CÓ, không được dùng NGUYÊN VĂN tiếng Việt để tạo kết quả.
+- Nếu NGUYÊN VĂN không phải tiếng Việt hoặc BẢN DỊCH ĐÃ CÓ không phải tiếng Trung, để BACK_TRANSLATION trống.
+- BACK_TRANSLATION chỉ chứa tiếng Việt, không chứa Pinyin, từ vựng hoặc giải thích.`;
+  }
+
+  if (pronunciation) {
+    systemPrompt += `
+
+Tạo phiên âm cho phần nội dung bằng tiếng Trung:
+- Nếu NGUYÊN VĂN là tiếng Trung, phiên âm NGUYÊN VĂN.
+- Nếu BẢN DỊCH ĐÃ CÓ là tiếng Trung, phiên âm BẢN DỊCH ĐÃ CÓ.
+- Dùng Pinyin có dấu thanh.
+- Chỉ trả về phiên âm trong PRONUNCIATION.`;
+  }
+
+  if (vocabulary) {
+    systemPrompt += `
+
+Liệt kê các từ vựng quan trọng trong phần nội dung bằng tiếng Trung:
+- Nếu NGUYÊN VĂN là tiếng Trung, lấy từ vựng từ NGUYÊN VĂN.
+- Nếu BẢN DỊCH ĐÃ CÓ là tiếng Trung, lấy từ vựng từ BẢN DỊCH ĐÃ CÓ.
+- Mỗi từ gồm từ tiếng Trung và nghĩa tiếng Việt.`;
+  }
+
+  systemPrompt += `
+
+ĐỊNH DẠNG TRẢ VỀ:`;
+
+  if (backTranslation) {
+    systemPrompt += `
+BACK_TRANSLATION: [Bản dịch ngược]`;
+  }
+
+  if (pronunciation) {
+    systemPrompt += `
+PRONUNCIATION: [Phiên âm]`;
+  }
+
+  if (vocabulary) {
+    systemPrompt += `
+VOCABULARY:
+- [Từ vựng] : [Nghĩa]`;
+  }
+
+  systemPrompt += `
+
+Chỉ trả về các trường được yêu cầu.
+Không trả lại TRANSLATION và không giải thích.`;
+
+
+} else if (isFastMode) {
+  systemPrompt = `Bạn là công cụ dịch Việt - ${lang.promptName}.
 
 Hãy tự động nhận diện ngôn ngữ của văn bản đầu vào:
-- Nếu đầu vào là tiếng Việt → dịch sang ${lang.promptName}.
-- Nếu đầu vào là ${lang.promptName} → dịch sang tiếng Việt.
+- Nếu đầu vào là tiếng Việt → BẮT BUỘC dịch sang ${lang.promptName}.
+- Nếu đầu vào là ${lang.promptName} → BẮT BUỘC dịch sang tiếng Việt.
+- Nếu đầu vào là ngôn ngữ khác → dịch sang tiếng Việt.
 - Không được trả lại nguyên văn đầu vào.
-- Chỉ trả về bản dịch.`
-  : `Bạn là chuyên gia ngôn ngữ và dịch thuật.
+- Không giải thích.
+
+ĐỊNH DẠNG TRẢ VỀ BẮT BUỘC:
+TRANSLATION: [Bản dịch]
+
+Chỉ trả về trường TRANSLATION ở trên.`;
+
+} else {
+  systemPrompt = `Bạn là chuyên gia ngôn ngữ và dịch thuật.
 
 NGÔN NGỮ:
 - Ngôn ngữ người học: Tiếng Việt
@@ -48,33 +133,76 @@ NGÔN NGỮ:
 Hãy tự động nhận diện ngôn ngữ của văn bản đầu vào.
 
 QUY TẮC DỊCH:
-- Tiếng Việt → dịch sang ${lang.promptName}.
-- ${lang.promptName} → dịch sang tiếng Việt.
-- Nếu đầu vào là ngôn ngữ khác, hãy dịch sang tiếng Việt.
+- Nếu đầu vào là tiếng Việt:
+  + BẮT BUỘC dịch sang ${lang.promptName}.
+  + Không được dịch sang ngôn ngữ khác.
+- Nếu đầu vào là ${lang.promptName}:
+  + BẮT BUỘC dịch sang tiếng Việt.
+- Nếu đầu vào là ngôn ngữ khác:
+  + Dịch sang tiếng Việt.
 - Không được lặp lại nguyên văn đầu vào.
-- Bản dịch phải tự nhiên và đúng ngữ cảnh.
+- Bản dịch phải tự nhiên và đúng ngữ cảnh.`;
+
+  if (backTranslation) {
+    systemPrompt += `
 
 QUY TẮC DỊCH NGƯỢC:
 - Chỉ khi đầu vào là tiếng Việt VÀ ngôn ngữ đang học là tiếng Trung:
   + Sau khi tạo bản dịch tiếng Trung, hãy dịch chính bản tiếng Trung đó ngược lại sang tiếng Việt.
   + Bản dịch ngược phải sát nghĩa với câu tiếng Trung đã tạo.
   + Không được dựa vào câu tiếng Việt đầu vào để viết BACK_TRANSLATION.
-- Các trường hợp khác, BACK_TRANSLATION để trống.
+- BACK_TRANSLATION chỉ được chứa bản dịch tiếng Việt.
+- Không chứa phiên âm, từ vựng hoặc giải thích.
+- Các trường hợp khác, BACK_TRANSLATION để trống.`;
+  }
+
+  if (pronunciation) {
+    systemPrompt += `
 
 QUY TẮC PHIÊN ÂM:
 - Nếu ${lang.promptName} là tiếng Trung, PRONUNCIATION bắt buộc phải là Pinyin.
-- Pinyin phải có dấu thanh, ví dụ: nǐ hǎo, wǒ ài nǐ.
+- Pinyin phải có dấu thanh.
 - Khi dịch Việt → Trung, PRONUNCIATION là Pinyin của câu tiếng Trung vừa dịch.
-- Khi dịch Trung → Việt, PRONUNCIATION vẫn phải là Pinyin của câu tiếng Trung gốc.
-- Tuyệt đối không viết PRONUNCIATION bằng tiếng Việt.
-- Không dịch nội dung sang tiếng Việt trong trường PRONUNCIATION.
+- Khi dịch Trung → Việt, PRONUNCIATION vẫn là Pinyin của câu tiếng Trung gốc.
+- PRONUNCIATION chỉ chứa phiên âm.
+- Không chứa bản dịch hoặc từ vựng.`;
+  }
 
-Định dạng BẮT BUỘC:
-TRANSLATION: [Bản dịch]
-BACK_TRANSLATION: [Bản dịch ngược sang tiếng Việt, hoặc để trống nếu không áp dụng]
-PRONUNCIATION: [Pinyin]
+  if (vocabulary) {
+    systemPrompt += `
+
+QUY TẮC TỪ VỰNG:
+- Liệt kê các từ vựng quan trọng trong nội dung tiếng Trung.
+- Mỗi từ gồm từ tiếng Trung và nghĩa tiếng Việt.`;
+  }
+
+  // Format output luôn đặt CUỐI prompt
+  systemPrompt += `
+
+ĐỊNH DẠNG TRẢ VỀ BẮT BUỘC:
+TRANSLATION: [Bản dịch]`;
+
+  if (backTranslation) {
+    systemPrompt += `
+BACK_TRANSLATION: [Bản dịch ngược]`;
+  }
+
+  if (pronunciation) {
+    systemPrompt += `
+PRONUNCIATION: [Phiên âm]`;
+  }
+
+  if (vocabulary) {
+    systemPrompt += `
 VOCABULARY:
 - [Từ vựng] : [Nghĩa]`;
+  }
+
+  systemPrompt += `
+
+Chỉ trả về đúng các trường ở trên.
+Không thêm tiêu đề, giải thích hoặc nội dung khác.`;
+}
 
   const userContent = [];
   if (text) userContent.push({ type: 'text', text: text });

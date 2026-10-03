@@ -220,6 +220,10 @@ async function processStudyContent(ctx, text = '', imageUrl = null, statusMsgPre
       parts.push(`⚡ *Dịch nhanh:*\n${cleanText}`);
     }
 
+    inlineKeyboard.unshift([
+  Markup.button.copyText('📋 Copy bản dịch', cleanText)
+]);
+
     // 3. XỬ LÝ ÂM THANH (CÓ CACHE ELEVENLABS)
     let audio = null;
     if (c.enableVoice) {

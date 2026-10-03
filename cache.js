@@ -16,12 +16,61 @@ if (fs.existsSync(CACHE_DB)) {
 const saveCacheIndex = () => fs.writeFileSync(CACHE_DB, JSON.stringify(cacheIndex), 'utf8');
 
 // Tạo mã băm duy nhất cho câu chat
-const getHash = (text, lang, isFast) => crypto.createHash('md5').update(`${text}_${lang}_${isFast}`).digest('hex');
+const getHash = (text, lang, isFast) => {
+  return crypto
+    .createHash('md5')
+    .update(`${text}_${lang}_${isFast}`)
+    .digest('hex');
+};
 const getAudioHash = (text, voice, speed) => crypto.createHash('md5').update(`${text}_${voice}_${speed}`).digest('hex');
 
-const getCachedText = (text, lang, isFast) => cacheIndex[getHash(text, lang, isFast)];
-const setCachedText = (text, lang, isFast, result) => {
-  cacheIndex[getHash(text, lang, isFast)] = result;
+const getCachedText = (text, lang, isFast) => {
+  return cacheIndex[getHash(text, lang, isFast)] || null;
+};
+
+const setCachedText = (text, lang, isFast, data) => {
+  cacheIndex[getHash(text, lang, isFast)] = data;
+  saveCacheIndex();
+};
+
+const getWebHash = (text, lang, isFast) => {
+  return crypto
+    .createHash('md5')
+    .update(`web_${text}_${lang}_${isFast}`)
+    .digest('hex');
+};
+
+const getWebCachedText = (text, lang, isFast) => {
+  const value = cacheIndex[getWebHash(text, lang, isFast)];
+
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    Array.isArray(value)
+  ) {
+    return null;
+  }
+
+  return value;
+};
+
+const setWebCachedText = (text, lang, isFast, data) => {
+  const hash = getWebHash(text, lang, isFast);
+
+  const existing = cacheIndex[hash];
+
+  const current =
+    existing &&
+    typeof existing === 'object' &&
+    !Array.isArray(existing)
+      ? existing
+      : {};
+
+  cacheIndex[hash] = {
+    ...current,
+    ...data
+  };
+
   saveCacheIndex();
 };
 
@@ -35,4 +84,11 @@ const setCachedAudio = (text, voice, speed, buffer) => {
   fs.writeFileSync(audioPath, buffer);
 };
 
-module.exports = { getCachedText, setCachedText, getCachedAudio, setCachedAudio };
+module.exports = {
+  getCachedText,
+  setCachedText,
+  getWebCachedText,
+  setWebCachedText,
+  getCachedAudio,
+  setCachedAudio
+};

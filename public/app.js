@@ -54,8 +54,67 @@ const naturalTranslation = document.getElementById('naturalTranslation');
 const practiceFeedback = document.getElementById('practiceFeedback');
 const practiceExplanation = document.getElementById('practiceExplanation');
 
+const backTranslationToggle =
+  document.getElementById('backTranslationToggle');
+
+const pronunciationToggle =
+  document.getElementById('pronunciationToggle');
+
+const vocabularyToggle =
+  document.getElementById('vocabularyToggle');
+
+  const pronunciationWrapper =
+  document.getElementById('pronunciationWrapper');
+
+const vocabularyWrapper =
+  document.getElementById('vocabularyWrapper');
+
 let currentMode = 'translate';
 
+
+function loadTranslationOptions() {
+  const saved = localStorage.getItem('translationOptions');
+
+  if (!saved) return;
+
+  try {
+    const options = JSON.parse(saved);
+
+    backTranslationToggle.checked =
+      options.backTranslation ?? true;
+
+    pronunciationToggle.checked =
+      options.pronunciation ?? true;
+
+    vocabularyToggle.checked =
+      options.vocabulary ?? true;
+  } catch (error) {
+    console.error('Load translation options error:', error);
+  }
+}
+
+function saveTranslationOptions() {
+  const options = {
+    backTranslation: backTranslationToggle.checked,
+    pronunciation: pronunciationToggle.checked,
+    vocabulary: vocabularyToggle.checked
+  };
+
+  localStorage.setItem(
+    'translationOptions',
+    JSON.stringify(options)
+  );
+}
+
+[
+  backTranslationToggle,
+  pronunciationToggle,
+  vocabularyToggle
+].forEach(toggle => {
+  toggle.addEventListener('change', saveTranslationOptions);
+});
+
+loadTranslationOptions();
 
 async function evaluateChinesePractice() {
   const text = textInput.value.trim();
@@ -211,7 +270,10 @@ async function translate() {
       body: JSON.stringify({
         text,
         targetLang: selectedLang,
-        fastMode: false
+        fastMode: false,
+        backTranslation: backTranslationToggle.checked,
+        pronunciation: pronunciationToggle.checked,
+        vocabulary: vocabularyToggle.checked
       })
     });
 
@@ -286,49 +348,67 @@ translateBtn.addEventListener('click', translate);
 // =========================
 
 function parseResult(result) {
-
   const translationMatch = result.match(
-  /TRANSLATION:\s*([\s\S]*?)(?=\nBACK_TRANSLATION:|\nPRONUNCIATION:|$)/i
-);
+    /TRANSLATION:\s*([\s\S]*?)(?=BACK_TRANSLATION:|PRONUNCIATION:|VOCABULARY:|$)/i
+  );
 
-const backTranslationMatch = result.match(
-  /BACK_TRANSLATION:\s*([\s\S]*?)(?=\nPRONUNCIATION:|$)/i
-);
+  const backTranslationMatch = result.match(
+    /BACK_TRANSLATION:\s*([\s\S]*?)(?=PRONUNCIATION:|VOCABULARY:|$)/i
+  );
 
   const pronunciationMatch = result.match(
-    /PRONUNCIATION:\s*([\s\S]*?)(?=\nVOCABULARY:|$)/i
+    /PRONUNCIATION:\s*([\s\S]*?)(?=VOCABULARY:|$)/i
   );
 
   const vocabularyMatch = result.match(
-    /VOCABULARY:\s*([\s\S]*)$/i
+    /VOCABULARY:\s*([\s\S]*?)$/i
   );
 
-  translation.textContent =
-    translationMatch
-      ? translationMatch[1].trim()
-      : '';
+  // Bản dịch chính
+  translation.textContent = translationMatch
+    ? translationMatch[1].trim()
+    : '';
 
+  // Dịch ngược
   const backText = backTranslationMatch
-  ? backTranslationMatch[1].trim()
-  : '';
+    ? backTranslationMatch[1].trim()
+    : '';
 
-backTranslation.textContent = backText;
+  backTranslation.textContent = backText;
 
-if (backText) {
-  backTranslationWrapper.classList.remove('hidden');
+  if (backText) {
+    backTranslationWrapper.classList.remove('hidden');
+  } else {
+    backTranslationWrapper.classList.add('hidden');
+  }
+
+  // Phát âm
+  pronunciation.textContent = pronunciationMatch
+    ? pronunciationMatch[1].trim()
+    : '';
+
+  // Từ vựng
+  vocabulary.textContent = vocabularyMatch
+    ? vocabularyMatch[1].trim()
+    : '';
+
+    if (
+  pronunciationToggle.checked &&
+  pronunciation.textContent.trim()
+) {
+  pronunciationWrapper.classList.remove('hidden');
 } else {
-  backTranslationWrapper.classList.add('hidden');
+  pronunciationWrapper.classList.add('hidden');
 }
 
-  pronunciation.textContent =
-    pronunciationMatch
-      ? pronunciationMatch[1].trim()
-      : '';
-
-  vocabulary.textContent =
-    vocabularyMatch
-      ? vocabularyMatch[1].trim()
-      : '';
+if (
+  vocabularyToggle.checked &&
+  vocabulary.textContent.trim()
+) {
+  vocabularyWrapper.classList.remove('hidden');
+} else {
+  vocabularyWrapper.classList.add('hidden');
+}
 }
 
 

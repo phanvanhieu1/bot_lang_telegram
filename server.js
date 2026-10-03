@@ -14,8 +14,8 @@ const {
   evaluateChinese
 } = require('./ai');
 const {
-  getCachedText,
-  setCachedText
+   getWebCachedText,
+  setWebCachedText,
 } = require('./cache');
 
 const {
@@ -223,10 +223,60 @@ app.post('/api/practice/chinese', requireAuth, async (req, res) => {
   }
 });
 
+function parseTranslationResult(content) {
+  const translationMatch = content.match(
+    /TRANSLATION:\s*([\s\S]*?)(?=BACK_TRANSLATION:|PRONUNCIATION:|VOCABULARY:|$)/i
+  );
+
+  const backTranslationMatch = content.match(
+    /BACK_TRANSLATION:\s*([\s\S]*?)(?=PRONUNCIATION:|VOCABULARY:|$)/i
+  );
+
+  const pronunciationMatch = content.match(
+    /PRONUNCIATION:\s*([\s\S]*?)(?=VOCABULARY:|$)/i
+  );
+
+  const vocabularyMatch = content.match(
+    /VOCABULARY:\s*([\s\S]*?)$/i
+  );
+
+  const data = {};
+
+  if (translationMatch?.[1]?.trim()) {
+    data.translation = translationMatch[1].trim();
+  }
+
+  if (backTranslationMatch?.[1]?.trim()) {
+    data.backTranslation = backTranslationMatch[1].trim();
+  }
+
+  if (pronunciationMatch?.[1]?.trim()) {
+    data.pronunciation = pronunciationMatch[1].trim();
+  }
+
+  if (vocabularyMatch?.[1]?.trim()) {
+    data.vocabulary = vocabularyMatch[1].trim();
+  }
+
+  return data;
+}
+
+function hasCacheField(data, field) {
+  return (
+    data &&
+    Object.prototype.hasOwnProperty.call(data, field)
+  );
+}
+
 // Translation API
 app.post('/api/translate',requireAuth, async (req, res) => {
   try {
-    const { text, targetLang = 'zh', fastMode = false } = req.body;
+    const { text, 
+      targetLang = 'zh', 
+      fastMode = false,   
+      backTranslation = true,
+      pronunciation = true,
+      vocabulary = true } = req.body;
 
     if (!text || !text.trim()) {
       return res.status(400).json({
@@ -235,79 +285,165 @@ app.post('/api/translate',requireAuth, async (req, res) => {
       });
     }
 
-    const cachedResult = getCachedText(
+  const cachedData = getWebCachedText(
   text.trim(),
   targetLang,
   fastMode
 );
 
-if (cachedResult) {
-  addHistory({
-    text: text.trim(),
-    targetLang,
-    result: cachedResult
-  });
+const missing = {
+  translation:
+    !cachedData?.translation,
 
-  return res.json({
-    success: true,
-    result: cachedResult,
-    cached: true
-  });
+  backTranslation:
+    backTranslation &&
+    !hasCacheField(cachedData, 'backTranslation'),
+
+  pronunciation:
+    pronunciation &&
+    !hasCacheField(cachedData, 'pronunciation'),
+
+  vocabulary:
+    vocabulary &&
+    !hasCacheField(cachedData, 'vocabulary')
+};
+
+const hasMissingData =
+  missing.translation ||
+  missing.backTranslation ||
+  missing.pronunciation ||
+  missing.vocabulary;
+console.log('CACHED DATA:', cachedData);
+console.log('MISSING:', missing);
+  let result;
+
+if (hasMissingData) {
+  result = await translateFull(
+    text.trim(),
+    targetLang,
+    fastMode,
+    null,
+    [],
+    true,
+    {
+      backTranslation: missing.backTranslation,
+      pronunciation: missing.pronunciation,
+      vocabulary: missing.vocabulary,
+      existingTranslation: cachedData?.translation || null
+    }
+  );
 }
 
-    const result = await translateFull(
+let finalCache = cachedData || {};
+
+if (result) {
+  const newData = parseTranslationResult(result.content);
+
+  // Field đã được yêu cầu nhưng AI không trả về
+  // => đánh dấu là đã xử lý, giá trị rỗng
+  if (
+    missing.backTranslation &&
+    !hasCacheField(newData, 'backTranslation')
+  ) {
+    newData.backTranslation = '';
+  }
+
+  if (
+    missing.pronunciation &&
+    !hasCacheField(newData, 'pronunciation')
+  ) {
+    newData.pronunciation = '';
+  }
+
+  if (
+    missing.vocabulary &&
+    !hasCacheField(newData, 'vocabulary')
+  ) {
+    newData.vocabulary = '';
+  }
+
+  setWebCachedText(
   text.trim(),
   targetLang,
   fastMode,
-  null,
-  [],
-  true
+  newData
 );
 
-setCachedText(
-  text.trim(),
-  targetLang,
-  fastMode,
-  result.content
-);
+  finalCache = {
+    ...finalCache,
+    ...newData
+  };
+}
+
+let responseContent = ''; 
+
+if (finalCache.translation) {
+  responseContent += `TRANSLATION: ${finalCache.translation}`;
+}
+
+if (backTranslation && finalCache.backTranslation) {
+  responseContent += `\nBACK_TRANSLATION: ${finalCache.backTranslation}`;
+}
+
+if (pronunciation && finalCache.pronunciation) {
+  responseContent += `\nPRONUNCIATION: ${finalCache.pronunciation}`;
+}
+
+if (vocabulary && finalCache.vocabulary) {
+  responseContent += `\nVOCABULARY:\n${finalCache.vocabulary}`;
+}
 
 addHistory({
   text: text.trim(),
   targetLang,
-  result: result.content
+  result: responseContent
 });
 
-const promptTokens = result.usage?.prompt_tokens || 0;
-const completionTokens = result.usage?.completion_tokens || 0;
+let usage = {
+  promptTokens: 0,
+  completionTokens: 0,
+  totalTokens: 0,
+  cost: 0
+};
 
-const inputCost = promptTokens * 2.5 / 1_000_000;
-const outputCost = completionTokens * 10 / 1_000_000;
+if (result) {
+  const promptTokens = result.usage?.prompt_tokens || 0;
+  const completionTokens = result.usage?.completion_tokens || 0;
 
-const cost = inputCost + outputCost;
-addUsage({
-  totalTokens: result.usage?.total_tokens || 0,
-  cost
-});
+  const inputCost = promptTokens * 2.5 / 1_000_000;
+  const outputCost = completionTokens * 10 / 1_000_000;
 
-res.json({
-  success: true,
-  result: result.content,
-  usage: {
+  const cost = inputCost + outputCost;
+
+  usage = {
     promptTokens,
     completionTokens,
     totalTokens: result.usage?.total_tokens || 0,
     cost
-  }
+  };
+
+  addUsage({
+    totalTokens: usage.totalTokens,
+    cost
+  });
+}
+
+res.json({
+  success: true,
+  result: responseContent,
+  cached: !result,
+  usage
 });
 
-  } catch (error) {
-    console.error('Translation error:', error);
 
-    res.status(500).json({
-      success: false,
-      message: 'Dịch thất bại'
-    });
-  }
+  } catch (error) {
+  console.error('Translation error:', error);
+
+  res.status(500).json({
+    success: false,
+    message: 'Dịch thất bại'
+  });
+}
 });
 
 app.get('/api/usage',requireAuth, (req, res) => {
