@@ -5,13 +5,15 @@ const express = require('express');
 const path = require('path');
 const session = require('express-session');
 const SQLiteStore = require('connect-sqlite3')(session);
-const bcrypt = require('bcrypt');
-const rateLimit = require('express-rate-limit');
-
+const googleAuthRoutes = require('./modules/auth/google.routes');
+const connectDatabase = require('./config/database');
+const userRoutes = require('./modules/users/user.routes');
 const { addUsage, getUsage } = require('./usage');
 const {
   translateFull,
-  evaluateChinese
+  evaluateChinese,
+  generatePinyin,
+  verifyTranslation
 } = require('./ai');
 const {
    getWebCachedText,
@@ -23,6 +25,14 @@ const {
   getHistory,
   clearHistory
 } = require('./history');
+
+const { translateFree } =
+  require('./freeTranslator');
+
+  const {
+  requireAuth: requireMongoAuth,
+  requireRole
+} = require('./modules/users/user.middleware');
 
 const app = express();
 const PORT = process.env.WEB_PORT || 3000;
@@ -48,64 +58,8 @@ app.use(session({
   }
 }));
 
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-
-  message: {
-    success: false,
-    message: 'Đăng nhập sai quá nhiều lần. Vui lòng thử lại sau 15 phút.'
-  }
-});
-
-app.post('/api/login', loginLimiter, async (req, res) => {
-  try {
-    const { username, password } = req.body;
-
-    if (!username || !password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Vui lòng nhập tài khoản và mật khẩu'
-      });
-    }
-
-    if (username !== process.env.WEB_USERNAME) {
-      return res.status(401).json({
-        success: false,
-        message: 'Tài khoản hoặc mật khẩu không đúng'
-      });
-    }
-
-    const passwordValid = await bcrypt.compare(
-      password,
-      process.env.WEB_PASSWORD_HASH
-    );
-
-    if (!passwordValid) {
-      return res.status(401).json({
-        success: false,
-        message: 'Tài khoản hoặc mật khẩu không đúng'
-      });
-    }
-
-    req.session.authenticated = true;
-    req.session.username = username;
-
-    res.json({
-      success: true
-    });
-
-  } catch (error) {
-    console.error('Login error:', error);
-
-    res.status(500).json({
-      success: false,
-      message: 'Đăng nhập thất bại'
-    });
-  }
-});
+app.use('/api/admin/users', userRoutes);
+app.use('/auth', googleAuthRoutes);
 
 app.post('/api/logout', (req, res) => {
   req.session.destroy(error => {
@@ -123,43 +77,136 @@ app.post('/api/logout', (req, res) => {
   });
 });
 
-app.get('/api/auth', (req, res) => {
-  res.json({
-    success: true,
-    authenticated: req.session.authenticated === true
-  });
+
+const User = require('./modules/users/user.model');
+
+app.get('/api/auth', async (req, res) => {
+  try {
+    if (
+      req.session.authenticated !== true ||
+      !req.session.userId
+    ) {
+      return res.json({
+        success: true,
+        authenticated: false,
+        role: null
+      });
+    }
+
+    const user = await User.findById(req.session.userId);
+
+    if (!user || !user.isActive) {
+      return res.json({
+        success: true,
+        authenticated: false,
+        role: null
+      });
+    }
+
+    let role = user.role;
+
+    // PRO hết hạn sẽ được xem là FREE.
+    if (
+      role === 'pro' &&
+      user.proExpiresAt &&
+      user.proExpiresAt <= new Date()
+    ) {
+      role = 'user';
+    }
+
+    return res.json({
+      success: true,
+      authenticated: true,
+      role,
+      email: user.email,
+      name: user.name,
+      avatar: user.avatar
+    });
+  } catch (error) {
+    console.error('Get auth error:', error.message);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Không thể kiểm tra trạng thái đăng nhập'
+    });
+  }
 });
 
-function requireAuth(req, res, next) {
-  if (req.session.authenticated === true) {
-    return next();
+
+const requireAuth = requireMongoAuth;
+
+const requirePro = requireRole('pro', 'admin');
+
+
+app.get('/login', async (req, res) => {
+  try {
+    if (
+      req.session.authenticated === true &&
+      req.session.userId
+    ) {
+      const user = await User.findById(req.session.userId);
+
+      if (user && user.isActive) {
+        return res.redirect('/');
+      }
+    }
+
+    return res.sendFile(
+      path.join(__dirname, 'public', 'login.html')
+    );
+  } catch (error) {
+    console.error('Login page error:', error.message);
+
+    return res.status(500).send(
+      'Không thể kiểm tra trạng thái đăng nhập'
+    );
   }
+});
 
-  return res.status(401).json({
-    success: false,
-    message: 'Chưa đăng nhập'
-  });
-}
 
-app.get('/login', (req, res) => {
-  if (req.session.authenticated) {
-    return res.redirect('/');
-  }
-
-  res.sendFile(
-    path.join(__dirname, 'public', 'login.html')
+app.get('/admin', requireRole('admin'), (req, res) => {
+  return res.sendFile(
+    path.join(__dirname, 'views', 'admin.html')
   );
 });
 
-app.get('/', (req, res) => {
-  if (!req.session.authenticated) {
-    return res.redirect('/login');
-  }
 
-  res.sendFile(
-    path.join(__dirname, 'public', 'index.html')
-  );
+app.get('/', async (req, res) => {
+  try {
+    if (
+      req.session.authenticated !== true ||
+      !req.session.userId
+    ) {
+      return res.redirect('/login');
+    }
+
+    const user = await User.findById(req.session.userId);
+
+    if (!user || !user.isActive) {
+      return req.session.destroy((error) => {
+        if (error) {
+          console.error('Destroy session error:', error);
+          return res.status(500).send('Lỗi đăng xuất tài khoản');
+        }
+
+        res.clearCookie('connect.sid');
+        return res.redirect('/login');
+      });
+    }
+
+    return res.sendFile(
+      path.join(__dirname, 'public', 'index.html')
+    );
+
+  } catch (error) {
+    console.error('Home auth error:', error.message);
+
+    return res.status(500).send(
+      'Không thể xác thực tài khoản'
+    );
+  }
 });
+
 
 app.get('/login.html', (req, res) => {
   res.redirect('/login');
@@ -175,7 +222,7 @@ app.get('/api/status',requireAuth, (req, res) => {
   });
 });
 
-app.post('/api/practice/chinese', requireAuth, async (req, res) => {
+app.post('/api/practice/chinese', requirePro, async (req, res) => {
   try {
     const { text } = req.body;
 
@@ -268,15 +315,188 @@ function hasCacheField(data, field) {
   );
 }
 
+function containsChinese(text) {
+  return /[\u3400-\u9FFF]/u.test(text || '');
+}
+
+function addPinyinToVocabulary(vocabulary) {
+  if (!vocabulary || !vocabulary.trim()) {
+    return '';
+  }
+
+  return vocabulary
+    .split('\n')
+    .map(line => {
+      const trimmed = line.trim();
+
+      if (!trimmed) return '';
+
+      const cleanLine = trimmed.replace(/^-\s*/, '');
+
+      const separatorIndex = cleanLine.indexOf(':');
+
+      if (separatorIndex === -1) {
+        return trimmed;
+      }
+
+      const chinese = cleanLine
+        .slice(0, separatorIndex)
+        .trim();
+
+      const meaning = cleanLine
+        .slice(separatorIndex + 1)
+        .trim();
+
+      if (!containsChinese(chinese)) {
+        return trimmed;
+      }
+
+      const pronunciation = generatePinyin(chinese);
+
+      return `- ${chinese}(${pronunciation}) : ${meaning}`;
+    })
+    .filter(Boolean)
+    .join('\n');
+}
+
+app.post(
+  '/api/translate/free',
+  requireAuth,
+  async (req, res) => {
+    try {
+      const { text } = req.body;
+
+      if (!text || !text.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Vui lòng nhập nội dung cần dịch'
+        });
+      }
+
+      const result = await translateFree(
+        text.trim()
+      );
+
+      const inputIsChinese =
+  containsChinese(text);
+
+const chineseText =
+  inputIsChinese
+    ? text.trim()
+    : result.parsed.translation;
+
+const pronunciation =
+  generatePinyin(chineseText);
+
+      return res.json({
+  success: true,
+  mode: 'free',
+  provider: result.provider,
+  cached: result.cached || false,
+
+  result: {
+    translation:
+      result.parsed.translation,
+
+    pronunciation,
+
+    backTranslation:
+      result.parsed.backTranslation
+  },
+
+  rateLimit:
+    result.rateLimit || null
+});
+
+    } catch (error) {
+  console.error(
+    'Free translate error:',
+    error
+  );
+
+  const providers =
+    error.providers || {};
+
+  const groqError =
+    providers.groq;
+
+  const openRouterError =
+    providers.openrouter;
+
+  // OpenRouter bị giới hạn bởi shared pool
+  // của provider phía sau, không phải quota user.
+  if (
+    openRouterError?.type ===
+    'UPSTREAM_RATE_LIMIT'
+  ) {
+    return res.status(503).json({
+      success: false,
+      mode: 'free',
+      errorCode:
+        'FREE_PROVIDERS_BUSY',
+      message:
+        'Hệ thống dịch FREE đang bận. Vui lòng thử lại sau.'
+    });
+  }
+
+  // Cả hai provider đều báo rate limit.
+  if (
+    groqError?.type === 'RATE_LIMIT' &&
+    openRouterError?.type ===
+      'RATE_LIMIT'
+  ) {
+    return res.status(429).json({
+      success: false,
+      mode: 'free',
+      errorCode:
+        'FREE_RATE_LIMIT',
+      message:
+        'Hạn mức dịch FREE hiện đã đạt giới hạn. Vui lòng thử lại sau.'
+    });
+  }
+
+  // Provider/server gặp sự cố.
+  if (
+    groqError?.type ===
+      'PROVIDER_ERROR' ||
+    openRouterError?.type ===
+      'PROVIDER_ERROR'
+  ) {
+    return res.status(503).json({
+      success: false,
+      mode: 'free',
+      errorCode:
+        'FREE_PROVIDER_ERROR',
+      message:
+        'Dịch FREE đang gặp sự cố từ nhà cung cấp. Vui lòng thử lại sau.'
+    });
+  }
+
+  // Không xác định được nguyên nhân.
+  return res.status(503).json({
+    success: false,
+    mode: 'free',
+    errorCode:
+      'FREE_UNAVAILABLE',
+    message:
+      'Dịch FREE hiện tạm thời không khả dụng.'
+  });
+}
+  }
+);
+
 // Translation API
-app.post('/api/translate',requireAuth, async (req, res) => {
+app.post('/api/translate',requirePro, async (req, res) => {
   try {
-    const { text, 
-      targetLang = 'zh', 
-      fastMode = false,   
+    const { text,
+      targetLang = 'zh',
+      fastMode = false,
       backTranslation = true,
       pronunciation = true,
-      vocabulary = true } = req.body;
+      vocabulary = true,
+      verification = false,
+      context = 'auto'
+     } = req.body;
 
     if (!text || !text.trim()) {
       return res.status(400).json({
@@ -285,37 +505,40 @@ app.post('/api/translate',requireAuth, async (req, res) => {
       });
     }
 
+    const inputText = text.trim();
+const inputIsChinese = containsChinese(inputText);
+
+const shouldBackTranslate =
+  backTranslation &&
+  !inputIsChinese &&
+  targetLang === 'zh';
+
   const cachedData = getWebCachedText(
   text.trim(),
   targetLang,
-  fastMode
+  fastMode,
+  context
 );
 
 const missing = {
-  translation:
-    !cachedData?.translation,
+  translation: !cachedData?.translation,
 
   backTranslation:
-    backTranslation &&
+    shouldBackTranslate &&
     !hasCacheField(cachedData, 'backTranslation'),
-
-  pronunciation:
-    pronunciation &&
-    !hasCacheField(cachedData, 'pronunciation'),
 
   vocabulary:
     vocabulary &&
     !hasCacheField(cachedData, 'vocabulary')
 };
 
+
 const hasMissingData =
   missing.translation ||
   missing.backTranslation ||
-  missing.pronunciation ||
   missing.vocabulary;
-console.log('CACHED DATA:', cachedData);
-console.log('MISSING:', missing);
   let result;
+  let verificationUsage = null;
 
 if (hasMissingData) {
   result = await translateFull(
@@ -327,9 +550,9 @@ if (hasMissingData) {
     true,
     {
       backTranslation: missing.backTranslation,
-      pronunciation: missing.pronunciation,
       vocabulary: missing.vocabulary,
-      existingTranslation: cachedData?.translation || null
+      existingTranslation: cachedData?.translation || null,
+      context
     }
   );
 }
@@ -338,6 +561,12 @@ let finalCache = cachedData || {};
 
 if (result) {
   const newData = parseTranslationResult(result.content);
+
+  // Nếu đã có translation trong cache thì đây là request bổ sung.
+  // Tuyệt đối không cho response bổ sung ghi đè bản dịch chính.
+  if (cachedData?.translation) {
+    delete newData.translation;
+  }
 
   // Field đã được yêu cầu nhưng AI không trả về
   // => đánh dấu là đã xử lý, giá trị rỗng
@@ -349,10 +578,16 @@ if (result) {
   }
 
   if (
-    missing.pronunciation &&
-    !hasCacheField(newData, 'pronunciation')
+    missing.vocabulary &&
+    !hasCacheField(newData, 'vocabulary')
   ) {
-    newData.pronunciation = '';
+    newData.vocabulary = '';
+  }
+  if (
+    missing.backTranslation &&
+    !hasCacheField(newData, 'backTranslation')
+  ) {
+    newData.backTranslation = '';
   }
 
   if (
@@ -366,6 +601,7 @@ if (result) {
   text.trim(),
   targetLang,
   fastMode,
+  context,
   newData
 );
 
@@ -375,13 +611,81 @@ if (result) {
   };
 }
 
-let responseContent = ''; 
+if (
+  pronunciation &&
+  !hasCacheField(finalCache, 'pronunciation')
+) {
+  // Nếu input chứa chữ Hán → lấy Pinyin từ input.
+  // Nếu input không có chữ Hán → lấy Pinyin từ bản dịch tiếng Trung.
+  const chineseText = /[\u3400-\u9FFF]/u.test(text.trim())
+    ? text.trim()
+    : finalCache.translation;
+
+  if (
+    chineseText &&
+    /[\u3400-\u9FFF]/u.test(chineseText)
+  ) {
+    const localPinyin = generatePinyin(chineseText);
+
+    finalCache.pronunciation = localPinyin;
+
+    setWebCachedText(
+  text.trim(),
+  targetLang,
+  fastMode,
+  context,
+  {
+    pronunciation: localPinyin
+  }
+);
+  }
+}
+
+let hasValidVerification =
+  verification &&
+  finalCache.verification &&
+  finalCache.verification.translation === finalCache.translation;
+
+if (
+  verification &&
+  finalCache.translation &&
+  !hasValidVerification
+) {
+  const verificationResult = await verifyTranslation(
+    inputText,
+    finalCache.translation,
+    context
+  );
+
+  verificationUsage = verificationResult.usage;
+
+  const verificationData = {
+    translation: finalCache.translation,
+    ...verificationResult.verification
+  };
+
+  finalCache.verification = verificationData;
+
+  setWebCachedText(
+    inputText,
+    targetLang,
+    fastMode,
+    context,
+    {
+      verification: verificationData
+    }
+  );
+
+  hasValidVerification = true;
+}
+
+let responseContent = '';
 
 if (finalCache.translation) {
   responseContent += `TRANSLATION: ${finalCache.translation}`;
 }
 
-if (backTranslation && finalCache.backTranslation) {
+if (shouldBackTranslate && finalCache.backTranslation) {
   responseContent += `\nBACK_TRANSLATION: ${finalCache.backTranslation}`;
 }
 
@@ -390,7 +694,17 @@ if (pronunciation && finalCache.pronunciation) {
 }
 
 if (vocabulary && finalCache.vocabulary) {
-  responseContent += `\nVOCABULARY:\n${finalCache.vocabulary}`;
+  const vocabularyWithPinyin =
+    addPinyinToVocabulary(finalCache.vocabulary);
+
+  responseContent +=
+    `\nVOCABULARY:\n${vocabularyWithPinyin}`;
+}
+
+if (hasValidVerification) {
+  responseContent += `\nVERIFICATION: ${JSON.stringify(
+    finalCache.verification
+  )}`;
 }
 
 addHistory({
@@ -406,32 +720,51 @@ let usage = {
   cost: 0
 };
 
-if (result) {
-  const promptTokens = result.usage?.prompt_tokens || 0;
-  const completionTokens = result.usage?.completion_tokens || 0;
+// Usage của lần dịch
+if (result?.usage) {
+  usage.promptTokens +=
+    result.usage.prompt_tokens || 0;
 
-  const inputCost = promptTokens * 2.5 / 1_000_000;
-  const outputCost = completionTokens * 10 / 1_000_000;
+  usage.completionTokens +=
+    result.usage.completion_tokens || 0;
 
-  const cost = inputCost + outputCost;
+  usage.totalTokens +=
+    result.usage.total_tokens || 0;
+}
 
-  usage = {
-    promptTokens,
-    completionTokens,
-    totalTokens: result.usage?.total_tokens || 0,
-    cost
-  };
+// Usage của lần kiểm chứng
+if (verificationUsage) {
+  usage.promptTokens +=
+    verificationUsage.prompt_tokens || 0;
 
+  usage.completionTokens +=
+    verificationUsage.completion_tokens || 0;
+
+  usage.totalTokens +=
+    verificationUsage.total_tokens || 0;
+}
+
+// Tính tổng cost
+const inputCost =
+  usage.promptTokens * 2.5 / 1_000_000;
+
+const outputCost =
+  usage.completionTokens * 10 / 1_000_000;
+
+usage.cost = inputCost + outputCost;
+
+// Chỉ ghi usage nếu request này thực sự gọi OpenAI
+if (usage.totalTokens > 0) {
   addUsage({
     totalTokens: usage.totalTokens,
-    cost
+    cost: usage.cost
   });
 }
 
 res.json({
   success: true,
   result: responseContent,
-  cached: !result,
+  cached: !result && !verificationUsage,
   usage
 });
 
@@ -512,6 +845,17 @@ app.delete('/api/history',requireAuth, (req, res) => {
 });
 
 
-app.listen(PORT, '127.0.0.1', () => {
-  console.log(`Web server running at http://127.0.0.1:${PORT}`);
-});
+async function startServer() {
+  try {
+    await connectDatabase();
+
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error('Không thể khởi động server');
+    process.exit(1);
+  }
+}
+
+startServer();

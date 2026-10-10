@@ -33,15 +33,22 @@ const setCachedText = (text, lang, isFast, data) => {
   saveCacheIndex();
 };
 
-const getWebHash = (text, lang, isFast) => {
+const getWebHash = (text, lang, isFast, context = 'auto') => {
   return crypto
     .createHash('md5')
-    .update(`web_${text}_${lang}_${isFast}`)
+    .update(`web_${text}_${lang}_${isFast}_${context}`)
     .digest('hex');
 };
 
-const getWebCachedText = (text, lang, isFast) => {
-  const value = cacheIndex[getWebHash(text, lang, isFast)];
+const getWebCachedText = (
+  text,
+  lang,
+  isFast,
+  context = 'auto'
+) => {
+  const value = cacheIndex[
+    getWebHash(text, lang, isFast, context)
+  ];
 
   if (
     !value ||
@@ -54,8 +61,19 @@ const getWebCachedText = (text, lang, isFast) => {
   return value;
 };
 
-const setWebCachedText = (text, lang, isFast, data) => {
-  const hash = getWebHash(text, lang, isFast);
+const setWebCachedText = (
+  text,
+  lang,
+  isFast,
+  context = 'auto',
+  data
+) => {
+  const hash = getWebHash(
+    text,
+    lang,
+    isFast,
+    context
+  );
 
   const existing = cacheIndex[hash];
 
@@ -74,6 +92,40 @@ const setWebCachedText = (text, lang, isFast, data) => {
   saveCacheIndex();
 };
 
+const getFreeHash = (text) => {
+  const normalizedText = text
+    .trim()
+    .replace(/\s+/g, ' ');
+
+  return crypto
+    .createHash('md5')
+    .update(`free_${normalizedText}`)
+    .digest('hex');
+};
+
+const getFreeCachedText = (text) => {
+  const value =
+    cacheIndex[getFreeHash(text)];
+
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    Array.isArray(value)
+  ) {
+    return null;
+  }
+
+  return value;
+};
+
+const setFreeCachedText = (
+  text,
+  data
+) => {
+  cacheIndex[getFreeHash(text)] = data;
+  saveCacheIndex();
+};
+
 const getCachedAudio = (text, voice, speed) => {
   const audioPath = path.join(CACHE_DIR, `${getAudioHash(text, voice, speed)}.ogg`);
   return fs.existsSync(audioPath) ? fs.readFileSync(audioPath) : null;
@@ -89,6 +141,10 @@ module.exports = {
   setCachedText,
   getWebCachedText,
   setWebCachedText,
+
+  getFreeCachedText,
+  setFreeCachedText,
+
   getCachedAudio,
   setCachedAudio
 };
