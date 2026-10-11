@@ -422,6 +422,17 @@ const chineseText =
 const pronunciation =
   generatePinyin(chineseText);
 
+      await addHistory({
+        userId: req.user._id,
+        text: text.trim(),
+        targetLang: inputIsChinese ? 'vi' : 'zh',
+        result: [
+          `TRANSLATION: ${result.parsed.translation || ''}`,
+          `BACK_TRANSLATION: ${result.parsed.backTranslation || ''}`,
+          `PRONUNCIATION: ${pronunciation || ''}`
+        ].join('\n')
+      });
+
       return res.json({
   success: true,
   mode: 'free',
