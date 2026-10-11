@@ -1,64 +1,78 @@
-const fs = require('fs');
-const path = require('path');
+const mongoose = require('mongoose');
 
-const HISTORY_PATH = path.join(__dirname, 'history.json');
+// Website history is private to the signed-in Google account.
+// Legacy history.json is deliberately not imported: its records have no owner.
 const MAX_HISTORY = 200;
 
-let historyData = [];
+const historySchema = new mongoose.Schema({
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+    index: true
+  },
+  time: { type: Date, default: Date.now },
+  text: { type: String, required: true },
+  targetLang: { type: String, required: true },
+  result: { type: String, required: true }
+}, { versionKey: false });
 
-if (fs.existsSync(HISTORY_PATH)) {
-  try {
-    historyData = JSON.parse(
-      fs.readFileSync(HISTORY_PATH, 'utf8')
-    );
+historySchema.index({ userId: 1, time: -1, _id: -1 });
 
-    if (!Array.isArray(historyData)) {
-      historyData = [];
-    }
-  } catch (error) {
-    historyData = [];
+const TranslationHistory = mongoose.models.TranslationHistory ||
+  mongoose.model('TranslationHistory', historySchema);
+
+async function addHistory({ userId, text, targetLang, result }) {
+  if (!userId) throw new Error('Missing history owner');
+
+  const item = await TranslationHistory.create({
+    userId, text, targetLang, result
+  });
+
+  // Keep the same maximum as the old JSON history, now per user.
+  const outdated = await TranslationHistory.find({ userId })
+    .sort({ time: -1, _id: -1 })
+    .skip(MAX_HISTORY)
+    .select('_id')
+    .lean();
+
+  if (outdated.length) {
+    await TranslationHistory.deleteMany({
+      userId,
+      _id: { $in: outdated.map(entry => entry._id) }
+    });
   }
-}
 
-function saveHistory() {
-  fs.writeFileSync(
-    HISTORY_PATH,
-    JSON.stringify(historyData, null, 2),
-    'utf8'
-  );
-}
-
-function addHistory({ text, targetLang, result }) {
-  const item = {
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    time: new Date().toISOString(),
-    text,
-    targetLang,
-    result
+  return {
+    id: String(item._id),
+    time: item.time.toISOString(),
+    text: item.text,
+    targetLang: item.targetLang,
+    result: item.result
   };
-
-  historyData.unshift(item);
-
-  if (historyData.length > MAX_HISTORY) {
-    historyData = historyData.slice(0, MAX_HISTORY);
-  }
-
-  saveHistory();
-
-  return item;
 }
 
-function getHistory() {
-  return historyData;
+async function getHistory(userId) {
+  if (!userId) throw new Error('Missing history owner');
+
+  const items = await TranslationHistory.find({ userId })
+    .sort({ time: -1, _id: -1 })
+    .limit(MAX_HISTORY)
+    .select('time text targetLang result')
+    .lean();
+
+  return items.map(item => ({
+    id: String(item._id),
+    time: item.time.toISOString(),
+    text: item.text,
+    targetLang: item.targetLang,
+    result: item.result
+  }));
 }
 
-function clearHistory() {
-  historyData = [];
-  saveHistory();
+async function clearHistory(userId) {
+  if (!userId) throw new Error('Missing history owner');
+  await TranslationHistory.deleteMany({ userId });
 }
 
-module.exports = {
-  addHistory,
-  getHistory,
-  clearHistory
-};
+module.exports = { addHistory, getHistory, clearHistory };
