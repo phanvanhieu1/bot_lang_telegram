@@ -8,7 +8,7 @@ const SQLiteStore = require('connect-sqlite3')(session);
 const googleAuthRoutes = require('./modules/auth/google.routes');
 const connectDatabase = require('./config/database');
 const userRoutes = require('./modules/users/user.routes');
-const { addUsage, getUsage } = require('./usage');
+const { addUsage, getUsageStats } = require('./usage');
 const {
   translateFull,
   evaluateChinese,
@@ -283,7 +283,8 @@ app.post('/api/practice/chinese', requirePro, async (req, res) => {
       (inputTokens / 1_000_000) * 2.5 +
       (outputTokens / 1_000_000) * 10;
 
-    addUsage({
+    await addUsage({
+      userId: req.user._id,
       totalTokens,
       cost
     });
@@ -740,7 +741,8 @@ if (hasValidVerification) {
   )}`;
 }
 
-addHistory({
+await addHistory({
+  userId: req.user._id,
   text: text.trim(),
   targetLang,
   result: responseContent
@@ -788,7 +790,8 @@ usage.cost = inputCost + outputCost;
 
 // Chỉ ghi usage nếu request này thực sự gọi OpenAI
 if (usage.totalTokens > 0) {
-  addUsage({
+  await addUsage({
+    userId: req.user._id,
     totalTokens: usage.totalTokens,
     cost: usage.cost
   });
@@ -812,69 +815,44 @@ res.json({
 }
 });
 
-app.get('/api/usage',requireAuth, (req, res) => {
-  const usage = getUsage();
+app.get('/api/usage', requireAuth, async (req, res) => {
+  try {
+    const stats = await getUsageStats(req.user._id);
 
-  const now = new Date();
-
-  const todayUsage = usage.filter(item => {
-    const date = new Date(item.time);
-
-    return (
-      date.getFullYear() === now.getFullYear() &&
-      date.getMonth() === now.getMonth() &&
-      date.getDate() === now.getDate()
-    );
-  });
-
-  const todayCost = todayUsage.reduce(
-    (sum, item) => sum + Number(item.cost || 0),
-    0
-  );
-
-  const todayTokens = todayUsage.reduce(
-    (sum, item) => sum + Number(item.tokens || 0),
-    0
-  );
-
-  const totalCost = usage.reduce(
-    (sum, item) => sum + Number(item.cost || 0),
-    0
-  );
-
-  const totalTokens = usage.reduce(
-    (sum, item) => sum + Number(item.tokens || 0),
-    0
-  );
-
-  res.json({
-    success: true,
-    today: {
-      requests: todayUsage.length,
-      tokens: todayTokens,
-      cost: todayCost
-    },
-    total: {
-      requests: usage.length,
-      tokens: totalTokens,
-      cost: totalCost
-    }
-  });
+    res.json({ success: true, ...stats });
+  } catch (error) {
+    console.error('Usage API error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Không thể lấy thống kê'
+    });
+  }
 });
 
-app.get('/api/history',requireAuth, (req, res) => {
-  res.json({
-    success: true,
-    history: getHistory()
-  });
+app.get('/api/history', requireAuth, async (req, res) => {
+  try {
+    const history = await getHistory(req.user._id);
+    res.json({ success: true, history });
+  } catch (error) {
+    console.error('History API error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Không thể tải lịch sử'
+    });
+  }
 });
 
-app.delete('/api/history',requireAuth, (req, res) => {
-  clearHistory();
-
-  res.json({
-    success: true
-  });
+app.delete('/api/history', requireAuth, async (req, res) => {
+  try {
+    await clearHistory(req.user._id);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Clear history API error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Không thể xóa lịch sử'
+    });
+  }
 });
 
 
