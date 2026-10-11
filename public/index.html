@@ -62,7 +62,18 @@
 <div class="textarea-wrapper">
 <textarea id="text" placeholder="Nhập nội dung cần dịch..."></textarea>
 
-<button aria-label="Xóa nội dung" class="clear-source" id="clearSourceBtn" type="button">×</button></div>
+<button aria-label="Xóa nội dung" class="clear-source" id="clearSourceBtn" type="button">×</button>
+</div>
+
+<div id="realtimePinyin" class="realtime-pinyin" hidden>
+  <div class="realtime-pinyin-label">Pinyin</div>
+  <div id="realtimePinyinText" class="realtime-pinyin-text"></div>
+</div>
+<div class="back-translation hidden" id="backTranslationWrapper">
+
+<div id="backTranslation"></div>
+</div>
+<div class="translation-source-actions" aria-label="Khu vực dành cho các công cụ nghe và nói trong tương lai"></div>
 </div>
 <div class="translation-output">
 <div id="translationResult">
@@ -76,6 +87,10 @@
 </div>
 </div>
 </div>
+</div>
+<div class="result-box hidden" id="pronunciationWrapper">
+
+<div class="result-content" id="pronunciation"></div>
 </div>
 <div class="translation-output-actions"><button aria-label="Sao chép bản dịch" class="copy-btn" id="copyBtn" title="Sao chép bản dịch" type="button">Sao chép</button></div></div>
 </div>
@@ -100,17 +115,9 @@
 <div class="free-limit-reset" id="freeReset"></div>
 </div>
 <section aria-label="Chi tiết bản dịch" class="translation-details" id="translationDetails">
-<div class="details-heading"><span>Chi tiết bản dịch</span><small>Dịch ngược · Phát âm · Từ vựng</small></div>
+<div class="details-heading"><span>Chi tiết bản dịch</span><small>Từ vựng · Kiểm tra bản dịch</small></div>
 <div class="details-content">
-<div class="back-translation hidden" id="backTranslationWrapper">
-<div class="back-translation-label">↩ Dịch ngược để đối chiếu</div>
-<div id="backTranslation"></div>
-</div>
 <div class="translation-extras">
-<div class="result-box hidden" id="pronunciationWrapper">
-<h3 class="result-title">Phát âm</h3>
-<div class="result-content" id="pronunciation"></div>
-</div>
 <div class="result-box hidden" id="vocabularyWrapper">
 <h3 class="result-title">Từ vựng</h3>
 <div class="vocabulary-content" id="vocabulary"></div>

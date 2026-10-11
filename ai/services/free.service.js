@@ -13,6 +13,10 @@ const {
 } = require('../providers/openrouter.provider');
 
 const {
+  requestDeepL
+} = require('../providers/deepl.provider');
+
+const {
   containsChinese,
   buildFreePrompt,
   buildBackTranslationPrompt
@@ -208,6 +212,46 @@ async function runTranslationPipeline(
   };
 }
 
+async function runDeepLPipeline(text) {
+  const inputIsChinese = containsChinese(text);
+
+  const translation = await requestDeepL(
+    text,
+    inputIsChinese ? 'VI' : 'ZH'
+  );
+
+  let backTranslation = null;
+
+  if (!inputIsChinese) {
+    backTranslation = await requestDeepL(
+      translation,
+      'VI'
+    );
+  }
+
+  const parsed = {
+    translation,
+    backTranslation
+  };
+
+  validateFreeTranslation(text, parsed);
+
+  let content = `TRANSLATION: ${translation}`;
+
+  if (backTranslation) {
+    content +=
+      `\nBACK_TRANSLATION: ${backTranslation}`;
+  }
+
+  return {
+    content,
+    parsed,
+    provider: 'deepl',
+    cached: false,
+    rateLimit: null
+  };
+}
+
 async function translateFree(text) {
   const cachedResult = getFreeCachedTranslation(text);
 
@@ -267,19 +311,38 @@ async function translateFree(text) {
       openRouterError
     );
 
-    const finalError = new Error(
-      'All FREE providers unavailable'
-    );
+    try {
+  const result = await runDeepLPipeline(text);
 
-    finalError.code =
-      'FREE_PROVIDERS_UNAVAILABLE';
+  setFreeCachedTranslation(
+    text,
+    result.content,
+    result.parsed
+  );
 
-    finalError.providers = {
-      groq: groqError,
-      openrouter: openRouterError
-    };
+  return result;
+} catch (error) {
+  const deeplError = classifyProviderError(
+    error,
+    'deepl'
+  );
 
-    throw finalError;
+  console.error('DeepL FREE error:', deeplError);
+
+  const finalError = new Error(
+    'All FREE providers unavailable'
+  );
+
+  finalError.code = 'FREE_PROVIDERS_UNAVAILABLE';
+
+  finalError.providers = {
+    groq: groqError,
+    openrouter: openRouterError,
+    deepl: deeplError
+  };
+
+  throw finalError;
+}
   }
 }
 

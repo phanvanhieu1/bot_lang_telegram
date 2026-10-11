@@ -526,3 +526,31 @@ body {
     height: 32px;
   }
 }
+
+/* Realtime Pinyin */
+.realtime-pinyin {
+  margin-top: 12px;
+  padding: 12px 14px;
+  background: rgba(127, 127, 127, 0.06);
+  border: 1px solid rgba(127, 127, 127, 0.15);
+  border-radius: 10px;
+}
+
+.realtime-pinyin[hidden] {
+  display: none !important;
+}
+
+.realtime-pinyin-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #888;
+  margin-bottom: 6px;
+}
+
+.realtime-pinyin-text {
+  font-size: 15px;
+  line-height: 1.8;
+  letter-spacing: 0.3px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}

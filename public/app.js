@@ -836,6 +836,7 @@ if (verificationToggle.checked && verificationMatch) {
   if (
   (translatorMode === 'free' ||
     pronunciationToggle.checked) &&
+  !/[\u3400-\u9FFF]/u.test(textInput.value) &&
   pronunciation.textContent.trim()
 ) {
   pronunciationWrapper.classList.remove('hidden');

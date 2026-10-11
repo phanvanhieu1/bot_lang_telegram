@@ -1,6 +1,6 @@
 require('dotenv').config();
 
-
+const { pinyin } = require('pinyin-pro');
 const express = require('express');
 const path = require('path');
 const session = require('express-session');
@@ -213,6 +213,39 @@ app.get('/login.html', (req, res) => {
 });
 
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Convert Chinese text to Pinyin
+app.get('/api/pinyin', requireAuth, (req, res) => {
+  try {
+    const text = req.query.text;
+
+    if (
+      typeof text !== 'string' ||
+      !text.trim() ||
+      text.length > 1000
+    ) {
+      return res.status(400).json({
+        error: 'Invalid text'
+      });
+    }
+
+    const result = pinyin(text, {
+      toneType: 'symbol',
+      type: 'string',
+      nonZh: 'consecutive'
+    });
+
+    return res.json({
+      pinyin: result
+    });
+  } catch (error) {
+    console.error('Pinyin API error:', error);
+
+    return res.status(500).json({
+      error: 'Failed to generate Pinyin'
+    });
+  }
+});
 
 // Test server
 app.get('/api/status',requireAuth, (req, res) => {

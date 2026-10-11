@@ -141,3 +141,79 @@ html,body{background:#fff!important}
 .translation-output-actions .copy-btn:hover{background:#e2e8f0!important}
 .translation-output-actions .copy-btn:focus-visible{outline:2px solid #1a73e8!important;outline-offset:2px!important}
 @media(max-width:800px){.language-fixed{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}.language-fixed .pane-label{font-size:14px!important;padding-left:8px!important}.language-fixed .plan-badge{right:0!important}.translation-output{padding:18px 18px 10px!important}}
+
+/* Inline secondary results: keep the main text flexible and the extra at the bottom. */
+.translation-source .textarea-wrapper{height:auto!important;flex:1 1 auto!important;min-height:0!important;overflow:hidden!important}
+.translation-source #text{height:100%!important;min-height:0!important}
+.translation-source #realtimePinyin,.translation-source #backTranslationWrapper{flex:0 0 auto!important;margin:0 14px 12px!important;max-height:42%!important;overflow-y:auto!important}
+.translation-source #backTranslationWrapper{padding:12px 14px!important;background:#f8fafd!important;border:1px solid #e0e4ea!important;border-radius:10px!important;color:#3c4043!important}
+.translation-source #backTranslationWrapper.hidden{display:none!important}
+.translation-output #translationResult{flex:1 1 auto!important;min-height:0!important;overflow-y:auto!important}
+.translation-output #pronunciationWrapper{flex:0 0 auto!important;min-height:0!important;max-height:42%!important;overflow-y:auto!important;padding:12px 0!important;margin:0!important;border-top:1px solid #d8dce4!important;border-radius:0!important}
+.translation-output #pronunciationWrapper.hidden{display:none!important}
+.translation-output #pronunciationWrapper .result-title{font-size:12px!important;margin-bottom:5px!important;text-transform:uppercase!important}
+.translation-output #pronunciationWrapper .result-content{font-size:15px!important;line-height:1.7!important;min-height:0!important}
+.translation-details:not(:has(#vocabularyWrapper:not(.hidden),#verificationWrapper:not(.hidden))){display:none!important}
+@media(max-width:800px){.translation-source #realtimePinyin,.translation-source #backTranslationWrapper{max-height:45%!important}.translation-output #pronunciationWrapper{max-height:45%!important}}
+
+
+/* v6: matched content areas and reserved bottom toolbars.
+   Pinyin/back translation and pronunciation live ABOVE their toolbars. */
+.translation-source,.translation-output{display:flex!important;flex-direction:column!important;overflow:hidden!important}
+.translation-source .textarea-wrapper{flex:1 1 auto!important;height:auto!important;min-height:0!important;overflow:hidden!important}
+.translation-source #text{height:100%!important;min-height:0!important}
+.translation-source #realtimePinyin,.translation-source #backTranslationWrapper{
+  flex:0 1 auto!important;min-height:0!important;max-height:38%!important;
+  overflow-y:auto!important;margin:0 16px 10px!important;
+}
+.translation-source #realtimePinyin[hidden],.translation-source #backTranslationWrapper.hidden{display:none!important}
+.translation-source #realtimePinyin{padding:10px 12px!important}
+.translation-source #backTranslationWrapper{padding:10px 12px!important}
+.translation-source-actions,.translation-output-actions{
+  flex:0 0 52px!important;height:52px!important;min-height:52px!important;
+  box-sizing:border-box!important;display:flex!important;align-items:center!important;
+  justify-content:flex-end!important;margin:0!important;padding:0 16px!important;
+  border-top:1px solid #e1e5eb!important;background:transparent!important;
+}
+.translation-output{padding:0!important}
+.translation-output #translationResult{flex:1 1 auto!important;min-height:0!important;overflow-y:auto!important;padding:20px 24px 0!important}
+.translation-output #pronunciationWrapper{
+  flex:0 1 auto!important;max-height:38%!important;min-height:0!important;
+  overflow-y:auto!important;margin:0 16px 10px!important;padding:10px 12px!important;
+  border:1px solid #e0e4ea!important;border-radius:10px!important;
+  background:rgba(255,255,255,.65)!important;
+}
+.translation-output #pronunciationWrapper.hidden{display:none!important}
+.translation-output-actions{padding:0 16px!important}
+@media(max-width:800px){
+  .translation-source #realtimePinyin,.translation-source #backTranslationWrapper,
+  .translation-output #pronunciationWrapper{max-height:42%!important}
+  .translation-output #translationResult{padding:18px 18px 0!important}
+}
+
+/* v7 — flat secondary text, matching each pane's background */
+.translation-source #realtimePinyin,
+.translation-source #backTranslationWrapper,
+.translation-output #pronunciationWrapper {
+  background:transparent!important;
+  border:0!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+  padding:8px 8px 10px!important;
+  margin:0 16px 10px!important;
+  color:inherit!important;
+}
+.translation-source #realtimePinyin .realtime-pinyin-label {display:none!important}
+.translation-source #realtimePinyin .realtime-pinyin-text,
+.translation-source #backTranslation,
+.translation-output #pronunciation {
+  font-size:15px!important;
+  line-height:1.6!important;
+  font-weight:400!important;
+  color:#5f6368!important;
+  overflow-wrap:anywhere!important;
+}
+.translation-source-actions,.translation-output-actions {
+  background:transparent!important;
+  border-top:1px solid rgba(95,99,104,.16)!important;
+}
