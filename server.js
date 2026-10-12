@@ -16,9 +16,9 @@ const {
   verifyTranslation
 } = require('./ai');
 const {
-   getWebCachedText,
-  setWebCachedText,
-} = require('./cache');
+  getWebCachedText,
+  setWebCachedText
+} = require('./web-cache');
 
 const {
   addHistory,
@@ -342,6 +342,15 @@ function parseTranslationResult(content) {
   return data;
 }
 
+async function persistProCache(text, lang, isFast, context, fields) {
+  try {
+    await setWebCachedText(text, lang, isFast, context, fields);
+  } catch (error) {
+    // Never make users repeat a paid translation if only cache persistence fails.
+    console.error('PRO MongoDB cache write error:', error);
+  }
+}
+
 function hasCacheField(data, field) {
   return (
     data &&
@@ -558,7 +567,7 @@ const shouldBackTranslate =
   !inputIsChinese &&
   targetLang === 'zh';
 
-  const cachedData = getWebCachedText(
+  const cachedData = await getWebCachedText(
   text.trim(),
   targetLang,
   fastMode,
@@ -642,7 +651,7 @@ if (result) {
     newData.vocabulary = '';
   }
 
-  setWebCachedText(
+  persistProCache(
   text.trim(),
   targetLang,
   fastMode,
@@ -674,7 +683,7 @@ if (
 
     finalCache.pronunciation = localPinyin;
 
-    setWebCachedText(
+    persistProCache(
   text.trim(),
   targetLang,
   fastMode,
@@ -711,7 +720,7 @@ if (
 
   finalCache.verification = verificationData;
 
-  setWebCachedText(
+  persistProCache(
     inputText,
     targetLang,
     fastMode,
