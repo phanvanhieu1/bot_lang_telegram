@@ -4,7 +4,8 @@ const { pinyin } = require('pinyin-pro');
 const express = require('express');
 const path = require('path');
 const session = require('express-session');
-const SQLiteStore = require('connect-sqlite3')(session);
+const MongoStore = require('connect-mongo').default;
+const mongoose = require('mongoose');
 const googleAuthRoutes = require('./modules/auth/google.routes');
 const connectDatabase = require('./config/database');
 const userRoutes = require('./modules/users/user.routes');
@@ -36,6 +37,21 @@ const { translateFree } =
 
 const app = express();
 const PORT = process.env.WEB_PORT || 3000;
+const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
+
+// Initialize MongoDB once. Reuse its native MongoClient for the session
+// store instead of opening a second connection to Atlas.
+const databaseReady = connectDatabase();
+const sessionStore = MongoStore.create({
+  clientPromise: databaseReady.then(() => mongoose.connection.getClient()),
+  collectionName: 'web_sessions',
+  ttl: SESSION_TTL_SECONDS,
+  touchAfter: 24 * 60 * 60
+});
+
+sessionStore.on('error', (error) => {
+  console.error('MongoDB session store error:', error);
+});
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -43,10 +59,7 @@ app.use(express.urlencoded({ extended: true }));
 app.set('trust proxy', 1);
 
 app.use(session({
-  store: new SQLiteStore({
-    db: 'sessions.sqlite',
-    dir: __dirname
-  }),
+  store: sessionStore,
   secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
@@ -54,7 +67,7 @@ app.use(session({
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    maxAge: 7 * 24 * 60 * 60 * 1000
+    maxAge: SESSION_TTL_SECONDS * 1000
   }
 }));
 
@@ -878,7 +891,10 @@ app.delete('/api/history', requireAuth, async (req, res) => {
 
 async function startServer() {
   try {
-    await connectDatabase();
+    await databaseReady;
+    // Ensure the session collection and its TTL index are ready before
+    // accepting Google OAuth callbacks.
+    await sessionStore.collectionP;
 
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
