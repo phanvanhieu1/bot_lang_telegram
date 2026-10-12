@@ -11,32 +11,86 @@
 <link href="/google-style.css" rel="stylesheet"/></head>
 <body>
 <main class="container">
-<header class="header gt-header"><button aria-controls="adminMenuPanel" aria-expanded="false" aria-label="Mở menu quản trị" class="admin-hamburger" hidden="" id="adminHamburger" type="button">☰</button><a aria-label="Language Translator" class="brand" href="/">Language Translator</a>
-<button class="history-btn history-original" id="historyBtn" type="button">
-    🕘 Lịch sử
-  </button>
-<div class="header-account">
-<div class="account-dropdown" id="adminAccountDropdown">
-<button aria-controls="adminMenuPanel" aria-expanded="false" aria-hidden="true" aria-label="Mở menu quản trị" class="account-menu-toggle" hidden="" id="adminMenuToggle" tabindex="-1" type="button">
-<span class="user-profile">
-<img alt="Ảnh đại diện" class="user-avatar" hidden="" id="userAvatar" referrerpolicy="no-referrer"/>
-<span class="user-info"><strong id="userName">Đang tải...</strong><small id="userEmail"></small></span>
-</span>
-<span aria-hidden="true" class="account-menu-chevron">⌄</span>
-</button>
-<div class="account-menu-panel" hidden="" id="adminMenuPanel">
-<div class="account-menu-heading"><span class="account-menu-crown">✦</span><span>Không gian quản trị<small>Chọn chế độ làm việc</small></span></div>
-<button class="account-menu-item" id="adminFreeChoice" type="button"><span class="account-menu-icon free">◈</span><span class="account-menu-label"><strong>Bản FREE</strong><small>Dịch bằng dịch vụ miễn phí</small></span><span aria-hidden="true" class="account-menu-check">✓</span></button>
-<button class="account-menu-item" id="adminProChoice" type="button"><span class="account-menu-icon pro">✦</span><span class="account-menu-label"><strong>Bản PRO</strong><small>Dịch nâng cao với OpenAI</small></span><span aria-hidden="true" class="account-menu-check">✓</span></button>
-<a class="account-menu-item" href="/admin"><span class="account-menu-icon manage">♙</span><span class="account-menu-label"><strong>Quản lý tài khoản</strong><small>Người dùng và gói PRO</small></span><span aria-hidden="true" class="account-menu-arrow">↗</span></a>
-<div class="account-menu-divider"></div>
-<button class="account-menu-logout" id="logoutBtn" type="button">↪   Đăng xuất</button>
+<header class="header gt-header">
+  <div class="header-left">
+    <button class="admin-hamburger header-icon-button" aria-controls="adminMenuPanel" aria-expanded="false" aria-label="Mở menu quản trị" title="Quản trị" hidden id="adminHamburger" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+    <a class="brand" href="/" aria-label="Trang chủ Dịch Việt Trung"><span class="brand-symbol">文</span><span>Dịch Việt · Trung</span></a>
+  </div>
+  <div class="header-account">
+    <button class="header-icon-button" id="themeToggle" type="button" title="Chuyển giao diện sáng hoặc tối" aria-label="Chuyển giao diện sáng hoặc tối" aria-pressed="false">
+      <span class="theme-icon-sun"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg></span><span class="theme-icon-moon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5 8.5 8.5 0 1 0 20.5 14.2Z"/></svg></span>
+    </button>
+    <div class="header-popover-anchor" id="settingsAnchor">
+      <button class="header-icon-button" id="settingsBtn" type="button" disabled title="Cài đặt dịch PRO" aria-label="Cài đặt dịch PRO" aria-controls="settingsPanel" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.9l-1.8 1.8a1.7 1.7 0 0 0-1.9-.34 1.7 1.7 0 0 0-1.03 1.58V22h-2.55v-2.04A1.7 1.7 0 0 0 11.4 18.4a1.7 1.7 0 0 0-1.89.34l-1.8-1.8a1.7 1.7 0 0 0 .34-1.9A1.7 1.7 0 0 0 6.48 14H4v-2.55h2.48a1.7 1.7 0 0 0 1.57-1.04 1.7 1.7 0 0 0-.34-1.9l1.8-1.8a1.7 1.7 0 0 0 1.9.34A1.7 1.7 0 0 0 12.45 5.5V4h2.55v1.5a1.7 1.7 0 0 0 1.04 1.57 1.7 1.7 0 0 0 1.9-.34l1.8 1.8a1.7 1.7 0 0 0-.34 1.9A1.7 1.7 0 0 0 20.96 11.5H22V14h-1.04A1.7 1.7 0 0 0 19.4 15Z" transform="translate(-.7 -.7)"/></svg></button>
+      <div class="header-popover settings-panel" id="settingsPanel" hidden>
+        <div class="popover-heading"><strong>Tùy chỉnh bản PRO</strong><span class="popover-tag">PRO</span></div>
+        <div id="proOptions"><div class="translation-options">
+<div class="translation-options-title">Tùy chọn</div>
+<label class="option-toggle">
+<span>Dịch ngược</span>
+<input checked="" id="backTranslationToggle" type="checkbox"/>
+<span class="toggle-slider"></span>
+</label>
+<label class="option-toggle">
+<span>Phát âm</span>
+<input checked="" id="pronunciationToggle" type="checkbox"/>
+<span class="toggle-slider"></span>
+</label>
+<label class="option-toggle">
+<span>Từ vựng</span>
+<input checked="" id="vocabularyToggle" type="checkbox"/>
+<span class="toggle-slider"></span>
+</label>
+<label class="option-toggle">
+<span>Kiểm chứng</span>
+<input id="verificationToggle" type="checkbox"/>
+<span class="toggle-slider"></span>
+</label>
+<div class="context-select-wrapper">
+<label for="contextSelect">Ngữ cảnh</label>
+<select id="contextSelect">
+<option value="auto">Tự động</option>
+<option value="friend">Bạn bè</option>
+<option value="colleague">Đồng nghiệp</option>
+<option value="superior">Cấp trên</option>
+</select>
 </div>
-</div>
-<span class="regular-account-label" id="regularAccountLabel"></span><button class="logout-btn" id="regularLogoutBtn" type="button">Đăng xuất</button>
-</div>
+</div></div>
+      </div>
+    </div>
+    <div class="header-popover-anchor" id="profileAnchor">
+      <button class="profile-avatar-button" id="profileBtn" type="button" aria-label="Tài khoản Google" aria-controls="profilePanel" aria-expanded="false">
+        <img alt="Ảnh đại diện Google" class="user-avatar" hidden id="userAvatar" referrerpolicy="no-referrer"/>
+        <span id="avatarInitial" aria-hidden="true">?</span>
+      </button>
+      <div class="header-popover profile-panel" id="profilePanel" hidden>
+        <strong id="userName">Đang tải...</strong>
+        <small id="userEmail"></small>
+        <span class="regular-account-label" id="regularAccountLabel"></span>
+        <span class="plan-badge hidden" id="accountPlanBadge"></span>
+        <button id="regularLogoutBtn" class="profile-logout" type="button">Đăng xuất</button>
+      </div>
+    </div>
+    <div class="account-dropdown" id="adminAccountDropdown">
+      <button aria-controls="adminMenuPanel" aria-expanded="false" aria-label="Mở menu quản trị" hidden id="adminMenuToggle" tabindex="-1" type="button"></button>
+      <div class="account-menu-panel" hidden id="adminMenuPanel">
+        <div class="account-menu-heading"><span class="account-menu-crown">✦</span><span>Không gian quản trị<small>Chọn chế độ làm việc</small></span></div>
+        <button class="account-menu-item" id="adminFreeChoice" type="button"><span class="account-menu-icon free">◈</span><span class="account-menu-label"><strong>Bản FREE</strong><small>Dịch bằng dịch vụ miễn phí</small></span><span aria-hidden="true" class="account-menu-check">✓</span></button>
+        <button class="account-menu-item" id="adminProChoice" type="button"><span class="account-menu-icon pro">✦</span><span class="account-menu-label"><strong>Bản PRO</strong><small>Dịch nâng cao với OpenAI</small></span><span aria-hidden="true" class="account-menu-check">✓</span></button>
+        <a class="account-menu-item" href="/admin"><span class="account-menu-icon manage">♙</span><span class="account-menu-label"><strong>Quản lý tài khoản</strong><small>Người dùng và gói PRO</small></span><span aria-hidden="true" class="account-menu-arrow">↗</span></a>
+        <div class="account-menu-divider"></div>
+        <button class="account-menu-logout" id="logoutBtn" type="button">Đăng xuất</button>
+      </div>
+    </div>
+  </div>
 </header>
 <section class="translator-card">
+<nav class="visual-tabs" aria-label="Chế độ dịch">
+  <button class="visual-tab active" type="button" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h12M9 3v2m4 0c-1 6-5 11-9 13M6 10c2 4 4 6 7 8M13 20l5-11 4 11m-7-4h5"/></svg><span>Văn bản</span></button>
+  <button class="visual-tab" type="button" disabled title="Dịch hình ảnh sẽ phát triển sau"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8" cy="9" r="1.5"/><path d="m4 17 5-5 4 4 3-3 4 4"/></svg><span>Hình ảnh</span></button>
+  <button class="visual-tab" type="button" disabled title="Dịch tài liệu sẽ phát triển sau"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 2h7l5 5v15H7z"/><path d="M14 2v5h5"/></svg><span>Tài liệu</span></button>
+  <button class="visual-tab" type="button" disabled title="Dịch trang web sẽ phát triển sau"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg><span>Trang web</span></button>
+</nav>
 <div class="practice-launcher hidden" id="practiceLauncher">
 <div class="practice-launcher-info">
 <span class="practice-launcher-icon">📚</span>
@@ -57,10 +111,10 @@
     Luyện tiếng Trung
   </button>
 </div>
-<div class="language-fixed"><span class="pane-label">Văn bản nguồn</span><span class="pane-label">Bản dịch</span><span class="plan-badge hidden" id="accountPlanBadge"></span></div><div hidden="" id="languageSelector"><select aria-label="Ngôn ngữ đích cố định" id="targetLang"><option selected="" value="zh">Tiếng Trung</option></select></div><div class="translation-workspace">
+<div class="language-fixed" aria-label="Dịch tự động giữa tiếng Việt và tiếng Trung"><span class="pane-label">Tự động phát hiện ngôn ngữ</span><span class="pane-label" id="targetLabel">Bản dịch</span></div><div hidden="" id="languageSelector"><select aria-label="Ngôn ngữ đích cố định" id="targetLang"><option selected="" value="zh">Tiếng Trung</option></select></div><div class="translation-workspace">
 <div class="translation-source">
 <div class="textarea-wrapper">
-<textarea id="text" placeholder="Nhập nội dung cần dịch..."></textarea>
+<textarea id="text" placeholder="Nhập văn bản cần dịch..." aria-label="Nhập văn bản cần dịch"></textarea>
 
 <button aria-label="Xóa nội dung" class="clear-source" id="clearSourceBtn" type="button">×</button>
 </div>
@@ -73,7 +127,10 @@
 
 <div id="backTranslation"></div>
 </div>
-<div class="translation-source-actions" aria-label="Khu vực dành cho các công cụ nghe và nói trong tương lai"></div>
+<div class="translation-source-actions" aria-label="Công cụ văn bản nguồn">
+  <button class="pane-action-button" id="sourceMicBtn" type="button" disabled title="Nhập bằng giọng nói (sắp ra mắt)" aria-label="Nhập bằng giọng nói (sắp ra mắt)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4m-4 0h8"/></svg></button>
+  <button class="pane-action-button" id="sourceSpeakBtn" type="button" hidden title="Nghe văn bản nguồn" aria-label="Nghe văn bản nguồn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6.5 9H3v6h3.5l4.5 4V5ZM15 9a5 5 0 0 1 0 6M18 6a9 9 0 0 1 0 12"/></svg></button>
+</div>
 </div>
 <div class="translation-output">
 <div id="translationResult">
@@ -92,7 +149,10 @@
 
 <div class="result-content" id="pronunciation"></div>
 </div>
-<div class="translation-output-actions"><button aria-label="Sao chép bản dịch" class="copy-btn" id="copyBtn" title="Sao chép bản dịch" type="button">Sao chép</button></div></div>
+<div class="translation-output-actions" aria-label="Công cụ bản dịch">
+  <button aria-label="Sao chép bản dịch" class="pane-action-button copy-btn" id="copyBtn" title="Sao chép bản dịch" type="button" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h2"/></svg></button>
+  <button aria-label="Nghe bản dịch" class="pane-action-button" id="outputSpeakBtn" title="Nghe bản dịch" type="button" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6.5 9H3v6h3.5l4.5 4V5ZM15 9a5 5 0 0 1 0 6M18 6a9 9 0 0 1 0 12"/></svg></button>
+</div></div>
 </div>
 <div class="translate-row">
 <button id="translateBtn">
@@ -132,46 +192,7 @@
 <ul id="verificationIssues"></ul>
 </div>
 </div></section>
-<div id="proOptions">
-<details class="advanced-options">
-<summary class="advanced-options-trigger">
-<span>⚙ Tùy chọn nâng cao</span>
-<span class="advanced-options-arrow">⌄</span>
-</summary>
-<div class="translation-options">
-<div class="translation-options-title">Tùy chọn</div>
-<label class="option-toggle">
-<span>Dịch ngược</span>
-<input checked="" id="backTranslationToggle" type="checkbox"/>
-<span class="toggle-slider"></span>
-</label>
-<label class="option-toggle">
-<span>Phát âm</span>
-<input checked="" id="pronunciationToggle" type="checkbox"/>
-<span class="toggle-slider"></span>
-</label>
-<label class="option-toggle">
-<span>Từ vựng</span>
-<input checked="" id="vocabularyToggle" type="checkbox"/>
-<span class="toggle-slider"></span>
-</label>
-<label class="option-toggle">
-<span>Kiểm chứng</span>
-<input id="verificationToggle" type="checkbox"/>
-<span class="toggle-slider"></span>
-</label>
-<div class="context-select-wrapper">
-<label for="contextSelect">Ngữ cảnh</label>
-<select id="contextSelect">
-<option value="auto">Tự động</option>
-<option value="friend">Bạn bè</option>
-<option value="colleague">Đồng nghiệp</option>
-<option value="superior">Cấp trên</option>
-</select>
-</div>
-</div>
-</details>
-</div>
+
 <div class="status" id="status"></div>
 <div class="results">
 </div>
@@ -294,5 +315,5 @@
 @media(max-width:640px){.header-account .account-menu-toggle{max-width:175px;padding:6px 8px}.header-account .account-menu-toggle .user-info strong,.header-account .account-menu-toggle .user-info small{max-width:86px}.header-account .account-menu-panel{right:-6px}}
 </style>
 <script src="/app.js"></script>
-<script>document.getElementById('navHistory')?.addEventListener('click',function(e){e.preventDefault();document.getElementById('historyBtn')?.click();});</script><script src="/google-style.js"></script></body>
+<script src="/google-style.js"></script></body>
 </html>
