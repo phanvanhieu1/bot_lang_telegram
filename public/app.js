@@ -121,6 +121,15 @@ function setTranslatorMode(mode) {
   proOptions.classList.toggle('hidden', !isPro);
   freeLimitInfo.classList.toggle('hidden', isPro);
 
+  const settingsBtn = document.getElementById('settingsBtn');
+  const settingsPanel = document.getElementById('settingsPanel');
+  if (settingsBtn) {
+    settingsBtn.disabled = !isPro;
+    settingsBtn.title = isPro ? 'Tùy chỉnh bản PRO' : 'Chỉ dành cho chế độ PRO';
+    if (!isPro) settingsBtn.setAttribute('aria-expanded', 'false');
+  }
+  if (!isPro && settingsPanel) settingsPanel.hidden = true;
+
   // Không cho người dùng tự chuyển chế độ.
   freeModeBtn.classList.add('hidden');
   proModeBtn.classList.add('hidden');
@@ -155,9 +164,8 @@ async function initializeUserRole() {
     currentUserRole = data.role;
 
     const adminDropdown = document.getElementById('adminAccountDropdown');
-    const regularLogoutBtn = document.getElementById('regularLogoutBtn');
-    adminDropdown.style.display = currentUserRole === 'admin' ? 'block' : 'none';
-    regularLogoutBtn.style.display = currentUserRole === 'admin' ? 'none' : '';
+    adminDropdown.hidden = currentUserRole !== 'admin';
+    document.getElementById('adminHamburger').hidden = currentUserRole !== 'admin';
 
     // Admin có toàn bộ quyền PRO
     const hasProAccess = ['pro', 'admin'].includes(currentUserRole);
@@ -172,6 +180,8 @@ async function initializeUserRole() {
 
     userName.textContent = data.name || 'Người dùng';
     userEmail.textContent = data.email || '';
+    document.getElementById('avatarInitial').textContent =
+      (data.name || data.email || '?').trim().charAt(0).toUpperCase();
 
     if (
       typeof data.avatar === 'string' &&
@@ -331,12 +341,11 @@ function loadTranslationOptions() {
 }
 
 function saveTranslationOptions() {
-  verification:
-  verificationToggle.checked
   const options = {
     backTranslation: backTranslationToggle.checked,
     pronunciation: pronunciationToggle.checked,
-    vocabulary: vocabularyToggle.checked
+    vocabulary: vocabularyToggle.checked,
+    verification: verificationToggle.checked
   };
 
   localStorage.setItem(
@@ -478,6 +487,9 @@ practiceExplanation.textContent =
 // =========================
 
 async function translate() {
+  // Guards both keyboard and button submissions while a request is in flight.
+  if (translateBtn.disabled) return;
+
   const text = textInput.value.trim();
   const selectedLang = targetLang.value;
 
@@ -501,7 +513,9 @@ async function translate() {
   </div>
 `;
 
-pronunciation.textContent = '';
+  copyBtn.hidden = true;
+  document.getElementById('outputSpeakBtn').hidden = true;
+  pronunciation.textContent = '';
 vocabulary.textContent = '';
 
   try {
@@ -690,9 +704,9 @@ textInput.addEventListener('keydown', (event) => {
   }
 
   // Enter = dịch
-  if (event.key === 'Enter' && !event.shiftKey) {
+  if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
     event.preventDefault();
-    translate();
+    if (!translateBtn.disabled) translate();
   }
 
 });
@@ -735,6 +749,10 @@ const verificationMatch = result.match(
   translation.textContent = translationMatch
     ? translationMatch[1].trim()
     : '';
+
+  const hasResult = Boolean(translation.textContent.trim());
+  copyBtn.hidden = !hasResult;
+  document.getElementById('outputSpeakBtn').hidden = !hasResult;
 
   // Dịch ngược
   const backText = backTranslationMatch
