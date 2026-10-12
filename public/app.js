@@ -189,8 +189,10 @@ async function initializeUserRole() {
     ) {
       userAvatar.src = data.avatar;
       userAvatar.hidden = false;
+      document.getElementById('avatarInitial').hidden = true;
     } else {
       userAvatar.hidden = true;
+      document.getElementById('avatarInitial').hidden = false;
     }
 
     // =========================
@@ -891,15 +893,16 @@ copyBtn.addEventListener('click', async () => {
 
     await navigator.clipboard.writeText(text);
 
-    const originalText = copyBtn.textContent;
-
-    copyBtn.textContent = '✓ Đã copy';
+    const originalTitle = copyBtn.title;
+    copyBtn.title = 'Đã sao chép';
+    copyBtn.setAttribute('aria-label', 'Đã sao chép');
 
     status.textContent = 'Đã copy bản dịch';
     status.className = 'status success';
 
     setTimeout(() => {
-      copyBtn.textContent = originalText;
+      copyBtn.title = originalTitle;
+      copyBtn.setAttribute('aria-label', 'Sao chép bản dịch');
     }, 1500);
 
   } catch (error) {
