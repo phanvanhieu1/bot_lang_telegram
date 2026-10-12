@@ -21,7 +21,23 @@ const webTranslationCacheSchema = new mongoose.Schema({
 webTranslationCacheSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 const WebTranslationCache = mongoose.models.WebTranslationCache ||
-  mongoose.model('WebTranslationCache', webTranslationCacheSchema);
+  mongoose.model(
+    'WebTranslationCache',
+    webTranslationCacheSchema,
+    'web_translation_cache'
+  );
+
+// Two users can miss the same key at the same time. If a concurrent upsert
+// wins the unique-key race, update that existing entry instead of dropping
+// the cache write.
+async function upsertCache(filter, update) {
+  try {
+    await WebTranslationCache.updateOne(filter, update, { upsert: true });
+  } catch (error) {
+    if (error?.code !== 11000) throw error;
+    await WebTranslationCache.updateOne(filter, update, { upsert: false });
+  }
+}
 
 function hashKey(parts) {
   return crypto
@@ -58,15 +74,14 @@ async function getFreeCachedText(text) {
 async function setFreeCachedText(text, value) {
   const now = Date.now();
 
-  await WebTranslationCache.updateOne(
+  await upsertCache(
     { key: freeKey(text), mode: 'free' },
     {
       $set: {
         value,
         expiresAt: new Date(now + FREE_CACHE_TTL_MS)
       }
-    },
-    { upsert: true }
+    }
   );
 }
 
@@ -108,10 +123,9 @@ async function setWebCachedText(text, lang, isFast, context = 'auto', data) {
 
   if (!Object.keys(fields).length) return;
 
-  await WebTranslationCache.updateOne(
+  await upsertCache(
     { key: proKey(text, lang, isFast, context), mode: 'pro' },
-    { $set: fields },
-    { upsert: true }
+    { $set: fields }
   );
 }
 
