@@ -1,39 +1,173 @@
-// Presentation-only handlers. Authorization still comes from /api/auth.
+// Header and translation-pane interactions. API permissions are enforced server-side.
 (() => {
-  const hamburger = document.getElementById('adminHamburger');
-  const legacyToggle = document.getElementById('adminMenuToggle');
-  const panel = document.getElementById('adminMenuPanel');
-  const clearBtn = document.getElementById('clearSourceBtn');
-  const input = document.getElementById('text');
-  const label = document.getElementById('regularAccountLabel');
-  hamburger?.addEventListener('click', (event) => {
-    event.stopPropagation(); // Prevent the document outside-click handler from closing the menu immediately.
+  const byId = (id) => document.getElementById(id);
+  const hamburger = byId('adminHamburger');
+  const legacyAdminToggle = byId('adminMenuToggle');
+  const adminMenuPanel = byId('adminMenuPanel');
+  const input = byId('text');
+  const clearBtn = byId('clearSourceBtn');
+  const sourceMic = byId('sourceMicBtn');
+  const sourceSpeaker = byId('sourceSpeakBtn');
+  const outputSpeaker = byId('outputSpeakBtn');
+  const copyBtn = byId('copyBtn');
+  const translation = byId('translation');
+  const targetLabel = byId('targetLabel');
+  const themeButton = byId('themeToggle');
+  const settingsButton = byId('settingsBtn');
+  const settingsPanel = byId('settingsPanel');
+  const settingsAnchor = byId('settingsAnchor');
+  const profileButton = byId('profileBtn');
+  const profilePanel = byId('profilePanel');
+  const profileAnchor = byId('profileAnchor');
+
+  function closeSettings() {
+    settingsPanel.hidden = true;
+    settingsButton.setAttribute('aria-expanded', 'false');
+  }
+
+  function closeProfile() {
+    profilePanel.hidden = true;
+    profileButton.setAttribute('aria-expanded', 'false');
+  }
+
+  settingsButton.addEventListener('click', () => {
+    if (settingsButton.disabled) return;
+    const opening = settingsPanel.hidden;
+    closeProfile();
+    settingsPanel.hidden = !opening;
+    settingsButton.setAttribute('aria-expanded', String(opening));
+  });
+
+  profileButton.addEventListener('click', () => {
+    const opening = profilePanel.hidden;
+    closeSettings();
+    profilePanel.hidden = !opening;
+    profileButton.setAttribute('aria-expanded', String(opening));
+  });
+
+  hamburger.addEventListener('click', (event) => {
+    event.stopPropagation();
     if (hamburger.hidden) return;
-    legacyToggle?.click();
+    closeSettings();
+    closeProfile();
+    legacyAdminToggle.click();
   });
-  clearBtn?.addEventListener('click', () => {
-    if (!input) return;
-    input.value = '';
-input.dispatchEvent(new Event('input', { bubbles: true }));
-input.focus();
-clearBtn.hidden = true;
+
+  document.addEventListener('click', (event) => {
+    if (!settingsAnchor.contains(event.target)) closeSettings();
+    if (!profileAnchor.contains(event.target)) closeProfile();
   });
-  input?.addEventListener('input', () => { if (clearBtn) clearBtn.hidden = !input.value; });
-  if (clearBtn) clearBtn.hidden = !input?.value;
-  // Account display is presentation only; server enforces roles.
-  fetch('/api/auth', { credentials: 'same-origin', cache: 'no-store' })
-    .then(response => response.ok ? response.json() : null)
-    .then(data => {
-      if (!data?.authenticated) return;
-      if (hamburger) hamburger.hidden = data.role !== 'admin';
-      if (label) label.textContent = data.name || data.email || 'Tài khoản';
-    })
-    .catch(error => console.error('Admin menu auth check:', error));
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      closeSettings();
+      closeProfile();
+    }
+  });
+
+  // Sync the hamburger's expanded state with the existing admin menu.
   const observer = new MutationObserver(() => {
-    const open = panel && !panel.hidden;
-    hamburger?.setAttribute('aria-expanded', String(!!open));
+    hamburger.setAttribute('aria-expanded', String(!adminMenuPanel.hidden));
   });
-  if (panel) observer.observe(panel, {attributes:true,attributeFilter:['hidden']});
+  observer.observe(adminMenuPanel, { attributes: true, attributeFilter: ['hidden'] });
+
+  function applyTheme(theme) {
+    const dark = theme === 'dark';
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    themeButton.setAttribute('aria-pressed', String(dark));
+    themeButton.setAttribute('aria-label', dark ? 'Bật giao diện sáng' : 'Bật giao diện tối');
+    themeButton.title = dark ? 'Bật giao diện sáng' : 'Bật giao diện tối';
+    try {
+      localStorage.setItem('translatorTheme', dark ? 'dark' : 'light');
+    } catch (error) {
+      console.warn('Cannot save theme preference:', error);
+    }
+  }
+
+  let savedTheme = 'light';
+  try {
+    savedTheme = localStorage.getItem('translatorTheme') === 'dark' ? 'dark' : 'light';
+  } catch (error) {
+    console.warn('Cannot read theme preference:', error);
+  }
+  applyTheme(savedTheme);
+  themeButton.addEventListener('click', () => {
+    applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+  });
+
+  const hasSpeech = typeof window.speechSynthesis !== 'undefined' &&
+    typeof window.SpeechSynthesisUtterance === 'function';
+  let activeSpeechButton = null;
+
+  function resetSpeechButton() {
+    activeSpeechButton?.classList.remove('is-speaking');
+    activeSpeechButton = null;
+  }
+
+  function speak(content, button) {
+    const text = content.trim();
+    if (!hasSpeech || !text) return;
+    // Clicking the same speaker again stops playback.
+    if (activeSpeechButton === button) {
+      window.speechSynthesis.cancel();
+      resetSpeechButton();
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    resetSpeechButton();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = /[\u3400-\u9FFF]/u.test(text) ? 'zh-CN' : 'vi-VN';
+    utterance.rate = 1;
+    utterance.onend = resetSpeechButton;
+    utterance.onerror = resetSpeechButton;
+
+    activeSpeechButton = button;
+    button.classList.add('is-speaking');
+    window.speechSynthesis.speak(utterance);
+  }
+
+  if (!hasSpeech) {
+    sourceSpeaker.disabled = true;
+    outputSpeaker.disabled = true;
+    sourceSpeaker.title = outputSpeaker.title = 'Trình duyệt chưa hỗ trợ đọc văn bản';
+  }
+  sourceSpeaker.addEventListener('click', () => speak(input.value, sourceSpeaker));
+  outputSpeaker.addEventListener('click', () => speak(translation.textContent, outputSpeaker));
+
+  function updateSourceControls() {
+    const content = input.value.trim();
+    const hasInput = Boolean(content);
+    clearBtn.hidden = !hasInput;
+    sourceMic.hidden = hasInput;
+    sourceSpeaker.hidden = !hasInput;
+    targetLabel.textContent = !hasInput
+      ? 'Bản dịch'
+      : /[\u3400-\u9FFF]/u.test(content)
+        ? 'Bản dịch · Tiếng Việt'
+        : 'Bản dịch · Tiếng Trung';
+  }
+
+  input.addEventListener('input', updateSourceControls);
+  clearBtn.addEventListener('click', () => {
+    input.value = '';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.focus();
+
+    window.speechSynthesis?.cancel();
+    resetSpeechButton();
+    translation.textContent = '';
+    outputSpeaker.hidden = true;
+    copyBtn.hidden = true;
+    byId('backTranslation').textContent = '';
+    byId('backTranslationWrapper').classList.add('hidden');
+    byId('pronunciationWrapper').classList.add('hidden');
+    byId('vocabularyWrapper').classList.add('hidden');
+    byId('verificationWrapper').classList.add('hidden');
+    byId('status').textContent = '';
+  });
+  updateSourceControls();
 })();
 
 // Realtime Pinyin
