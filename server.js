@@ -1,6 +1,7 @@
 require('dotenv').config();
 
 const { pinyin } = require('pinyin-pro');
+const { getChineseAudio } = require('./web-tts');
 const express = require('express');
 const path = require('path');
 const session = require('express-session');
@@ -230,6 +231,23 @@ app.get('/login.html', (req, res) => {
 });
 
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Authenticated Mandarin speech synthesis; never expose ElevenLabs credentials.
+app.post('/api/tts/chinese', requireAuth, async (req, res) => {
+  try {
+    const { audio, cached } = await getChineseAudio(req.body?.text);
+    res.set('Content-Type', 'audio/mpeg');
+    res.set('Cache-Control', 'private, no-store');
+    res.set('X-Audio-Cache', cached ? 'HIT' : 'MISS');
+    return res.send(audio);
+  } catch (error) {
+    console.error('Chinese TTS error:', error.message);
+    return res.status(error.status || 502).json({
+      success: false,
+      message: error.status === 400 ? error.message : 'Không thể tạo giọng đọc lúc này'
+    });
+  }
+});
 
 // Convert Chinese text to Pinyin
 app.get('/api/pinyin', requireAuth, (req, res) => {
