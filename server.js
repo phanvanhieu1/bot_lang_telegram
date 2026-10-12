@@ -53,6 +53,10 @@ sessionStore.on('error', (error) => {
   console.error('MongoDB session store error:', error);
 });
 
+// Attach a rejection handler immediately: if Atlas is unreachable,
+// both databaseReady and the store's collection initialization reject.
+sessionStore.collectionP.catch(() => {});
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
