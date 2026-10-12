@@ -651,7 +651,7 @@ if (result) {
     newData.vocabulary = '';
   }
 
-  persistProCache(
+  await persistProCache(
   text.trim(),
   targetLang,
   fastMode,
@@ -683,7 +683,7 @@ if (
 
     finalCache.pronunciation = localPinyin;
 
-    persistProCache(
+    await persistProCache(
   text.trim(),
   targetLang,
   fastMode,
@@ -720,7 +720,7 @@ if (
 
   finalCache.verification = verificationData;
 
-  persistProCache(
+  await persistProCache(
     inputText,
     targetLang,
     fastMode,
