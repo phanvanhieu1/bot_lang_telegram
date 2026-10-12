@@ -18,8 +18,7 @@ const {
 
 const {
   containsChinese,
-  buildFreePrompt,
-  buildBackTranslationPrompt
+  buildFreePrompt
 } = require('../prompts/free.prompt');
 
 const {
@@ -165,50 +164,37 @@ async function runTranslationPipeline(
   text,
   requestProvider
 ) {
-  const inputIsChinese = containsChinese(text);
-
-  const mainResult = await translateWithProvider(
+  // Groq / OpenRouter: both directions are generated in ONE AI request.
+  const result = await translateWithProvider(
     text,
     requestProvider
   );
 
-  const finalParsed = {
-    translation: mainResult.parsed.translation,
-    backTranslation: null
-  };
-
-  let latestRateLimit = mainResult.rateLimit;
+  const inputIsChinese = containsChinese(text);
 
   if (!inputIsChinese) {
-    const chineseTranslation =
-      mainResult.parsed.translation;
-
-    const backResult = await translateWithProvider(
-      chineseTranslation,
-      requestProvider,
-      buildBackTranslationPrompt(chineseTranslation)
-    );
-
-    finalParsed.backTranslation =
-      backResult.parsed.translation;
-
-    latestRateLimit = backResult.rateLimit;
-  }
-
-  let finalContent =
-    `TRANSLATION: ${finalParsed.translation}`;
-
-  if (finalParsed.backTranslation) {
-    finalContent +=
-      `\nBACK_TRANSLATION: ${finalParsed.backTranslation}`;
+    if (
+      typeof result.parsed.backTranslation !== 'string' ||
+      !result.parsed.backTranslation.trim() ||
+      containsChinese(result.parsed.backTranslation)
+    ) {
+      const error = new Error('Missing or invalid reverse translation');
+      error.code = 'INVALID_OUTPUT';
+      throw error;
+    }
   }
 
   return {
-    content: finalContent,
-    parsed: finalParsed,
-    provider: mainResult.provider,
+    content: result.content,
+    parsed: {
+      translation: result.parsed.translation,
+      backTranslation: inputIsChinese
+        ? null
+        : result.parsed.backTranslation
+    },
+    provider: result.provider,
     cached: false,
-    rateLimit: latestRateLimit
+    rateLimit: result.rateLimit
   };
 }
 
