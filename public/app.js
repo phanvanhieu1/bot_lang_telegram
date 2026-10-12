@@ -1036,6 +1036,7 @@ function renderHistory(items) {
 
     const langNames = {
       zh: '🇨🇳 Trung',
+      vi: '🇻🇳 Việt',
       en: '🇺🇸 Anh',
       ja: '🇯🇵 Nhật',
       ko: '🇰🇷 Hàn'
