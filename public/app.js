@@ -920,6 +920,50 @@ historyBtn.addEventListener('click', openHistory);
 closeHistoryBtn.addEventListener('click', closeHistory);
 historyOverlay.addEventListener('click', closeHistory);
 
+historySearch.addEventListener('input', () => {
+  const term = historySearch.value.trim().toLocaleLowerCase('vi-VN');
+
+  renderHistory(
+    term
+      ? historyData.filter(item =>
+          [item.text, item.result, item.targetLang]
+            .some(value => String(value || '').toLocaleLowerCase('vi-VN').includes(term))
+        )
+      : historyData
+  );
+});
+
+clearHistoryBtn.addEventListener('click', async () => {
+  if (!historyData.length) return;
+
+  if (!window.confirm('Bạn có chắc muốn xóa toàn bộ lịch sử dịch của tài khoản này?')) {
+    return;
+  }
+
+  clearHistoryBtn.disabled = true;
+
+  try {
+    const response = await fetch('/api/history', {
+      method: 'DELETE',
+      credentials: 'same-origin'
+    });
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'Không thể xóa lịch sử');
+    }
+
+    historyData = [];
+    historySearch.value = '';
+    renderHistory(historyData);
+  } catch (error) {
+    console.error('Clear history error:', error);
+    window.alert(error.message || 'Không thể xóa lịch sử');
+  } finally {
+    clearHistoryBtn.disabled = false;
+  }
+});
+
 async function loadHistory() {
   try {
     const response = await fetch('/api/history');
@@ -962,7 +1006,7 @@ function renderHistory(items) {
     });
 
     const translationMatch = item.result.match(
-      /TRANSLATION:\s*([\s\S]*?)(?=\nPRONUNCIATION:|$)/i
+      /TRANSLATION:\s*([\s\S]*?)(?=BACK_TRANSLATION:|PRONUNCIATION:|VOCABULARY:|VERIFICATION:|$)/i
     );
 
     const translatedText = translationMatch
