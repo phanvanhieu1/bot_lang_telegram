@@ -2,7 +2,7 @@
 const {
   getFreeCachedText,
   setFreeCachedText
-} = require('../../cache');
+} = require('../../web-cache');
 
 const {
   requestGroq
@@ -31,8 +31,8 @@ const {
 
 const FREE_CACHE_TTL = 24 * 60 * 60 * 1000;
 
-function getFreeCachedTranslation(text) {
-  const cached = getFreeCachedText(text);
+async function getFreeCachedTranslation(text) {
+  const cached = await getFreeCachedText(text);
 
   if (!cached) return null;
 
@@ -82,12 +82,22 @@ function getFreeCachedTranslation(text) {
   };
 }
 
-function setFreeCachedTranslation(text, content, parsed) {
-  setFreeCachedText(text, {
+async function setFreeCachedTranslation(text, content, parsed) {
+  await setFreeCachedText(text, {
     content,
     parsed,
     createdAt: Date.now()
   });
+}
+
+// A successful provider response must not trigger a second paid AI request
+// merely because the database failed to persist the cache.
+async function persistFreeCache(text, result) {
+  try {
+    await setFreeCachedTranslation(text, result.content, result.parsed);
+  } catch (error) {
+    console.error('FREE MongoDB cache write error:', error);
+  }
 }
 
 function classifyProviderError(error, provider) {
@@ -239,7 +249,7 @@ async function runDeepLPipeline(text) {
 }
 
 async function translateFree(text) {
-  const cachedResult = getFreeCachedTranslation(text);
+  const cachedResult = await getFreeCachedTranslation(text);
 
   if (cachedResult) {
     return {
@@ -259,11 +269,7 @@ async function translateFree(text) {
       requestGroq
     );
 
-    setFreeCachedTranslation(
-      text,
-      result.content,
-      result.parsed
-    );
+    await persistFreeCache(text, result);
 
     return result;
   } catch (error) {
@@ -279,11 +285,7 @@ async function translateFree(text) {
       requestOpenRouter
     );
 
-    setFreeCachedTranslation(
-      text,
-      result.content,
-      result.parsed
-    );
+    await persistFreeCache(text, result);
 
     return result;
   } catch (error) {
@@ -300,11 +302,7 @@ async function translateFree(text) {
     try {
   const result = await runDeepLPipeline(text);
 
-  setFreeCachedTranslation(
-    text,
-    result.content,
-    result.parsed
-  );
+  await persistFreeCache(text, result);
 
   return result;
 } catch (error) {
