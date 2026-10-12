@@ -98,40 +98,94 @@
   const hasSpeech = typeof window.speechSynthesis !== 'undefined' &&
     typeof window.SpeechSynthesisUtterance === 'function';
   let activeSpeechButton = null;
+  let currentAudio = null;
+  let audioUrl = null;
+  let requestController = null;
+  let playbackId = 0;
 
   function resetSpeechButton() {
     activeSpeechButton?.classList.remove('is-speaking');
     activeSpeechButton = null;
   }
 
-  function speak(content, button) {
-    const text = content.trim();
-    if (!hasSpeech || !text) return;
-    // Clicking the same speaker again stops playback.
-    if (activeSpeechButton === button) {
-      window.speechSynthesis.cancel();
-      resetSpeechButton();
+  function stopSpeech() {
+    playbackId++;
+    requestController?.abort();
+    requestController = null;
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio.src = '';
+      currentAudio = null;
+    }
+    if (audioUrl) {
+      URL.revokeObjectURL(audioUrl);
+      audioUrl = null;
+    }
+    window.speechSynthesis?.cancel();
+    resetSpeechButton();
+  }
+
+  function browserSpeak(text, button) {
+    if (!hasSpeech) {
+      console.warn('Trình duyệt không hỗ trợ đọc văn bản');
       return;
     }
-
-    window.speechSynthesis.cancel();
-    resetSpeechButton();
-
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = /[\u3400-\u9FFF]/u.test(text) ? 'zh-CN' : 'vi-VN';
     utterance.rate = 1;
     utterance.onend = resetSpeechButton;
     utterance.onerror = resetSpeechButton;
-
     activeSpeechButton = button;
     button.classList.add('is-speaking');
     window.speechSynthesis.speak(utterance);
   }
 
+  async function speak(content, button) {
+    const text = content.trim();
+    if (!text) return;
+    if (activeSpeechButton === button) {
+      stopSpeech();
+      return;
+    }
+    stopSpeech();
+    const id = playbackId;
+    if (!/[\u3400-\u9FFF]/u.test(text)) {
+      browserSpeak(text, button);
+      return;
+    }
+    button.classList.add('is-speaking');
+    activeSpeechButton = button;
+    requestController = new AbortController();
+    try {
+      const response = await fetch('/api/tts/chinese', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+        signal: requestController.signal
+      });
+      if (!response.ok) throw new Error(`ElevenLabs TTS HTTP ${response.status}`);
+      const blob = await response.blob();
+      if (id !== playbackId) return;
+      audioUrl = URL.createObjectURL(blob);
+      currentAudio = new Audio(audioUrl);
+      currentAudio.onended = () => { if (id === playbackId) stopSpeech(); };
+      currentAudio.onerror = () => {
+        if (id !== playbackId) return;
+        stopSpeech();
+        browserSpeak(text, button);
+      };
+      await currentAudio.play();
+    } catch (error) {
+      if (id !== playbackId || error.name === 'AbortError') return;
+      console.warn('ElevenLabs không khả dụng, dùng giọng trình duyệt:', error);
+      stopSpeech();
+      browserSpeak(text, button);
+    }
+  }
+
   if (!hasSpeech) {
-    sourceSpeaker.disabled = true;
-    outputSpeaker.disabled = true;
-    sourceSpeaker.title = outputSpeaker.title = 'Trình duyệt chưa hỗ trợ đọc văn bản';
+    sourceSpeaker.title = outputSpeaker.title = 'Đọc tiếng Trung bằng ElevenLabs';
   }
   sourceSpeaker.addEventListener('click', () => speak(input.value, sourceSpeaker));
   outputSpeaker.addEventListener('click', () => speak(translation.textContent, outputSpeaker));
@@ -155,8 +209,7 @@
     input.dispatchEvent(new Event('input', { bubbles: true }));
     input.focus();
 
-    window.speechSynthesis?.cancel();
-    resetSpeechButton();
+    stopSpeech();
     translation.textContent = '';
     outputSpeaker.hidden = true;
     copyBtn.hidden = true;
