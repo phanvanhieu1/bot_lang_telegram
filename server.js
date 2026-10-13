@@ -235,7 +235,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Authenticated Mandarin speech synthesis; never expose ElevenLabs credentials.
 app.post('/api/tts/chinese', requireAuth, async (req, res) => {
   try {
-    const { audio, cached } = await getChineseAudio(req.body?.text);
+    const { audio, cached } = await getChineseAudio(req.body?.text, req.body?.voiceId, req.body?.speed);
     res.set('Content-Type', 'audio/mpeg');
     res.set('Cache-Control', 'private, no-store');
     res.set('X-Audio-Cache', cached ? 'HIT' : 'MISS');
