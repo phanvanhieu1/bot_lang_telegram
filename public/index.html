@@ -23,7 +23,26 @@
     <div class="header-popover-anchor" id="settingsAnchor">
       <button class="header-icon-button" id="settingsBtn" type="button" disabled title="Cài đặt dịch PRO" aria-label="Cài đặt dịch PRO" aria-controls="settingsPanel" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.9l-1.8 1.8a1.7 1.7 0 0 0-1.9-.34 1.7 1.7 0 0 0-1.03 1.58V22h-2.55v-2.04A1.7 1.7 0 0 0 11.4 18.4a1.7 1.7 0 0 0-1.89.34l-1.8-1.8a1.7 1.7 0 0 0 .34-1.9A1.7 1.7 0 0 0 6.48 14H4v-2.55h2.48a1.7 1.7 0 0 0 1.57-1.04 1.7 1.7 0 0 0-.34-1.9l1.8-1.8a1.7 1.7 0 0 0 1.9.34A1.7 1.7 0 0 0 12.45 5.5V4h2.55v1.5a1.7 1.7 0 0 0 1.04 1.57 1.7 1.7 0 0 0 1.9-.34l1.8 1.8a1.7 1.7 0 0 0-.34 1.9A1.7 1.7 0 0 0 20.96 11.5H22V14h-1.04A1.7 1.7 0 0 0 19.4 15Z" transform="translate(-.7 -.7)"/></svg></button>
       <div class="header-popover settings-panel" id="settingsPanel" hidden>
-        <div class="popover-heading"><strong>Tùy chỉnh bản PRO</strong><span class="popover-tag">PRO</span></div>
+        <div class="popover-heading"><strong>Cài đặt</strong></div>
+        <div class="voice-settings">
+          <strong class="voice-settings-title">Giọng đọc tiếng Trung</strong>
+          <label for="ttsVoice">Giọng</label>
+          <select id="ttsVoice">
+            <option value="ByhETIclHirOlWnWKhHc">Giọng nữ 1</option>
+            <option value="D9bZgM9Er0PhIxuW9Jqa">Giọng nam 1</option>
+            <option value="2I36mEahS1u7ZnTKUoaB">Giọng nam 2</option>
+            <option value="BqljjWyTnrioXPCNkCd4">Giọng nữ 2</option>
+          </select>
+          <label for="ttsSpeed">Tốc độ</label>
+          <select id="ttsSpeed">
+            <option value="0.8">0.8× · Chậm</option>
+            <option value="0.9">0.9× · Hơi chậm</option>
+            <option value="1" selected>1.0× · Bình thường</option>
+            <option value="1.1">1.1× · Hơi nhanh</option>
+            <option value="1.2">1.2× · Nhanh</option>
+          </select>
+        </div>
+        <div class="popover-heading" id="proSettingsHeading"><strong>Tùy chỉnh bản PRO</strong><span class="popover-tag">PRO</span></div>
         <div id="proOptions"><div class="translation-options">
 <div class="translation-options-title">Tùy chọn</div>
 <label class="option-toggle">
