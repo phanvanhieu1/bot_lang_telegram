@@ -538,3 +538,9 @@ html[data-theme] #regularLogoutBtn{
   color:var(--ui-text)!important;text-align:left!important;
 }
 html[data-theme] #regularLogoutBtn:hover{background:var(--ui-hover)!important}
+
+.voice-settings{display:grid;gap:8px;padding:12px 2px 16px;margin-bottom:12px;border-bottom:1px solid var(--ui-border)}
+.voice-settings-title{font-size:13px}
+.voice-settings label{font-size:12px;font-weight:600}
+.voice-settings select{width:100%;min-width:0;padding:9px 11px;border-radius:9px;border:1px solid var(--ui-border);background:var(--ui-subtle);color:var(--ui-text);font:inherit}
+#proSettingsHeading[hidden]{display:none!important}
