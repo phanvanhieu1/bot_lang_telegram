@@ -158,6 +158,14 @@
     window.speechSynthesis.speak(utterance);
   }
 
+  function showSpeechError(message) {
+    const status = byId('status');
+    if (status) {
+      status.textContent = message;
+      status.className = 'status error';
+    }
+  }
+
   async function speak(content, button) {
     const text = content.trim();
     if (!text) return;
@@ -182,7 +190,15 @@
         body: JSON.stringify({ text, voiceId: voiceSelect.value, speed: Number(speedSelect.value) }),
         signal: requestController.signal
       });
-      if (!response.ok) throw new Error(`ElevenLabs TTS HTTP ${response.status}`);
+      if (!response.ok) {
+        let message = 'Không thể tạo âm thanh ElevenLabs';
+        try {
+          const data = await response.json();
+          if (data?.message) message = data.message;
+        } catch (_) {}
+        throw new Error(`${message} (HTTP ${response.status})`);
+      }
+      console.info('ElevenLabs audio cache:', response.headers.get('X-Audio-Cache') || 'unknown');
       const blob = await response.blob();
       if (id !== playbackId) return;
       audioUrl = URL.createObjectURL(blob);
@@ -191,14 +207,14 @@
       currentAudio.onerror = () => {
         if (id !== playbackId) return;
         stopSpeech();
-        browserSpeak(text, button);
+        showSpeechError('Không thể phát file MP3 từ ElevenLabs.');
       };
       await currentAudio.play();
     } catch (error) {
       if (id !== playbackId || error.name === 'AbortError') return;
-      console.warn('ElevenLabs không khả dụng, dùng giọng trình duyệt:', error);
+      console.error('ElevenLabs TTS error:', error);
       stopSpeech();
-      browserSpeak(text, button);
+      showSpeechError(error.message || 'Không thể đọc tiếng Trung lúc này.');
     }
   }
 
