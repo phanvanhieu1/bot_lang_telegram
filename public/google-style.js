@@ -19,6 +19,24 @@
   const profileButton = byId('profileBtn');
   const profilePanel = byId('profilePanel');
   const profileAnchor = byId('profileAnchor');
+  const voiceSelect = byId('ttsVoice');
+  const speedSelect = byId('ttsSpeed');
+  const validVoices = ['ByhETIclHirOlWnWKhHc', 'D9bZgM9Er0PhIxuW9Jqa', '2I36mEahS1u7ZnTKUoaB', 'BqljjWyTnrioXPCNkCd4'];
+  const validSpeeds = ['0.8', '0.9', '1', '1.1', '1.2'];
+  try {
+    const savedVoice = localStorage.getItem('ttsVoice');
+    const savedSpeed = localStorage.getItem('ttsSpeed');
+    if (validVoices.includes(savedVoice)) voiceSelect.value = savedVoice;
+    if (validSpeeds.includes(savedSpeed)) speedSelect.value = savedSpeed;
+  } catch (error) { console.warn('Cannot load speech settings:', error); }
+  voiceSelect.addEventListener('change', () => {
+    stopSpeech();
+    try { localStorage.setItem('ttsVoice', voiceSelect.value); } catch (error) { console.warn(error); }
+  });
+  speedSelect.addEventListener('change', () => {
+    stopSpeech();
+    try { localStorage.setItem('ttsSpeed', speedSelect.value); } catch (error) { console.warn(error); }
+  });
 
   function closeSettings() {
     settingsPanel.hidden = true;
@@ -132,7 +150,7 @@
     }
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = /[\u3400-\u9FFF]/u.test(text) ? 'zh-CN' : 'vi-VN';
-    utterance.rate = 1;
+    utterance.rate = Number(speedSelect.value);
     utterance.onend = resetSpeechButton;
     utterance.onerror = resetSpeechButton;
     activeSpeechButton = button;
@@ -161,7 +179,7 @@
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, voiceId: voiceSelect.value, speed: Number(speedSelect.value) }),
         signal: requestController.signal
       });
       if (!response.ok) throw new Error(`ElevenLabs TTS HTTP ${response.status}`);
