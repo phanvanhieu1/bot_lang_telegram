@@ -3,6 +3,13 @@ const mongoose = require('mongoose');
 
 const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_TEXT_LENGTH = 500;
+const VOICE_IDS = [
+  'ByhETIclHirOlWnWKhHc',
+  'D9bZgM9Er0PhIxuW9Jqa',
+  '2I36mEahS1u7ZnTKUoaB',
+  'BqljjWyTnrioXPCNkCd4'
+];
+const SPEEDS = [0.8, 0.9, 1, 1.1, 1.2];
 
 const audioSchema = new mongoose.Schema({
   key: { type: String, required: true, unique: true },
@@ -17,7 +24,7 @@ function hasChinese(text) {
   return /[\u3400-\u9FFF]/u.test(text);
 }
 
-async function getChineseAudio(text) {
+async function getChineseAudio(text, requestedVoiceId, requestedSpeed) {
   if (typeof text !== 'string' || !text.trim() || text.length > MAX_TEXT_LENGTH || !hasChinese(text)) {
     const error = new Error('Chỉ hỗ trợ câu tiếng Trung tối đa 500 ký tự');
     error.status = 400;
@@ -31,9 +38,17 @@ async function getChineseAudio(text) {
   const normalized = text.trim();
   const model = process.env.ELEVENLABS_MODEL_ID || 'eleven_flash_v2_5';
   // Voice must be chosen for Mandarin in the ElevenLabs voice library.
-  const voiceId = process.env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM';
+  const voiceId = requestedVoiceId === undefined
+    ? VOICE_IDS[0]
+    : requestedVoiceId;
+  const speed = requestedSpeed === undefined ? 1 : requestedSpeed;
+  if (!VOICE_IDS.includes(voiceId) || !SPEEDS.includes(speed)) {
+    const error = new Error('Giọng đọc hoặc tốc độ không hợp lệ');
+    error.status = 400;
+    throw error;
+  }
   const key = crypto.createHash('sha256')
-    .update(JSON.stringify(['elevenlabs', model, voiceId, normalized]))
+    .update(JSON.stringify(['elevenlabs', model, voiceId, speed, normalized]))
     .digest('hex');
   const cached = await AudioCache.findOne({ key, expiresAt: { $gt: new Date() } }).lean();
   if (cached) return { audio: cached.audio, cached: true };
@@ -51,7 +66,7 @@ async function getChineseAudio(text) {
           'Content-Type': 'application/json',
           Accept: 'audio/mpeg'
         },
-        body: JSON.stringify({ text: normalized, model_id: model }),
+        body: JSON.stringify({ text: normalized, model_id: model, voice_settings: { speed } }),
         signal: controller.signal
       }
     );
