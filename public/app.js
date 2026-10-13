@@ -124,11 +124,11 @@ function setTranslatorMode(mode) {
   const settingsBtn = document.getElementById('settingsBtn');
   const settingsPanel = document.getElementById('settingsPanel');
   if (settingsBtn) {
-    settingsBtn.disabled = !isPro;
-    settingsBtn.title = isPro ? 'Tùy chỉnh bản PRO' : 'Chỉ dành cho chế độ PRO';
-    if (!isPro) settingsBtn.setAttribute('aria-expanded', 'false');
+    settingsBtn.disabled = false;
+    settingsBtn.title = 'Cài đặt giọng đọc và bản dịch';
   }
-  if (!isPro && settingsPanel) settingsPanel.hidden = true;
+  const proSettingsHeading = document.getElementById('proSettingsHeading');
+  if (proSettingsHeading) proSettingsHeading.hidden = !isPro;
 
   // Không cho người dùng tự chuyển chế độ.
   freeModeBtn.classList.add('hidden');
