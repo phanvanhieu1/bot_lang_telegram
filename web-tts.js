@@ -51,7 +51,20 @@ async function getChineseAudio(text, requestedVoiceId, requestedSpeed) {
     .update(JSON.stringify(['elevenlabs', model, voiceId, speed, normalized]))
     .digest('hex');
   const cached = await AudioCache.findOne({ key, expiresAt: { $gt: new Date() } }).lean();
-  if (cached) return { audio: cached.audio, cached: true };
+  if (cached) {
+    // Lean Mongoose documents may expose BSON Binary rather than Node Buffer.
+    const stored = cached.audio;
+    const audio = Buffer.isBuffer(stored)
+      ? stored
+      : stored?.buffer
+        ? Buffer.from(stored.buffer)
+        : Buffer.from(stored || []);
+    if (audio.length > 0 && audio.length <= 5 * 1024 * 1024) {
+      return { audio, cached: true };
+    }
+    // Do not serve malformed cache entries as audio.
+    await AudioCache.deleteOne({ key });
+  }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 20000);
