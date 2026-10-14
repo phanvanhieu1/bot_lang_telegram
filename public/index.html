@@ -8,13 +8,15 @@
 <title>Dịch thuật | Language Translator</title>
 <link href="/style.css" rel="stylesheet"/>
 <link href="/translator.css" rel="stylesheet"/>
-<link href="/google-style.css" rel="stylesheet"/></head>
+<link href="/google-style.css" rel="stylesheet"/>
+<link href="/language-ui.css" rel="stylesheet"/></head>
 <body>
 <main class="container">
 <header class="header gt-header">
   <div class="header-left">
     <button class="admin-hamburger header-icon-button" aria-controls="adminMenuPanel" aria-expanded="false" aria-label="Mở menu quản trị" title="Quản trị" hidden id="adminHamburger" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
-    <a class="brand" href="/" aria-label="Trang chủ Dịch Việt Trung"><span class="brand-symbol">文</span><span>Dịch Việt · Trung</span></a>
+    <a class="brand" href="/" aria-label="Trang chủ"><span class="brand-symbol">文</span></a>
+    <label class="header-language-picker" for="activeLanguageSelect"><select id="activeLanguageSelect" aria-label="Chọn ngôn ngữ để dịch và luyện tập"><option value="zh">Dịch Việt · Trung</option><option value="en">Dịch Việt · Anh</option></select></label>
   </div>
   <div class="header-account">
     <button class="header-icon-button" id="themeToggle" type="button" title="Chuyển giao diện sáng hoặc tối" aria-label="Chuyển giao diện sáng hoặc tối" aria-pressed="false">
@@ -25,7 +27,7 @@
       <div class="header-popover settings-panel" id="settingsPanel" hidden>
         <div class="popover-heading"><strong>Cài đặt</strong></div>
         <div class="voice-settings">
-          <strong class="voice-settings-title">Giọng đọc tiếng Trung</strong>
+          <strong class="voice-settings-title"><span id="mainTtsLanguageLabel">Giọng đọc tiếng Trung</span></strong>
           <label for="ttsVoice">Giọng</label>
           <select id="ttsVoice">
             <option value="ByhETIclHirOlWnWKhHc">Giọng nữ 1</option>
@@ -33,6 +35,7 @@
             <option value="2I36mEahS1u7ZnTKUoaB">Giọng nam 2</option>
             <option value="BqljjWyTnrioXPCNkCd4">Giọng nữ 2</option>
           </select>
+          <p id="ttsEnglishNote" hidden>Tiếng Anh dùng giọng đọc của thiết bị.</p>
           <label for="ttsSpeed">Tốc độ</label>
           <select id="ttsSpeed">
             <option value="0.8">0.8× · Chậm</option>
@@ -114,7 +117,7 @@
 <div class="practice-launcher-info">
 <span class="practice-launcher-icon">📚</span>
 <div>
-<strong>Luyện tiếng Trung</strong>
+<strong id="practiceLauncherTitle">Luyện tiếng Trung</strong>
 <small>Chấm điểm, sửa câu và giải thích bằng AI</small>
 </div>
 </div>
@@ -130,7 +133,7 @@
     Luyện tiếng Trung
   </button>
 </div>
-<div class="language-fixed" aria-label="Dịch tự động giữa tiếng Việt và tiếng Trung"><span class="pane-label">Tự động phát hiện ngôn ngữ</span><span class="pane-label" id="targetLabel">Bản dịch</span></div><div hidden="" id="languageSelector"><select aria-label="Ngôn ngữ đích cố định" id="targetLang"><option selected="" value="zh">Tiếng Trung</option></select></div><div class="translation-workspace">
+<div class="language-fixed" aria-label="Dịch tự động giữa tiếng Việt và ngôn ngữ đã chọn"><span class="pane-label">Tự động phát hiện ngôn ngữ</span><span class="pane-label" id="targetLabel">Bản dịch</span></div><div hidden="" id="languageSelector"><select aria-label="Ngôn ngữ đích cố định" id="targetLang"><option selected="" value="zh">Tiếng Trung</option></select></div><div class="translation-workspace">
 <div class="translation-source">
 <div class="textarea-wrapper">
 <textarea id="text" placeholder="Nhập văn bản cần dịch..." aria-label="Nhập văn bản cần dịch"></textarea>
@@ -247,8 +250,8 @@
 <dialog class="practice-modal" id="practiceModal">
 <div class="practice-modal-header">
 <div>
-<h2>📚 Luyện tiếng Trung</h2>
-<p>Viết câu tiếng Trung và nhận đánh giá từ AI</p>
+<h2 id="practiceModalTitle">📚 Luyện tiếng Trung</h2>
+<p id="practiceModalDescription">Viết câu tiếng Trung và nhận đánh giá từ AI</p>
 </div>
 <button aria-label="Đóng cửa sổ" class="practice-modal-close" id="closePracticeBtn" type="button">
       ×
@@ -256,14 +259,14 @@
 </div>
 <div class="practice-modal-body">
 <div class="practice-audio-settings">
-<strong>Âm thanh luyện tập</strong>
+<strong><span id="practiceAudioLanguageLabel">Âm thanh luyện tập</span></strong>
 <label for="practiceTtsVoice">Giọng đọc</label>
 <select id="practiceTtsVoice"><option value="ByhETIclHirOlWnWKhHc">Giọng nữ 1</option><option value="D9bZgM9Er0PhIxuW9Jqa">Giọng nam 1</option><option value="2I36mEahS1u7ZnTKUoaB">Giọng nam 2</option><option value="BqljjWyTnrioXPCNkCd4">Giọng nữ 2</option></select>
 <label for="practiceTtsSpeed">Tốc độ</label>
 <select id="practiceTtsSpeed"><option value="0.8">0.8× · Chậm</option><option value="0.9">0.9× · Hơi chậm</option><option value="1" selected>1.0× · Bình thường</option><option value="1.1">1.1× · Hơi nhanh</option><option value="1.2">1.2× · Nhanh</option></select>
 </div>
 <div id="practiceAudioStatus" role="status" aria-live="polite"></div>
-<label for="practiceInput">Câu tiếng Trung của bạn</label>
+<label id="practiceInputLabel" for="practiceInput">Câu tiếng Trung của bạn</label>
 <textarea id="practiceInput" placeholder="Ví dụ: 我今天早上七点起床。" rows="5"></textarea>
 <div class="practice-modal-actions">
 <button id="submitPracticeBtn" type="button">
@@ -358,6 +361,7 @@
 #practiceAudioStatus:not(:empty){padding:8px 0;color:#c35a41;font-size:13px}
 @media(max-width:520px){.practice-audio-settings{grid-template-columns:1fr}}
 </style>
+<script src="/language-ui.js"></script>
 <script src="/app.js"></script>
 <script src="/google-style.js"></script>
 <script src="/practice-audio.js"></script></body>
