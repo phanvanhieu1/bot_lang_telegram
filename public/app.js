@@ -33,6 +33,7 @@ const clearHistoryBtn = document.getElementById('clearHistoryBtn');
 const logoutBtn = document.getElementById('logoutBtn');
 
 let historyData = [];
+let languageRequestVersion = 0;
 
 const translation = document.getElementById('translation');
 const pronunciation = document.getElementById('pronunciation');
@@ -367,7 +368,7 @@ function saveTranslationOptions() {
 
 loadTranslationOptions();
 
-async function evaluateChinesePractice() {
+async function evaluateLanguagePractice() {
   if (!['pro', 'admin'].includes(currentUserRole)) return;
 
   const input = document.getElementById('practiceInput');
@@ -376,9 +377,11 @@ async function evaluateChinesePractice() {
   const modalResult = document.getElementById('practiceModalResult');
 
   const text = input.value.trim();
+  const selectedLanguage = targetLang.value;
+  const requestVersion = languageRequestVersion;
 
   if (!text) {
-    modalStatus.textContent = 'Vui lòng nhập câu tiếng Trung.';
+    modalStatus.textContent = 'Vui lòng nhập câu tiếng ' + (selectedLanguage === 'en' ? 'Anh' : 'Trung') + '.';
     input.focus();
     return;
   }
@@ -389,7 +392,7 @@ async function evaluateChinesePractice() {
   modalResult.classList.add('hidden');
 
   try {
-    const response = await fetch('/api/practice/chinese', {
+    const response = await fetch(selectedLanguage === 'en' ? '/api/practice/english' : '/api/practice/chinese', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -408,6 +411,7 @@ async function evaluateChinesePractice() {
     }
 
     const data = await response.json();
+    if (requestVersion !== languageRequestVersion) return;
 
     if (!response.ok || !data.success) {
       throw new Error(data.message || 'Không thể chấm bài.');
@@ -421,6 +425,7 @@ async function evaluateChinesePractice() {
     loadUsage();
 
   } catch (error) {
+    if (requestVersion !== languageRequestVersion) return;
     console.error('Practice error:', error);
     modalStatus.textContent =
       error.message || 'Có lỗi xảy ra khi chấm bài.';
@@ -494,6 +499,7 @@ async function translate() {
 
   const text = textInput.value.trim();
   const selectedLang = targetLang.value;
+  const requestVersion = languageRequestVersion;
 
   if (!text) {
     status.textContent = 'Vui lòng nhập nội dung cần dịch';
@@ -553,6 +559,7 @@ const response = await fetch(translateEndpoint, {
     });
 
     const data = await response.json();
+    if (requestVersion !== languageRequestVersion) return;
 
     if (
   translatorMode === 'free' &&
@@ -595,6 +602,7 @@ const response = await fetch(translateEndpoint, {
     loadUsage();
 
   } catch (error) {
+    if (requestVersion !== languageRequestVersion) return;
     console.error(error);
 
     status.textContent = error.message || 'Dịch thất bại';
@@ -854,6 +862,7 @@ if (verificationToggle.checked && verificationMatch) {
 }
 
   if (
+  targetLang.value === 'zh' &&
   (translatorMode === 'free' ||
     pronunciationToggle.checked) &&
   !/[\u3400-\u9FFF]/u.test(textInput.value) &&
@@ -1007,6 +1016,7 @@ async function loadHistory() {
 }
 
 function renderHistory(items) {
+  items = items.filter(item => (item.learningLang || 'zh') === targetLang.value);
   historyList.innerHTML = '';
 
   if (!items.length) {
@@ -1092,6 +1102,37 @@ document.getElementById('regularLogoutBtn').addEventListener('click', performLog
 
 loadUsage();
 
+// The selected language drives both translators and the shared practice popup.
+// Ignore late API responses from the previous language; never show stale results.
+window.addEventListener('learning-language-change', () => {
+  languageRequestVersion++;
+  translateBtn.disabled = false;
+  translateBtn.classList.remove('loading');
+  status.textContent = '';
+  status.className = 'status';
+  translation.innerHTML = '<div class="translation-placeholder"><span class="translation-placeholder-icon">文</span><p>Bản dịch sẽ xuất hiện tại đây</p></div>';
+  copyBtn.hidden = true;
+  document.getElementById('outputSpeakBtn').hidden = true;
+  pronunciation.textContent = '';
+  vocabulary.textContent = '';
+  backTranslation.textContent = '';
+  backTranslationWrapper.classList.add('hidden');
+  pronunciationWrapper.classList.add('hidden');
+  vocabularyWrapper.classList.add('hidden');
+  verificationWrapper.classList.add('hidden');
+  const practiceResultBox = document.getElementById('practiceModalResult');
+  practiceResultBox.classList.add('hidden');
+  document.getElementById('practiceModalStatus').textContent = '';
+  document.getElementById('practiceInput').value = '';
+  originalText.textContent = '';
+  naturalText.textContent = '';
+  document.getElementById('submitPracticeBtn').disabled = false;
+  document.getElementById('submitPracticeBtn').textContent = 'Chấm bài →';
+  historySearch.value = '';
+  renderHistory(historyData);
+  document.getElementById('text').dispatchEvent(new Event('input', { bubbles: true }));
+});
+
 // ===== PRACTICE MODAL =====
 
 const practiceModal = document.getElementById('practiceModal');
@@ -1120,7 +1161,7 @@ const submitPracticeBtn =
 
 submitPracticeBtn.addEventListener(
   'click',
-  evaluateChinesePractice
+  evaluateLanguagePractice
 );
 
 const practiceInput = document.getElementById('practiceInput');
@@ -1131,6 +1172,6 @@ practiceInput.addEventListener('keydown', (event) => {
 
     if (submitPracticeBtn.disabled) return;
 
-    evaluateChinesePractice();
+    evaluateLanguagePractice();
   }
 });
