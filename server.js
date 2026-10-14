@@ -2,6 +2,7 @@ require('dotenv').config();
 
 const { pinyin } = require('pinyin-pro');
 const { getChineseAudio } = require('./web-tts');
+const { translateEnglishFree, translateEnglishPro, evaluateEnglish } = require('./web-english');
 const express = require('express');
 const path = require('path');
 const session = require('express-session');
@@ -290,7 +291,8 @@ app.get('/api/status',requireAuth, (req, res) => {
   });
 });
 
-app.post('/api/practice/chinese', requirePro, async (req, res) => {
+app.post(['/api/practice/chinese', '/api/practice/english'], requirePro, async (req, res) => {
+  const englishPractice = req.path.endsWith('/english');
   try {
     const { text } = req.body;
 
@@ -308,11 +310,15 @@ app.post('/api/practice/chinese', requirePro, async (req, res) => {
       });
     }
 
-    if (!/[\u3400-\u9FFF]/u.test(text)) {
+    if (!englishPractice && !/[\u3400-\u9FFF]/u.test(text)) {
       return res.status(400).json({ success: false, message: 'Vui lòng nhập ít nhất một chữ tiếng Trung để chấm bài' });
     }
 
-    const result = await evaluateChinese(text);
+    if (englishPractice && !/[a-z]/i.test(text)) {
+      return res.status(400).json({ success: false, message: 'Vui lòng nhập câu tiếng Anh để chấm bài' });
+    }
+
+    const result = englishPractice ? await evaluateEnglish(text) : await evaluateChinese(text);
 
     const inputTokens = result.usage?.prompt_tokens || 0;
     const outputTokens = result.usage?.completion_tokens || 0;
@@ -334,7 +340,7 @@ app.post('/api/practice/chinese', requirePro, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Chinese practice error:', error);
+    console.error('Practice evaluation error:', error);
 
     return res.status(500).json({
       success: false,
@@ -446,12 +452,42 @@ app.post(
   requireAuth,
   async (req, res) => {
     try {
-      const { text } = req.body;
+      const { text, targetLang: requestedLang = 'zh' } = req.body || {};
 
-      if (!text || !text.trim()) {
+      if (typeof text !== 'string' || !text.trim()) {
         return res.status(400).json({
           success: false,
           message: 'Vui lòng nhập nội dung cần dịch'
+        });
+      }
+
+      if (!['zh', 'en'].includes(requestedLang)) {
+        return res.status(400).json({ success: false, message: 'Ngôn ngữ không được hỗ trợ' });
+      }
+      if (requestedLang === 'en') {
+        if (text.length > 2000) {
+          return res.status(400).json({ success: false, message: 'Nội dung quá dài' });
+        }
+        const en = await translateEnglishFree(text.trim());
+        await addHistory({
+          userId: req.user._id,
+          text: text.trim(),
+          targetLang: en.parsed.sourceLanguage === 'en' ? 'vi' : 'en',
+          learningLang: 'en',
+          result: en.content
+        });
+        return res.json({
+          success: true,
+          mode: 'free',
+          provider: en.provider,
+          cached: en.cached,
+          sourceLanguage: en.parsed.sourceLanguage,
+          result: {
+            translation: en.parsed.translation,
+            backTranslation: en.parsed.backTranslation,
+            pronunciation: ''
+          },
+          rateLimit: en.rateLimit
         });
       }
 
@@ -474,6 +510,7 @@ const pronunciation =
         userId: req.user._id,
         text: text.trim(),
         targetLang: inputIsChinese ? 'vi' : 'zh',
+        learningLang: 'zh',
         result: [
           `TRANSLATION: ${result.parsed.translation || ''}`,
           `BACK_TRANSLATION: ${result.parsed.backTranslation || ''}`,
@@ -591,10 +628,45 @@ app.post('/api/translate',requirePro, async (req, res) => {
       context = 'auto'
      } = req.body;
 
-    if (!text || !text.trim()) {
+    if (typeof text !== 'string' || !text.trim()) {
       return res.status(400).json({
         success: false,
         message: 'Vui lòng nhập nội dung cần dịch'
+      });
+    }
+
+    if (!['zh', 'en'].includes(targetLang)) {
+      return res.status(400).json({ success: false, message: 'Ngôn ngữ không được hỗ trợ' });
+    }
+    if (targetLang === 'en') {
+      if (typeof text !== 'string' || text.length > 2000) {
+        return res.status(400).json({ success: false, message: 'Nội dung quá dài' });
+      }
+      const en = await translateEnglishPro(text.trim(), {
+        backTranslation, vocabulary, verification, context
+      });
+      const tokens = en.usage?.total_tokens || 0;
+      if (tokens > 0) {
+        await addUsage({
+          userId: req.user._id,
+          totalTokens: tokens,
+          cost: ((en.usage?.prompt_tokens || 0) * 2.5 +
+            (en.usage?.completion_tokens || 0) * 10) / 1_000_000
+        });
+      }
+      await addHistory({
+        userId: req.user._id,
+        text: text.trim(),
+        targetLang: en.parsed.sourceLanguage === 'en' ? 'vi' : 'en',
+        learningLang: 'en',
+        result: en.content
+      });
+      return res.json({
+        success: true,
+        result: en.content,
+        cached: en.cached,
+        sourceLanguage: en.parsed.sourceLanguage,
+        usage: en.usage
       });
     }
 
@@ -804,6 +876,7 @@ await addHistory({
   userId: req.user._id,
   text: text.trim(),
   targetLang,
+  learningLang: 'zh',
   result: responseContent
 });
 
