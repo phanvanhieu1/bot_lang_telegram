@@ -976,7 +976,11 @@ app.get('/api/history', requireAuth, async (req, res) => {
 
 app.delete('/api/history', requireAuth, async (req, res) => {
   try {
-    await clearHistory(req.user._id);
+    const lang = req.query.learningLang;
+    if (lang && !['zh', 'en'].includes(lang)) {
+      return res.status(400).json({ success: false, message: 'Ngôn ngữ không hợp lệ' });
+    }
+    await clearHistory(req.user._id, lang || null);
     res.json({ success: true });
   } catch (error) {
     console.error('Clear history API error:', error);
