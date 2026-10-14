@@ -430,8 +430,10 @@ async function evaluateLanguagePractice() {
     modalStatus.textContent =
       error.message || 'Có lỗi xảy ra khi chấm bài.';
   } finally {
-    submitBtn.disabled = false;
-    submitBtn.textContent = 'Chấm bài →';
+    if (requestVersion === languageRequestVersion) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Chấm bài →';
+    }
   }
 }
 
@@ -595,6 +597,11 @@ const response = await fetch(translateEndpoint, {
   parseResult(data.result);
 }
 
+    if (selectedLang === 'en') {
+      window.dispatchEvent(new CustomEvent('translation-finished', {
+        detail: { sourceLanguage: data.sourceLanguage }
+      }));
+    }
     status.textContent = '✓ Dịch thành công';
     status.className = 'status success';
 
@@ -609,8 +616,10 @@ const response = await fetch(translateEndpoint, {
     status.className = 'status error';
 
   } finally {
-    translateBtn.disabled = false;
-    translateBtn.classList.remove('loading');
+    if (requestVersion === languageRequestVersion) {
+      translateBtn.disabled = false;
+      translateBtn.classList.remove('loading');
+    }
   }
 }
 
