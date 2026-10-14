@@ -349,6 +349,14 @@
 .header-account .account-menu-logout{width:100%;padding:12px;border:0;border-radius:11px;background:transparent;color:#ff8f9d;text-align:left;cursor:pointer;font:inherit}
 .header-account .account-menu-logout:hover{background:#3d2639}
 @media(max-width:640px){.header-account .account-menu-toggle{max-width:175px;padding:6px 8px}.header-account .account-menu-toggle .user-info strong,.header-account .account-menu-toggle .user-info small{max-width:86px}.header-account .account-menu-panel{right:-6px}}
+
+.practice-audio-settings{display:grid;grid-template-columns:1fr 1fr;gap:7px 12px;padding:14px;margin-bottom:12px;border:1px solid var(--ui-border,#d5dce5);border-radius:12px}
+.practice-audio-settings strong{grid-column:1/-1;font-size:14px}
+.practice-audio-settings label{font-size:12px}
+.practice-audio-settings select{width:100%;min-width:0;box-sizing:border-box;padding:9px;border:1px solid var(--ui-border,#aeb8c5);border-radius:8px;background:var(--ui-subtle,#fff);color:var(--ui-text,inherit)}
+.practice-speak{margin-left:8px;padding:5px 10px;border:1px solid var(--ui-border,#b7c2d0);border-radius:8px;background:var(--ui-subtle,#fff);color:var(--ui-text,inherit);font-size:12px;cursor:pointer}
+#practiceAudioStatus:not(:empty){padding:8px 0;color:#c35a41;font-size:13px}
+@media(max-width:520px){.practice-audio-settings{grid-template-columns:1fr}}
 </style>
 <script src="/app.js"></script>
 <script src="/google-style.js"></script>
