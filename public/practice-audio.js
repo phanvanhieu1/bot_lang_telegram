@@ -13,6 +13,7 @@
   let url = null;
   let active = null;
   let generation = 0;
+  let spoken = null;
 
   try {
     const v = localStorage.getItem('practiceTtsVoice');
@@ -25,6 +26,7 @@
     generation++;
     controller?.abort();
     controller = null;
+    if (spoken) { window.speechSynthesis?.cancel(); spoken = null; }
     if (audio) { audio.pause(); audio.removeAttribute('src'); audio.load(); audio = null; }
     if (url) { URL.revokeObjectURL(url); url = null; }
     if (active) { active.textContent = '🔊 Nghe'; active = null; }
@@ -45,6 +47,35 @@
     if (active === button) { stop(); return; }
     stop();
     status.textContent = '';
+    if (window.languageUI.get() === 'en') {
+      const english = text.trim();
+      if (!/[a-z]/i.test(english)) {
+        status.textContent = 'Không có câu tiếng Anh để đọc.';
+        return;
+      }
+      if (typeof window.SpeechSynthesisUtterance !== 'function' || !window.speechSynthesis) {
+        status.textContent = 'Trình duyệt này không hỗ trợ giọng đọc tiếng Anh.';
+        return;
+      }
+      active = button;
+      button.textContent = '■ Dừng';
+      const id = generation;
+      spoken = new SpeechSynthesisUtterance(english);
+      spoken.lang = 'en-US';
+      spoken.rate = Number(speed.value);
+      const voices = window.speechSynthesis.getVoices().filter(item => item.lang?.toLowerCase().startsWith('en'));
+      spoken.voice = voices.find(item => item.lang.toLowerCase() === 'en-us') || voices[0] || null;
+      spoken.onend = () => { if (id === generation) stop(); };
+      spoken.onerror = (event) => {
+        if (id === generation) {
+          stop();
+          status.textContent = 'Không thể phát giọng đọc tiếng Anh (' + (event.error || 'unknown') + ').';
+        }
+      };
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(spoken);
+      return;
+    }
     // Mixed identifiers and Latin text should not be sent to Mandarin synthesis.
     const chinese = text.replace(/[A-Za-z0-9_]+/g, ' ').replace(/\s+/g, ' ').trim();
     if (!/[\u3400-\u9FFF]/u.test(chinese)) {
@@ -95,6 +126,7 @@
   buttons[0].addEventListener('click', () => speak(el('originalText').textContent, buttons[0]));
   buttons[1].addEventListener('click', () => speak(el('naturalText').textContent, buttons[1]));
   modal.addEventListener('close', stop);
+  window.addEventListener('learning-language-change', () => { stop(); status.textContent = ''; });
   const observer = new MutationObserver(() => {
     if (el('practiceModalResult').classList.contains('hidden')) stop();
   });
