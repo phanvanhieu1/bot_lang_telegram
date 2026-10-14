@@ -255,6 +255,14 @@
     </button>
 </div>
 <div class="practice-modal-body">
+<div class="practice-audio-settings">
+<strong>Âm thanh luyện tập</strong>
+<label for="practiceTtsVoice">Giọng đọc</label>
+<select id="practiceTtsVoice"><option value="ByhETIclHirOlWnWKhHc">Giọng nữ 1</option><option value="D9bZgM9Er0PhIxuW9Jqa">Giọng nam 1</option><option value="2I36mEahS1u7ZnTKUoaB">Giọng nam 2</option><option value="BqljjWyTnrioXPCNkCd4">Giọng nữ 2</option></select>
+<label for="practiceTtsSpeed">Tốc độ</label>
+<select id="practiceTtsSpeed"><option value="0.8">0.8× · Chậm</option><option value="0.9">0.9× · Hơi chậm</option><option value="1" selected>1.0× · Bình thường</option><option value="1.1">1.1× · Hơi nhanh</option><option value="1.2">1.2× · Nhanh</option></select>
+</div>
+<div id="practiceAudioStatus" role="status" aria-live="polite"></div>
 <label for="practiceInput">Câu tiếng Trung của bạn</label>
 <textarea id="practiceInput" placeholder="Ví dụ: 我今天早上七点起床。" rows="5"></textarea>
 <div class="practice-modal-actions">
@@ -285,13 +293,13 @@
 </div>
 </div>
 <div class="result-box">
-<h3>Câu của bạn</h3>
+<h3>Câu của bạn <button type="button" class="practice-speak" id="practiceOriginalSpeak" aria-label="Nghe câu của bạn">🔊 Nghe</button></h3>
 <div class="result-content" id="originalText"></div>
 <div class="practice-pinyin" id="originalPinyin"></div>
 <div class="practice-translation" id="originalTranslation"></div>
 </div>
 <div class="result-box">
-<h3>✨ Cách nói tự nhiên hơn</h3>
+<h3>✨ Cách nói tự nhiên hơn <button type="button" class="practice-speak" id="practiceNaturalSpeak" aria-label="Nghe câu tự nhiên hơn">🔊 Nghe</button></h3>
 <div class="result-content" id="naturalText"></div>
 <div class="practice-pinyin" id="naturalPinyin"></div>
 <div class="practice-translation" id="naturalTranslation"></div>
@@ -343,5 +351,6 @@
 @media(max-width:640px){.header-account .account-menu-toggle{max-width:175px;padding:6px 8px}.header-account .account-menu-toggle .user-info strong,.header-account .account-menu-toggle .user-info small{max-width:86px}.header-account .account-menu-panel{right:-6px}}
 </style>
 <script src="/app.js"></script>
-<script src="/google-style.js"></script></body>
+<script src="/google-style.js"></script>
+<script src="/practice-audio.js"></script></body>
 </html>
