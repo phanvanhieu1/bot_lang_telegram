@@ -294,7 +294,7 @@ app.post('/api/practice/chinese', requirePro, async (req, res) => {
   try {
     const { text } = req.body;
 
-    if (!text || !text.trim()) {
+    if (typeof text !== 'string' || !text.trim()) {
       return res.status(400).json({
         success: false,
         message: 'Vui lòng nhập nội dung tiếng Trung'
@@ -308,7 +308,11 @@ app.post('/api/practice/chinese', requirePro, async (req, res) => {
       });
     }
 
-    const result = await evaluateChinese(text.trim());
+    if (!/[\u3400-\u9FFF]/u.test(text)) {
+      return res.status(400).json({ success: false, message: 'Vui lòng nhập ít nhất một chữ tiếng Trung để chấm bài' });
+    }
+
+    const result = await evaluateChinese(text);
 
     const inputTokens = result.usage?.prompt_tokens || 0;
     const outputTokens = result.usage?.completion_tokens || 0;
