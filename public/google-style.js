@@ -120,6 +120,7 @@
   let audioUrl = null;
   let requestController = null;
   let playbackId = 0;
+  let lastSourceLanguage = null;
 
   function resetSpeechButton() {
     activeSpeechButton?.classList.remove('is-speaking');
@@ -143,13 +144,13 @@
     resetSpeechButton();
   }
 
-  function browserSpeak(text, button) {
+  function browserSpeak(text, button, voiceLanguage = null) {
     if (!hasSpeech) {
       console.warn('Trình duyệt không hỗ trợ đọc văn bản');
       return;
     }
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = /[\u3400-\u9FFF]/u.test(text) ? 'zh-CN' : 'vi-VN';
+    utterance.lang = voiceLanguage || (/[㐀-鿿]/u.test(text) ? 'zh-CN' : 'vi-VN');
     utterance.rate = Number(speedSelect.value);
     utterance.onend = resetSpeechButton;
     utterance.onerror = resetSpeechButton;
@@ -175,8 +176,14 @@
     }
     stopSpeech();
     const id = playbackId;
+    if (window.languageUI.get() === 'en') {
+      const source = lastSourceLanguage || window.languageUI.guessSource(input.value);
+      const speaking = button === outputSpeaker ? (source === 'en' ? 'vi' : 'en') : source;
+      browserSpeak(text, button, speaking === 'en' ? 'en-US' : 'vi-VN');
+      return;
+    }
     if (!/[\u3400-\u9FFF]/u.test(text)) {
-      browserSpeak(text, button);
+      browserSpeak(text, button, 'vi-VN');
       return;
     }
     button.classList.add('is-speaking');
@@ -230,14 +237,30 @@
     clearBtn.hidden = !hasInput;
     sourceMic.hidden = hasInput;
     sourceSpeaker.hidden = !hasInput;
-    targetLabel.textContent = !hasInput
-      ? 'Bản dịch'
-      : /[\u3400-\u9FFF]/u.test(content)
-        ? 'Bản dịch · Tiếng Việt'
-        : 'Bản dịch · Tiếng Trung';
+    let destination = '';
+    if (hasInput) {
+      if (window.languageUI.get() === 'en') {
+        const source = lastSourceLanguage || window.languageUI.guessSource(content);
+        destination = source === 'vi' ? 'Anh' : 'Việt';
+      } else {
+        destination = /[\u3400-\u9FFF]/u.test(content) ? 'Việt' : 'Trung';
+      }
+    }
+    targetLabel.textContent = hasInput ? 'Bản dịch · Tiếng ' + destination : 'Bản dịch';
   }
 
-  input.addEventListener('input', updateSourceControls);
+  input.addEventListener('input', () => { lastSourceLanguage = null; updateSourceControls(); });
+  window.addEventListener('translation-finished', (event) => {
+    if (window.languageUI.get() === 'en' && ['vi', 'en'].includes(event.detail?.sourceLanguage)) {
+      lastSourceLanguage = event.detail.sourceLanguage;
+      updateSourceControls();
+    }
+  });
+  window.addEventListener('learning-language-change', () => {
+    lastSourceLanguage = null;
+    stopSpeech();
+    updateSourceControls();
+  });
   clearBtn.addEventListener('click', () => {
     input.value = '';
     input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -276,8 +299,8 @@
     clearTimeout(debounceTimer);
     controller?.abort();
 
-    // Chỉ hiển thị khi có chữ Trung
-    if (!/[\u3400-\u9FFF]/u.test(text) || text.length > 1000) {
+    // Pinyin only applies when Chinese is the active learning language.
+    if (window.languageUI.get() !== 'zh' || !/[\u3400-\u9FFF]/u.test(text) || text.length > 1000) {
       wrapper.hidden = true;
       output.textContent = '';
       return;
