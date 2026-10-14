@@ -20,6 +20,7 @@
     select.value = language;
     el('targetLang').value = language;
     el('practiceLauncherTitle').textContent = 'Luyện tiếng ' + NAMES[language];
+    el('practiceModeBtn').textContent = 'Luyện tiếng ' + NAMES[language];
     el('practiceModalTitle').textContent = '📚 Luyện tiếng ' + NAMES[language];
     el('practiceModalDescription').textContent = 'Viết câu tiếng ' + NAMES[language] + ' và nhận đánh giá từ AI';
     el('practiceInputLabel').textContent = 'Câu tiếng ' + NAMES[language] + ' của bạn';
