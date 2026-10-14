@@ -72,9 +72,16 @@ async function getHistory(userId) {
   }));
 }
 
-async function clearHistory(userId) {
+async function clearHistory(userId, learningLang = null) {
   if (!userId) throw new Error('Missing history owner');
-  await TranslationHistory.deleteMany({ userId });
+  if (learningLang && !['zh', 'en'].includes(learningLang)) throw new Error('Unsupported language');
+  const filter = { userId };
+  if (learningLang === 'en') filter.learningLang = 'en';
+  if (learningLang === 'zh') filter.$or = [
+    { learningLang: 'zh' },
+    { learningLang: { $exists: false } }
+  ];
+  await TranslationHistory.deleteMany(filter);
 }
 
 module.exports = { addHistory, getHistory, clearHistory };
