@@ -973,16 +973,17 @@ historySearch.addEventListener('input', () => {
 });
 
 clearHistoryBtn.addEventListener('click', async () => {
-  if (!historyData.length) return;
+  const selectedLanguage = targetLang.value;
+  if (!historyData.some(item => (item.learningLang || 'zh') === selectedLanguage)) return;
 
-  if (!window.confirm('Bạn có chắc muốn xóa toàn bộ lịch sử dịch của tài khoản này?')) {
+  if (!window.confirm('Bạn có chắc muốn xóa lịch sử dịch tiếng ' + (selectedLanguage === 'en' ? 'Anh' : 'Trung') + '?')) {
     return;
   }
 
   clearHistoryBtn.disabled = true;
 
   try {
-    const response = await fetch('/api/history', {
+    const response = await fetch('/api/history?learningLang=' + encodeURIComponent(selectedLanguage), {
       method: 'DELETE',
       credentials: 'same-origin'
     });
@@ -992,7 +993,7 @@ clearHistoryBtn.addEventListener('click', async () => {
       throw new Error(data.message || 'Không thể xóa lịch sử');
     }
 
-    historyData = [];
+    historyData = historyData.filter(item => (item.learningLang || 'zh') !== selectedLanguage);
     historySearch.value = '';
     renderHistory(historyData);
   } catch (error) {
