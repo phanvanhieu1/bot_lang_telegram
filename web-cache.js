@@ -46,9 +46,11 @@ function hashKey(parts) {
     .digest('hex');
 }
 
-function freeKey(text) {
+function freeKey(text, lang = 'zh') {
   const normalizedText = String(text).trim().replace(/\s+/g, ' ');
-  return hashKey(['free', normalizedText]);
+  return lang === 'zh'
+    ? hashKey(['free', normalizedText]) // preserve existing Chinese cache entries
+    : hashKey(['free', lang, normalizedText]);
 }
 
 function proKey(text, lang, isFast, context = 'auto') {
@@ -61,9 +63,9 @@ function proKey(text, lang, isFast, context = 'auto') {
   ]);
 }
 
-async function getFreeCachedText(text) {
+async function getFreeCachedText(text, lang = 'zh') {
   const item = await WebTranslationCache.findOne({
-    key: freeKey(text),
+    key: freeKey(text, lang),
     mode: 'free',
     expiresAt: { $gt: new Date() }
   }).select('value').lean();
@@ -71,7 +73,7 @@ async function getFreeCachedText(text) {
   return item?.value || null;
 }
 
-async function setFreeCachedText(text, value) {
+async function setFreeCachedText(text, value, lang = 'zh') {
   const now = Date.now();
 
   await upsertCache(
@@ -100,6 +102,7 @@ async function getWebCachedText(text, lang, isFast, context = 'auto') {
 
 const PRO_FIELDS = new Set([
   'translation',
+  'sourceLanguage',
   'backTranslation',
   'pronunciation',
   'vocabulary',
