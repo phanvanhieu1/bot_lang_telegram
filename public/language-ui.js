@@ -9,7 +9,7 @@
   } catch (_) {}
 
   const viDiacritics = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i;
-  const viWords = /\b(tôi|ban|toi|khong|không|của|cua|hôm|hom|nay|đi|di|làm|lam|được|duoc|với|voi|mình|minh|chúng|chung|anh|em|xin|chào|chao|cảm|cam|ơn|on)\b/i;
+  const viWords = /\b(tôi|toi|không|khong|của|cua|hôm|hom|được|duoc|với|voi|mình|minh|chúng|chung|chào|chao|cảm|muốn|muon|đã|đang|dang|các|cac|những|nhung|người|nguoi)\b/i;
   function guessSource(text) {
     const value = String(text || '').trim();
     if (language === 'zh') return /[\u3400-\u9FFF]/u.test(value) ? 'zh' : 'vi';
