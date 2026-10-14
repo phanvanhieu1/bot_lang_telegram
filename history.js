@@ -14,6 +14,7 @@ const historySchema = new mongoose.Schema({
   time: { type: Date, default: Date.now },
   text: { type: String, required: true },
   targetLang: { type: String, required: true },
+  learningLang: { type: String, enum: ['zh', 'en'], default: 'zh' },
   result: { type: String, required: true }
 }, { versionKey: false });
 
@@ -22,11 +23,11 @@ historySchema.index({ userId: 1, time: -1, _id: -1 });
 const TranslationHistory = mongoose.models.TranslationHistory ||
   mongoose.model('TranslationHistory', historySchema);
 
-async function addHistory({ userId, text, targetLang, result }) {
+async function addHistory({ userId, text, targetLang, learningLang = 'zh', result }) {
   if (!userId) throw new Error('Missing history owner');
 
   const item = await TranslationHistory.create({
-    userId, text, targetLang, result
+    userId, text, targetLang, learningLang, result
   });
 
   // Keep the same maximum as the old JSON history, now per user.
@@ -48,6 +49,7 @@ async function addHistory({ userId, text, targetLang, result }) {
     time: item.time.toISOString(),
     text: item.text,
     targetLang: item.targetLang,
+    learningLang: item.learningLang || 'zh',
     result: item.result
   };
 }
@@ -58,7 +60,7 @@ async function getHistory(userId) {
   const items = await TranslationHistory.find({ userId })
     .sort({ time: -1, _id: -1 })
     .limit(MAX_HISTORY)
-    .select('time text targetLang result')
+    .select('time text targetLang learningLang result')
     .lean();
 
   return items.map(item => ({
