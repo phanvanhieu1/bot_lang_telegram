@@ -77,7 +77,7 @@ async function setFreeCachedText(text, value, lang = 'zh') {
   const now = Date.now();
 
   await upsertCache(
-    { key: freeKey(text), mode: 'free' },
+    { key: freeKey(text, lang), mode: 'free' },
     {
       $set: {
         value,
