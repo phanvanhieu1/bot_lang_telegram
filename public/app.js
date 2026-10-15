@@ -134,6 +134,12 @@ function setTranslatorMode(mode) {
   // Không cho người dùng tự chuyển chế độ.
   freeModeBtn.classList.add('hidden');
   proModeBtn.classList.add('hidden');
+
+  // Other website features (such as PRO image translation) observe this state.
+  window.translatorAccess = { role: currentUserRole, mode: translatorMode };
+  window.dispatchEvent(new CustomEvent('translator-access-change', {
+    detail: window.translatorAccess
+  }));
 }
 
 
