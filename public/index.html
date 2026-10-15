@@ -10,7 +10,8 @@
 <link href="/translator.css" rel="stylesheet"/>
 <link href="/google-style.css" rel="stylesheet"/>
 <link href="/language-ui.css" rel="stylesheet"/>
-<link href="/image-translate.css" rel="stylesheet"/></head>
+<link href="/image-translate.css" rel="stylesheet"/>
+<link href="/maintenance-ui.css" rel="stylesheet"/></head>
 <body>
 <main class="container">
 <header class="header gt-header">
@@ -101,6 +102,15 @@
         <button class="account-menu-item" id="adminFreeChoice" type="button"><span class="account-menu-icon free">◈</span><span class="account-menu-label"><strong>Bản FREE</strong><small>Dịch bằng dịch vụ miễn phí</small></span><span aria-hidden="true" class="account-menu-check">✓</span></button>
         <button class="account-menu-item" id="adminProChoice" type="button"><span class="account-menu-icon pro">✦</span><span class="account-menu-label"><strong>Bản PRO</strong><small>Dịch nâng cao với OpenAI</small></span><span aria-hidden="true" class="account-menu-check">✓</span></button>
         <a class="account-menu-item" href="/admin"><span class="account-menu-icon manage">♙</span><span class="account-menu-label"><strong>Quản lý tài khoản</strong><small>Người dùng và gói PRO</small></span><span aria-hidden="true" class="account-menu-arrow">↗</span></a>
+        <div class="account-menu-divider"></div>
+        <button class="account-menu-item" id="adminMaintenanceBtn" type="button" aria-pressed="false" disabled>
+          <span class="account-menu-icon maintenance">⏻</span>
+          <span class="account-menu-label">
+            <strong>Bảo trì tài khoản FREE</strong>
+            <small id="adminMaintenanceState">Đang tải trạng thái...</small>
+          </span>
+          <span class="maintenance-switch" id="adminMaintenanceSwitch" aria-hidden="true"><span></span></span>
+        </button>
         <div class="account-menu-divider"></div>
         <button class="account-menu-logout" id="logoutBtn" type="button">Đăng xuất</button>
       </div>
@@ -409,5 +419,6 @@
 <script src="/app.js"></script>
 <script src="/google-style.js"></script>
 <script src="/practice-audio.js"></script>
-<script src="/image-translate.js"></script></body>
+<script src="/image-translate.js"></script>
+<script src="/maintenance-ui.js"></script></body>
 </html>
