@@ -2,6 +2,7 @@ require('dotenv').config();
 
 const { pinyin } = require('pinyin-pro');
 const { getChineseAudio } = require('./web-tts');
+const { translateChatImage } = require('./web-image-translate');
 const { translateEnglishFree, translateEnglishPro, evaluateEnglish } = require('./web-english');
 const express = require('express');
 const path = require('path');
@@ -249,6 +250,52 @@ app.post('/api/tts/chinese', requireAuth, async (req, res) => {
     });
   }
 });
+
+// PRO-only image conversation translation. Accept image bytes in memory;
+// never write uploaded screenshots to disk, logs, history or MongoDB.
+app.post(
+  '/api/image/translate',
+  requirePro,
+  express.raw({ type: ['image/png', 'image/jpeg', 'image/webp'], limit: '5mb' }),
+  async (req, res) => {
+    res.set('Cache-Control', 'private, no-store');
+    try {
+      if (!req.is(['image/png', 'image/jpeg', 'image/webp'])) {
+        return res.status(415).json({
+          success: false,
+          message: 'Chỉ hỗ trợ ảnh PNG, JPG và WebP'
+        });
+      }
+      const language = req.get('X-Learning-Language') || 'zh';
+      if (!['zh', 'en'].includes(language)) {
+        return res.status(400).json({ success: false, message: 'Ngôn ngữ không hợp lệ' });
+      }
+      const result = await translateChatImage(req.body, language);
+      const usage = result.usage;
+      if ((usage?.total_tokens || 0) > 0) {
+        await addUsage({
+          userId: req.user._id,
+          totalTokens: usage.total_tokens,
+          cost: ((usage.prompt_tokens || 0) * 2.5 +
+            (usage.completion_tokens || 0) * 10) / 1_000_000
+        });
+      }
+      return res.json({
+        success: true,
+        sourceLanguage: result.sourceLanguage,
+        targetLanguage: result.targetLanguage,
+        messages: result.messages,
+        notes: result.notes
+      });
+    } catch (error) {
+      console.error('PRO image translation error:', error.message);
+      return res.status(error.status || 502).json({
+        success: false,
+        message: error.status ? error.message : 'Không thể dịch ảnh lúc này, vui lòng thử lại'
+      });
+    }
+  }
+);
 
 // Convert Chinese text to Pinyin
 app.get('/api/pinyin', requireAuth, (req, res) => {
