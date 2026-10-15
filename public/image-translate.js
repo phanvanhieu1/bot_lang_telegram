@@ -143,7 +143,7 @@
     useImage(image);
   });
   document.addEventListener('paste', (event) => {
-    if (!canUsePro()) return;
+    if (!canUsePro() || document.querySelector('dialog[open]')) return;
     const item = [...(event.clipboardData?.items || [])].find(part => part.kind === 'file' && part.type.startsWith('image/'));
     if (!item) return;
     const pasted = item.getAsFile();
@@ -282,7 +282,7 @@
       ctx.fillStyle = '#849bb6';
       ctx.font = 'bold 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif';
       ctx.textAlign = right ? 'right' : 'left';
-      ctx.fillText((right ? 'BÊN PHẢI' : row.entry.side === 'left' ? 'BÊN TRÁI' : 'TIN NHẮN') + ' · ' + (row.index + 1),
+      ctx.fillText((right ? 'BÊN PHẢI' : row.entry.side === 'left' ? 'BÊN TRÁI' : 'TIN NHẮN') + ' · ' + (row.index + 1) + (row.entry.uncertain ? ' · CHƯA RÕ' : ''),
         right ? width - 39 : 39, row.y);
       ctx.textAlign = 'left';
       const top = row.y + 15;
