@@ -166,7 +166,7 @@
       const box = document.createElement('article');
       box.className = 'image-message';
       const role = entry.side === 'left' ? 'Bên trái' : entry.side === 'right' ? 'Bên phải' : 'Không xác định';
-      textBlock(box, 'div', 'image-message-head', 'TIN NHẮN ' + (index + 1) + ' · ' + role);
+      textBlock(box, 'div', 'image-message-head', 'TIN NHẮN ' + (index + 1) + ' · ' + role + (entry.time ? ' · ' + entry.time : ''));
       if (entry.quoteOriginal || entry.quoteTranslation) {
         textBlock(box, 'div', 'image-message-quote',
           'Trích dẫn: ' + (entry.quoteOriginal || '') +
@@ -282,7 +282,7 @@
       ctx.fillStyle = '#849bb6';
       ctx.font = 'bold 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif';
       ctx.textAlign = right ? 'right' : 'left';
-      ctx.fillText((right ? 'BÊN PHẢI' : row.entry.side === 'left' ? 'BÊN TRÁI' : 'TIN NHẮN') + ' · ' + (row.index + 1) + (row.entry.uncertain ? ' · CHƯA RÕ' : ''),
+      ctx.fillText((right ? 'BÊN PHẢI' : row.entry.side === 'left' ? 'BÊN TRÁI' : 'TIN NHẮN') + ' · ' + (row.index + 1) + (row.entry.time ? ' · ' + row.entry.time : '') + (row.entry.uncertain ? ' · CHƯA RÕ' : ''),
         right ? width - 39 : 39, row.y);
       ctx.textAlign = 'left';
       const top = row.y + 15;
@@ -319,7 +319,7 @@
     const labels = { left: 'Bên trái', right: 'Bên phải', unknown: 'Không xác định' };
     const lines = [];
     data.messages.forEach((msg, index) => {
-      lines.push((index + 1) + '. ' + labels[msg.side]);
+      lines.push((index + 1) + '. ' + labels[msg.side] + (msg.time ? ' · ' + msg.time : ''));
       if (msg.quoteTranslation) lines.push('  Trích dẫn: ' + msg.quoteTranslation);
       lines.push('  Gốc: ' + msg.original);
       lines.push('  Dịch: ' + msg.translation);
