@@ -3,6 +3,11 @@ const express = require('express');
 const mongoose = require('mongoose');
 const { findOrCreateGoogleUser } = require('../users/user.service');
 const {
+  effectiveRole,
+  freeMaintenanceEnabled,
+  destroySession
+} = require('../../web-maintenance');
+const {
   getGoogleAuthUrl,
   verifyGoogleCallback
 } = require('./google.oauth');
@@ -51,6 +56,13 @@ router.get('/google/callback', async (req, res) => {
 
     // 3. Tìm hoặc tạo tài khoản FREE
     const user = await findOrCreateGoogleUser(googleUser);
+
+    // During maintenance, Google OAuth still works for existing PRO/admin
+    // accounts, but a FREE user must never receive an authenticated session.
+    if (effectiveRole(user) === 'user' && await freeMaintenanceEnabled()) {
+      await destroySession(req, res);
+      return res.redirect('/login?error=maintenance');
+    }
 
     // 4. Tạo session mới để tránh session fixation
     await new Promise((resolve, reject) => {
