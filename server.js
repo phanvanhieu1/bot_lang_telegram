@@ -3,6 +3,14 @@ require('dotenv').config();
 const { pinyin } = require('pinyin-pro');
 const { getChineseAudio } = require('./web-tts');
 const { translateChatImage } = require('./web-image-translate');
+const {
+  NOTICE: MAINTENANCE_NOTICE,
+  effectiveRole,
+  freeMaintenanceEnabled,
+  updateFreeMaintenance,
+  revokeActiveFreeSessions,
+  destroySession
+} = require('./web-maintenance');
 const { translateEnglishFree, translateEnglishPro, evaluateEnglish } = require('./web-english');
 const express = require('express');
 const path = require('path');
@@ -37,6 +45,8 @@ const { translateFree } =
   requireAuth: requireMongoAuth,
   requireRole
 } = require('./modules/users/user.middleware');
+
+const User = require('./modules/users/user.model');
 
 const app = express();
 const PORT = process.env.WEB_PORT || 3000;
@@ -78,6 +88,82 @@ app.use(session({
   }
 }));
 
+// FREE maintenance is server-enforced on every request, including API calls
+// and already-authenticated sessions. PRO and admin users remain unaffected.
+app.use(async (req, res, next) => {
+  if (req.session?.authenticated !== true || !req.session.userId) return next();
+  try {
+    if (!(await freeMaintenanceEnabled())) return next();
+    const user = await User.findById(req.session.userId)
+      .select('role proExpiresAt isActive')
+      .lean();
+    if (user && user.isActive && effectiveRole(user) !== 'user') return next();
+    await destroySession(req, res);
+    res.set('Cache-Control', 'no-store');
+    if (req.path.startsWith('/api/')) {
+      return res.status(503).json({
+        success: false,
+        maintenance: true,
+        code: 'FREE_MAINTENANCE',
+        message: MAINTENANCE_NOTICE
+      });
+    }
+    return res.redirect('/login?error=maintenance');
+  } catch (error) {
+    console.error('Maintenance gate error:', error.message);
+    return res.status(503).send('Không thể kiểm tra trạng thái website');
+  }
+});
+
+// Only administrators can change the site switch; reject cross-origin
+// browser submissions as extra protection beyond SameSite session cookies.
+app.get('/api/admin/maintenance', requireRole('admin'), async (req, res) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    return res.json({ success: true, enabled: await freeMaintenanceEnabled() });
+  } catch (error) {
+    console.error('Maintenance status error:', error.message);
+    return res.status(500).json({ success: false, message: 'Không thể xem trạng thái bảo trì' });
+  }
+});
+
+app.put('/api/admin/maintenance', requireRole('admin'), async (req, res) => {
+  const origin = req.get('origin');
+  const expectedOrigin = req.protocol + '://' + req.get('host');
+  if ((origin && origin !== expectedOrigin) ||
+      (req.get('sec-fetch-site') && !['same-origin', 'none'].includes(req.get('sec-fetch-site')))) {
+    return res.status(403).json({ success: false, message: 'Yêu cầu không cùng nguồn gốc' });
+  }
+  if (typeof req.body?.enabled !== 'boolean') {
+    return res.status(400).json({ success: false, message: 'enabled phải là boolean' });
+  }
+  try {
+    const setting = await updateFreeMaintenance(req.body.enabled, req.user._id);
+    let revokedSessions = 0;
+    let sessionsRevoked = true;
+    if (setting.enabled) {
+      try {
+        revokedSessions = await revokeActiveFreeSessions(
+          mongoose.connection.collection('web_sessions')
+        );
+      } catch (error) {
+        sessionsRevoked = false;
+        console.error('FREE session revoke error:', error.message);
+      }
+    }
+    res.set('Cache-Control', 'no-store');
+    return res.json({
+      success: true, enabled: setting.enabled, revokedSessions, sessionsRevoked,
+      message: setting.enabled
+        ? 'Đã bật bảo trì cho tài khoản FREE'
+        : 'Đã tắt bảo trì, người dùng FREE có thể đăng nhập lại'
+    });
+  } catch (error) {
+    console.error('Maintenance update error:', error.message);
+    return res.status(500).json({ success: false, message: 'Không thể cập nhật chế độ bảo trì' });
+  }
+});
+
 app.use('/api/admin/users', userRoutes);
 app.use('/auth', googleAuthRoutes);
 
@@ -98,8 +184,6 @@ app.post('/api/logout', (req, res) => {
 });
 
 
-const User = require('./modules/users/user.model');
-
 app.get('/api/auth', async (req, res) => {
   try {
     if (
@@ -109,7 +193,8 @@ app.get('/api/auth', async (req, res) => {
       return res.json({
         success: true,
         authenticated: false,
-        role: null
+        role: null,
+        maintenance: await freeMaintenanceEnabled()
       });
     }
 
@@ -119,7 +204,8 @@ app.get('/api/auth', async (req, res) => {
       return res.json({
         success: true,
         authenticated: false,
-        role: null
+        role: null,
+        maintenance: await freeMaintenanceEnabled()
       });
     }
 
@@ -138,6 +224,7 @@ app.get('/api/auth', async (req, res) => {
       success: true,
       authenticated: true,
       role,
+      maintenance: await freeMaintenanceEnabled(),
       email: user.email,
       name: user.name,
       avatar: user.avatar
