@@ -1,42 +1,82 @@
+const mongoose = require('mongoose');
 
-const fs = require('fs');
-const path = require('path');
+// Per-account website AI usage. Does not affect Telegram bot.
+const usageSchema = new mongoose.Schema({
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+    index: true
+  },
+  time: { type: Date, default: Date.now },
+  tokens: { type: Number, default: 0, min: 0 },
+  cost: { type: Number, default: 0, min: 0 }
+}, { versionKey: false });
 
-const USAGE_PATH = path.join(__dirname, 'usage.json');
+usageSchema.index({ userId: 1, time: -1 });
 
-let usageData = [];
+const TranslationUsage = mongoose.models.TranslationUsage ||
+  mongoose.model('TranslationUsage', usageSchema);
 
-if (fs.existsSync(USAGE_PATH)) {
-  try {
-    usageData = JSON.parse(fs.readFileSync(USAGE_PATH, 'utf8'));
-  } catch (error) {
-    usageData = [];
-  }
+async function addUsage({ userId, totalTokens, cost }) {
+  if (!userId) throw new Error('Missing usage owner');
+
+  await TranslationUsage.create({
+    userId,
+    tokens: Number(totalTokens) || 0,
+    cost: Number(cost) || 0
+  });
 }
 
-function saveUsage() {
-  fs.writeFileSync(
-    USAGE_PATH,
-    JSON.stringify(usageData, null, 2),
-    'utf8'
+async function getUsageStats(userId) {
+  if (!userId) throw new Error('Missing usage owner');
+
+  const now = new Date();
+  // Preserve the existing server-local definition of "today".
+  const todayStart = new Date(
+    now.getFullYear(), now.getMonth(), now.getDate()
   );
-}
 
-function addUsage(usage) {
-  usageData.push({
-    time: new Date().toISOString(),
-    tokens: usage.totalTokens || 0,
-    cost: usage.cost || 0
+  const [stats] = await TranslationUsage.aggregate([
+    { $match: { userId: new mongoose.Types.ObjectId(String(userId)) } },
+    {
+      $facet: {
+        today: [
+          { $match: { time: { $gte: todayStart } } },
+          {
+            $group: {
+              _id: null,
+              requests: { $sum: 1 },
+              tokens: { $sum: '$tokens' },
+              cost: { $sum: '$cost' }
+            }
+          }
+        ],
+        total: [
+          {
+            $group: {
+              _id: null,
+              requests: { $sum: 1 },
+              tokens: { $sum: '$tokens' },
+              cost: { $sum: '$cost' }
+            }
+          }
+        ]
+      }
+    }
+  ]);
+
+  const empty = { requests: 0, tokens: 0, cost: 0 };
+  const normalize = (record) => ({
+    requests: record?.requests || 0,
+    tokens: record?.tokens || 0,
+    cost: record?.cost || 0
   });
 
-  saveUsage();
+  return {
+    today: stats?.today?.length ? normalize(stats.today[0]) : empty,
+    total: stats?.total?.length ? normalize(stats.total[0]) : { ...empty }
+  };
 }
 
-function getUsage() {
-  return usageData;
-}
-
-module.exports = {
-  addUsage,
-  getUsage
-};
+module.exports = { addUsage, getUsageStats };

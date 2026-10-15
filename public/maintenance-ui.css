@@ -1,0 +1,26 @@
+/* Site maintenance control, restricted to the existing admin hamburger menu. */
+#adminMaintenanceBtn .account-menu-icon.maintenance {
+  background:var(--ui-subtle,#eef2f8)!important;
+  color:var(--ui-muted,#596577)!important;
+}
+#adminMaintenanceBtn.maintenance-enabled .account-menu-icon.maintenance {
+  background:#fff1df!important;
+  color:#b45309!important;
+}
+#adminMaintenanceBtn .maintenance-switch {
+  box-sizing:border-box;
+  width:37px;height:22px;flex:none;
+  display:flex;align-items:center;
+  padding:3px;border-radius:14px;
+  background:#bac3cf;
+  transition:background .15s ease;
+}
+#adminMaintenanceBtn .maintenance-switch span{
+  width:16px;height:16px;display:block;
+  border-radius:50%;background:#fff;
+  box-shadow:0 1px 3px #0002;transition:transform .15s ease;
+}
+#adminMaintenanceBtn.maintenance-enabled .maintenance-switch{background:#d97706}
+#adminMaintenanceBtn.maintenance-enabled .maintenance-switch span{transform:translateX(15px)}
+#adminMaintenanceBtn:disabled{cursor:wait!important;opacity:.7}
+#adminMaintenanceBtn .account-menu-label small{white-space:normal;line-height:1.4}

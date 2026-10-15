@@ -1,14 +1,26 @@
 require('dotenv').config();
 
 const { pinyin } = require('pinyin-pro');
+const { getChineseAudio } = require('./web-tts');
+const { translateChatImage } = require('./web-image-translate');
+const {
+  NOTICE: MAINTENANCE_NOTICE,
+  effectiveRole,
+  freeMaintenanceEnabled,
+  updateFreeMaintenance,
+  revokeActiveFreeSessions,
+  destroySession
+} = require('./web-maintenance');
+const { translateEnglishFree, translateEnglishPro, evaluateEnglish } = require('./web-english');
 const express = require('express');
 const path = require('path');
 const session = require('express-session');
-const SQLiteStore = require('connect-sqlite3')(session);
+const MongoStore = require('connect-mongo').default;
+const mongoose = require('mongoose');
 const googleAuthRoutes = require('./modules/auth/google.routes');
 const connectDatabase = require('./config/database');
 const userRoutes = require('./modules/users/user.routes');
-const { addUsage, getUsage } = require('./usage');
+const { addUsage, getUsageStats } = require('./usage');
 const {
   translateFull,
   evaluateChinese,
@@ -16,9 +28,9 @@ const {
   verifyTranslation
 } = require('./ai');
 const {
-   getWebCachedText,
-  setWebCachedText,
-} = require('./cache');
+  getWebCachedText,
+  setWebCachedText
+} = require('./web-cache');
 
 const {
   addHistory,
@@ -34,8 +46,29 @@ const { translateFree } =
   requireRole
 } = require('./modules/users/user.middleware');
 
+const User = require('./modules/users/user.model');
+
 const app = express();
 const PORT = process.env.WEB_PORT || 3000;
+const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
+
+// Initialize MongoDB once. Reuse its native MongoClient for the session
+// store instead of opening a second connection to Atlas.
+const databaseReady = connectDatabase();
+const sessionStore = MongoStore.create({
+  clientPromise: databaseReady.then(() => mongoose.connection.getClient()),
+  collectionName: 'web_sessions',
+  ttl: SESSION_TTL_SECONDS,
+  touchAfter: 24 * 60 * 60
+});
+
+sessionStore.on('error', (error) => {
+  console.error('MongoDB session store error:', error);
+});
+
+// Attach a rejection handler immediately: if Atlas is unreachable,
+// both databaseReady and the store's collection initialization reject.
+sessionStore.collectionP.catch(() => {});
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -43,10 +76,7 @@ app.use(express.urlencoded({ extended: true }));
 app.set('trust proxy', 1);
 
 app.use(session({
-  store: new SQLiteStore({
-    db: 'sessions.sqlite',
-    dir: __dirname
-  }),
+  store: sessionStore,
   secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
@@ -54,9 +84,85 @@ app.use(session({
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    maxAge: 7 * 24 * 60 * 60 * 1000
+    maxAge: SESSION_TTL_SECONDS * 1000
   }
 }));
+
+// FREE maintenance is server-enforced on every request, including API calls
+// and already-authenticated sessions. PRO and admin users remain unaffected.
+app.use(async (req, res, next) => {
+  if (req.session?.authenticated !== true || !req.session.userId) return next();
+  try {
+    if (!(await freeMaintenanceEnabled())) return next();
+    const user = await User.findById(req.session.userId)
+      .select('role proExpiresAt isActive')
+      .lean();
+    if (user && user.isActive && effectiveRole(user) !== 'user') return next();
+    await destroySession(req, res);
+    res.set('Cache-Control', 'no-store');
+    if (req.path.startsWith('/api/')) {
+      return res.status(503).json({
+        success: false,
+        maintenance: true,
+        code: 'FREE_MAINTENANCE',
+        message: MAINTENANCE_NOTICE
+      });
+    }
+    return res.redirect('/login?error=maintenance');
+  } catch (error) {
+    console.error('Maintenance gate error:', error.message);
+    return res.status(503).send('Không thể kiểm tra trạng thái website');
+  }
+});
+
+// Only administrators can change the site switch; reject cross-origin
+// browser submissions as extra protection beyond SameSite session cookies.
+app.get('/api/admin/maintenance', requireRole('admin'), async (req, res) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    return res.json({ success: true, enabled: await freeMaintenanceEnabled() });
+  } catch (error) {
+    console.error('Maintenance status error:', error.message);
+    return res.status(500).json({ success: false, message: 'Không thể xem trạng thái bảo trì' });
+  }
+});
+
+app.put('/api/admin/maintenance', requireRole('admin'), async (req, res) => {
+  const origin = req.get('origin');
+  const expectedOrigin = req.protocol + '://' + req.get('host');
+  if ((origin && origin !== expectedOrigin) ||
+      (req.get('sec-fetch-site') && !['same-origin', 'none'].includes(req.get('sec-fetch-site')))) {
+    return res.status(403).json({ success: false, message: 'Yêu cầu không cùng nguồn gốc' });
+  }
+  if (typeof req.body?.enabled !== 'boolean') {
+    return res.status(400).json({ success: false, message: 'enabled phải là boolean' });
+  }
+  try {
+    const setting = await updateFreeMaintenance(req.body.enabled, req.user._id);
+    let revokedSessions = 0;
+    let sessionsRevoked = true;
+    if (setting.enabled) {
+      try {
+        revokedSessions = await revokeActiveFreeSessions(
+          mongoose.connection.collection('web_sessions')
+        );
+      } catch (error) {
+        sessionsRevoked = false;
+        console.error('FREE session revoke error:', error.message);
+      }
+    }
+    res.set('Cache-Control', 'no-store');
+    return res.json({
+      success: true, enabled: setting.enabled, revokedSessions, sessionsRevoked,
+      message: setting.enabled
+        ? 'Đã bật bảo trì cho tài khoản FREE'
+        : 'Đã tắt bảo trì, người dùng FREE có thể đăng nhập lại'
+    });
+  } catch (error) {
+    console.error('Maintenance update error:', error.message);
+    return res.status(500).json({ success: false, message: 'Không thể cập nhật chế độ bảo trì' });
+  }
+});
 
 app.use('/api/admin/users', userRoutes);
 app.use('/auth', googleAuthRoutes);
@@ -78,8 +184,6 @@ app.post('/api/logout', (req, res) => {
 });
 
 
-const User = require('./modules/users/user.model');
-
 app.get('/api/auth', async (req, res) => {
   try {
     if (
@@ -89,7 +193,8 @@ app.get('/api/auth', async (req, res) => {
       return res.json({
         success: true,
         authenticated: false,
-        role: null
+        role: null,
+        maintenance: await freeMaintenanceEnabled()
       });
     }
 
@@ -99,7 +204,8 @@ app.get('/api/auth', async (req, res) => {
       return res.json({
         success: true,
         authenticated: false,
-        role: null
+        role: null,
+        maintenance: await freeMaintenanceEnabled()
       });
     }
 
@@ -118,6 +224,7 @@ app.get('/api/auth', async (req, res) => {
       success: true,
       authenticated: true,
       role,
+      maintenance: await freeMaintenanceEnabled(),
       email: user.email,
       name: user.name,
       avatar: user.avatar
@@ -214,6 +321,69 @@ app.get('/login.html', (req, res) => {
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Authenticated Mandarin speech synthesis; never expose ElevenLabs credentials.
+app.post('/api/tts/chinese', requireAuth, async (req, res) => {
+  try {
+    const { audio, cached } = await getChineseAudio(req.body?.text, req.body?.voiceId, req.body?.speed);
+    res.set('Content-Type', 'audio/mpeg');
+    res.set('Cache-Control', 'private, no-store');
+    res.set('X-Audio-Cache', cached ? 'HIT' : 'MISS');
+    return res.send(audio);
+  } catch (error) {
+    console.error('Chinese TTS error:', error.message);
+    return res.status(error.status || 502).json({
+      success: false,
+      message: error.status === 400 ? error.message : 'Không thể tạo giọng đọc lúc này'
+    });
+  }
+});
+
+// PRO-only image conversation translation. Accept image bytes in memory;
+// never write uploaded screenshots to disk, logs, history or MongoDB.
+app.post(
+  '/api/image/translate',
+  requirePro,
+  express.raw({ type: ['image/png', 'image/jpeg', 'image/webp'], limit: '5mb' }),
+  async (req, res) => {
+    res.set('Cache-Control', 'private, no-store');
+    try {
+      if (!req.is(['image/png', 'image/jpeg', 'image/webp'])) {
+        return res.status(415).json({
+          success: false,
+          message: 'Chỉ hỗ trợ ảnh PNG, JPG và WebP'
+        });
+      }
+      const language = req.get('X-Learning-Language') || 'zh';
+      if (!['zh', 'en'].includes(language)) {
+        return res.status(400).json({ success: false, message: 'Ngôn ngữ không hợp lệ' });
+      }
+      const result = await translateChatImage(req.body, language);
+      const usage = result.usage;
+      if ((usage?.total_tokens || 0) > 0) {
+        await addUsage({
+          userId: req.user._id,
+          totalTokens: usage.total_tokens,
+          cost: ((usage.prompt_tokens || 0) * 2.5 +
+            (usage.completion_tokens || 0) * 10) / 1_000_000
+        });
+      }
+      return res.json({
+        success: true,
+        sourceLanguage: result.sourceLanguage,
+        targetLanguage: result.targetLanguage,
+        messages: result.messages,
+        notes: result.notes
+      });
+    } catch (error) {
+      console.error('PRO image translation error:', error.message);
+      return res.status(error.status || 502).json({
+        success: false,
+        message: error.status ? error.message : 'Không thể dịch ảnh lúc này, vui lòng thử lại'
+      });
+    }
+  }
+);
+
 // Convert Chinese text to Pinyin
 app.get('/api/pinyin', requireAuth, (req, res) => {
   try {
@@ -255,11 +425,12 @@ app.get('/api/status',requireAuth, (req, res) => {
   });
 });
 
-app.post('/api/practice/chinese', requirePro, async (req, res) => {
+app.post(['/api/practice/chinese', '/api/practice/english'], requirePro, async (req, res) => {
+  const englishPractice = req.path.endsWith('/english');
   try {
     const { text } = req.body;
 
-    if (!text || !text.trim()) {
+    if (typeof text !== 'string' || !text.trim()) {
       return res.status(400).json({
         success: false,
         message: 'Vui lòng nhập nội dung tiếng Trung'
@@ -273,7 +444,15 @@ app.post('/api/practice/chinese', requirePro, async (req, res) => {
       });
     }
 
-    const result = await evaluateChinese(text.trim());
+    if (!englishPractice && !/[\u3400-\u9FFF]/u.test(text)) {
+      return res.status(400).json({ success: false, message: 'Vui lòng nhập ít nhất một chữ tiếng Trung để chấm bài' });
+    }
+
+    if (englishPractice && !/[a-z]/i.test(text)) {
+      return res.status(400).json({ success: false, message: 'Vui lòng nhập câu tiếng Anh để chấm bài' });
+    }
+
+    const result = englishPractice ? await evaluateEnglish(text) : await evaluateChinese(text);
 
     const inputTokens = result.usage?.prompt_tokens || 0;
     const outputTokens = result.usage?.completion_tokens || 0;
@@ -283,7 +462,8 @@ app.post('/api/practice/chinese', requirePro, async (req, res) => {
       (inputTokens / 1_000_000) * 2.5 +
       (outputTokens / 1_000_000) * 10;
 
-    addUsage({
+    await addUsage({
+      userId: req.user._id,
       totalTokens,
       cost
     });
@@ -294,7 +474,7 @@ app.post('/api/practice/chinese', requirePro, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Chinese practice error:', error);
+    console.error('Practice evaluation error:', error);
 
     return res.status(500).json({
       success: false,
@@ -339,6 +519,15 @@ function parseTranslationResult(content) {
   }
 
   return data;
+}
+
+async function persistProCache(text, lang, isFast, context, fields) {
+  try {
+    await setWebCachedText(text, lang, isFast, context, fields);
+  } catch (error) {
+    // Never make users repeat a paid translation if only cache persistence fails.
+    console.error('PRO MongoDB cache write error:', error);
+  }
 }
 
 function hasCacheField(data, field) {
@@ -397,12 +586,42 @@ app.post(
   requireAuth,
   async (req, res) => {
     try {
-      const { text } = req.body;
+      const { text, targetLang: requestedLang = 'zh' } = req.body || {};
 
-      if (!text || !text.trim()) {
+      if (typeof text !== 'string' || !text.trim()) {
         return res.status(400).json({
           success: false,
           message: 'Vui lòng nhập nội dung cần dịch'
+        });
+      }
+
+      if (!['zh', 'en'].includes(requestedLang)) {
+        return res.status(400).json({ success: false, message: 'Ngôn ngữ không được hỗ trợ' });
+      }
+      if (requestedLang === 'en') {
+        if (text.length > 2000) {
+          return res.status(400).json({ success: false, message: 'Nội dung quá dài' });
+        }
+        const en = await translateEnglishFree(text.trim());
+        await addHistory({
+          userId: req.user._id,
+          text: text.trim(),
+          targetLang: en.parsed.sourceLanguage === 'en' ? 'vi' : 'en',
+          learningLang: 'en',
+          result: en.content
+        });
+        return res.json({
+          success: true,
+          mode: 'free',
+          provider: en.provider,
+          cached: en.cached,
+          sourceLanguage: en.parsed.sourceLanguage,
+          result: {
+            translation: en.parsed.translation,
+            backTranslation: en.parsed.backTranslation,
+            pronunciation: ''
+          },
+          rateLimit: en.rateLimit
         });
       }
 
@@ -420,6 +639,18 @@ const chineseText =
 
 const pronunciation =
   generatePinyin(chineseText);
+
+      await addHistory({
+        userId: req.user._id,
+        text: text.trim(),
+        targetLang: inputIsChinese ? 'vi' : 'zh',
+        learningLang: 'zh',
+        result: [
+          `TRANSLATION: ${result.parsed.translation || ''}`,
+          `BACK_TRANSLATION: ${result.parsed.backTranslation || ''}`,
+          `PRONUNCIATION: ${pronunciation || ''}`
+        ].join('\n')
+      });
 
       return res.json({
   success: true,
@@ -531,10 +762,45 @@ app.post('/api/translate',requirePro, async (req, res) => {
       context = 'auto'
      } = req.body;
 
-    if (!text || !text.trim()) {
+    if (typeof text !== 'string' || !text.trim()) {
       return res.status(400).json({
         success: false,
         message: 'Vui lòng nhập nội dung cần dịch'
+      });
+    }
+
+    if (!['zh', 'en'].includes(targetLang)) {
+      return res.status(400).json({ success: false, message: 'Ngôn ngữ không được hỗ trợ' });
+    }
+    if (targetLang === 'en') {
+      if (typeof text !== 'string' || text.length > 2000) {
+        return res.status(400).json({ success: false, message: 'Nội dung quá dài' });
+      }
+      const en = await translateEnglishPro(text.trim(), {
+        backTranslation, vocabulary, verification, context
+      });
+      const tokens = en.usage?.total_tokens || 0;
+      if (tokens > 0) {
+        await addUsage({
+          userId: req.user._id,
+          totalTokens: tokens,
+          cost: ((en.usage?.prompt_tokens || 0) * 2.5 +
+            (en.usage?.completion_tokens || 0) * 10) / 1_000_000
+        });
+      }
+      await addHistory({
+        userId: req.user._id,
+        text: text.trim(),
+        targetLang: en.parsed.sourceLanguage === 'en' ? 'vi' : 'en',
+        learningLang: 'en',
+        result: en.content
+      });
+      return res.json({
+        success: true,
+        result: en.content,
+        cached: en.cached,
+        sourceLanguage: en.parsed.sourceLanguage,
+        usage: en.usage
       });
     }
 
@@ -546,7 +812,7 @@ const shouldBackTranslate =
   !inputIsChinese &&
   targetLang === 'zh';
 
-  const cachedData = getWebCachedText(
+  const cachedData = await getWebCachedText(
   text.trim(),
   targetLang,
   fastMode,
@@ -630,7 +896,7 @@ if (result) {
     newData.vocabulary = '';
   }
 
-  setWebCachedText(
+  await persistProCache(
   text.trim(),
   targetLang,
   fastMode,
@@ -662,7 +928,7 @@ if (
 
     finalCache.pronunciation = localPinyin;
 
-    setWebCachedText(
+    await persistProCache(
   text.trim(),
   targetLang,
   fastMode,
@@ -699,7 +965,7 @@ if (
 
   finalCache.verification = verificationData;
 
-  setWebCachedText(
+  await persistProCache(
     inputText,
     targetLang,
     fastMode,
@@ -740,9 +1006,11 @@ if (hasValidVerification) {
   )}`;
 }
 
-addHistory({
+await addHistory({
+  userId: req.user._id,
   text: text.trim(),
   targetLang,
+  learningLang: 'zh',
   result: responseContent
 });
 
@@ -788,7 +1056,8 @@ usage.cost = inputCost + outputCost;
 
 // Chỉ ghi usage nếu request này thực sự gọi OpenAI
 if (usage.totalTokens > 0) {
-  addUsage({
+  await addUsage({
+    userId: req.user._id,
     totalTokens: usage.totalTokens,
     cost: usage.cost
   });
@@ -812,75 +1081,57 @@ res.json({
 }
 });
 
-app.get('/api/usage',requireAuth, (req, res) => {
-  const usage = getUsage();
+app.get('/api/usage', requireAuth, async (req, res) => {
+  try {
+    const stats = await getUsageStats(req.user._id);
 
-  const now = new Date();
+    res.json({ success: true, ...stats });
+  } catch (error) {
+    console.error('Usage API error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Không thể lấy thống kê'
+    });
+  }
+});
 
-  const todayUsage = usage.filter(item => {
-    const date = new Date(item.time);
+app.get('/api/history', requireAuth, async (req, res) => {
+  try {
+    const history = await getHistory(req.user._id);
+    res.json({ success: true, history });
+  } catch (error) {
+    console.error('History API error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Không thể tải lịch sử'
+    });
+  }
+});
 
-    return (
-      date.getFullYear() === now.getFullYear() &&
-      date.getMonth() === now.getMonth() &&
-      date.getDate() === now.getDate()
-    );
-  });
-
-  const todayCost = todayUsage.reduce(
-    (sum, item) => sum + Number(item.cost || 0),
-    0
-  );
-
-  const todayTokens = todayUsage.reduce(
-    (sum, item) => sum + Number(item.tokens || 0),
-    0
-  );
-
-  const totalCost = usage.reduce(
-    (sum, item) => sum + Number(item.cost || 0),
-    0
-  );
-
-  const totalTokens = usage.reduce(
-    (sum, item) => sum + Number(item.tokens || 0),
-    0
-  );
-
-  res.json({
-    success: true,
-    today: {
-      requests: todayUsage.length,
-      tokens: todayTokens,
-      cost: todayCost
-    },
-    total: {
-      requests: usage.length,
-      tokens: totalTokens,
-      cost: totalCost
+app.delete('/api/history', requireAuth, async (req, res) => {
+  try {
+    const lang = req.query.learningLang;
+    if (lang && !['zh', 'en'].includes(lang)) {
+      return res.status(400).json({ success: false, message: 'Ngôn ngữ không hợp lệ' });
     }
-  });
-});
-
-app.get('/api/history',requireAuth, (req, res) => {
-  res.json({
-    success: true,
-    history: getHistory()
-  });
-});
-
-app.delete('/api/history',requireAuth, (req, res) => {
-  clearHistory();
-
-  res.json({
-    success: true
-  });
+    await clearHistory(req.user._id, lang || null);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Clear history API error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Không thể xóa lịch sử'
+    });
+  }
 });
 
 
 async function startServer() {
   try {
-    await connectDatabase();
+    await databaseReady;
+    // Ensure the session collection and its TTL index are ready before
+    // accepting Google OAuth callbacks.
+    await sessionStore.collectionP;
 
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);

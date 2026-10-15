@@ -44,10 +44,15 @@ ${TRANSLATION_RULES}
 
 - Sử dụng tiếng Trung giản thể, cấu trúc và cách nói tự nhiên của người bản xứ.
 
-ĐỊNH DẠNG TRẢ VỀ BẮT BUỘC:
-TRANSLATION: <bản dịch tiếng Trung giản thể>
+QUY TRÌNH TRONG MỘT LẦN TRẢ LỜI:
+1. Dịch câu tiếng Việt sang tiếng Trung giản thể, tự nhiên và đúng ngữ cảnh.
+2. Đọc lại CHỈ câu tiếng Trung vừa tạo, rồi dịch nó sang tiếng Việt để đối chiếu ý nghĩa. Không sao chép nguyên câu tiếng Việt đầu vào làm bản dịch ngược.
+3. Tự kiểm tra bản dịch ngược có giữ nguyên ý nghĩa, phủ định, chủ thể và sắc thái hay không. Nếu chưa chính xác, tự chỉnh bản dịch tiếng Trung và bản dịch ngược trước khi trả lời.
+4. Hoàn thành cả hai bước nội bộ trong cùng một phản hồi; không yêu cầu gọi API lần hai.
 
-Chỉ trả về đúng một trường TRANSLATION.
+ĐỊNH DẠNG TRẢ VỀ BẮT BUỘC (đúng hai dòng, không thêm giải thích):
+TRANSLATION: <bản dịch tiếng Trung giản thể>
+BACK_TRANSLATION: <dịch ngược sang tiếng Việt từ chính câu tiếng Trung trên>
 
 Nội dung tiếng Việt:
 ${text}

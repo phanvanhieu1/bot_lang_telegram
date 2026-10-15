@@ -2,7 +2,7 @@
 const {
   getFreeCachedText,
   setFreeCachedText
-} = require('../../cache');
+} = require('../../web-cache');
 
 const {
   requestGroq
@@ -18,8 +18,7 @@ const {
 
 const {
   containsChinese,
-  buildFreePrompt,
-  buildBackTranslationPrompt
+  buildFreePrompt
 } = require('../prompts/free.prompt');
 
 const {
@@ -32,8 +31,8 @@ const {
 
 const FREE_CACHE_TTL = 24 * 60 * 60 * 1000;
 
-function getFreeCachedTranslation(text) {
-  const cached = getFreeCachedText(text);
+async function getFreeCachedTranslation(text) {
+  const cached = await getFreeCachedText(text);
 
   if (!cached) return null;
 
@@ -83,12 +82,22 @@ function getFreeCachedTranslation(text) {
   };
 }
 
-function setFreeCachedTranslation(text, content, parsed) {
-  setFreeCachedText(text, {
+async function setFreeCachedTranslation(text, content, parsed) {
+  await setFreeCachedText(text, {
     content,
     parsed,
     createdAt: Date.now()
   });
+}
+
+// A successful provider response must not trigger a second paid AI request
+// merely because the database failed to persist the cache.
+async function persistFreeCache(text, result) {
+  try {
+    await setFreeCachedTranslation(text, result.content, result.parsed);
+  } catch (error) {
+    console.error('FREE MongoDB cache write error:', error);
+  }
 }
 
 function classifyProviderError(error, provider) {
@@ -165,50 +174,37 @@ async function runTranslationPipeline(
   text,
   requestProvider
 ) {
-  const inputIsChinese = containsChinese(text);
-
-  const mainResult = await translateWithProvider(
+  // Groq / OpenRouter: both directions are generated in ONE AI request.
+  const result = await translateWithProvider(
     text,
     requestProvider
   );
 
-  const finalParsed = {
-    translation: mainResult.parsed.translation,
-    backTranslation: null
-  };
-
-  let latestRateLimit = mainResult.rateLimit;
+  const inputIsChinese = containsChinese(text);
 
   if (!inputIsChinese) {
-    const chineseTranslation =
-      mainResult.parsed.translation;
-
-    const backResult = await translateWithProvider(
-      chineseTranslation,
-      requestProvider,
-      buildBackTranslationPrompt(chineseTranslation)
-    );
-
-    finalParsed.backTranslation =
-      backResult.parsed.translation;
-
-    latestRateLimit = backResult.rateLimit;
-  }
-
-  let finalContent =
-    `TRANSLATION: ${finalParsed.translation}`;
-
-  if (finalParsed.backTranslation) {
-    finalContent +=
-      `\nBACK_TRANSLATION: ${finalParsed.backTranslation}`;
+    if (
+      typeof result.parsed.backTranslation !== 'string' ||
+      !result.parsed.backTranslation.trim() ||
+      containsChinese(result.parsed.backTranslation)
+    ) {
+      const error = new Error('Missing or invalid reverse translation');
+      error.code = 'INVALID_OUTPUT';
+      throw error;
+    }
   }
 
   return {
-    content: finalContent,
-    parsed: finalParsed,
-    provider: mainResult.provider,
+    content: result.content,
+    parsed: {
+      translation: result.parsed.translation,
+      backTranslation: inputIsChinese
+        ? null
+        : result.parsed.backTranslation
+    },
+    provider: result.provider,
     cached: false,
-    rateLimit: latestRateLimit
+    rateLimit: result.rateLimit
   };
 }
 
@@ -253,7 +249,7 @@ async function runDeepLPipeline(text) {
 }
 
 async function translateFree(text) {
-  const cachedResult = getFreeCachedTranslation(text);
+  const cachedResult = await getFreeCachedTranslation(text);
 
   if (cachedResult) {
     return {
@@ -273,11 +269,7 @@ async function translateFree(text) {
       requestGroq
     );
 
-    setFreeCachedTranslation(
-      text,
-      result.content,
-      result.parsed
-    );
+    await persistFreeCache(text, result);
 
     return result;
   } catch (error) {
@@ -293,11 +285,7 @@ async function translateFree(text) {
       requestOpenRouter
     );
 
-    setFreeCachedTranslation(
-      text,
-      result.content,
-      result.parsed
-    );
+    await persistFreeCache(text, result);
 
     return result;
   } catch (error) {
@@ -314,11 +302,7 @@ async function translateFree(text) {
     try {
   const result = await runDeepLPipeline(text);
 
-  setFreeCachedTranslation(
-    text,
-    result.content,
-    result.parsed
-  );
+  await persistFreeCache(text, result);
 
   return result;
 } catch (error) {
