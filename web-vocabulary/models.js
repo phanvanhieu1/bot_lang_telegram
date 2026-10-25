@@ -18,6 +18,8 @@ const entrySchema = new mongoose.Schema({
   category:{ type:String, enum:['work','daily_life','both','unclassified'], default:'unclassified' },
   classificationSource:{ type:String, enum:['rule','translation','ai','pending','manual'], default:'pending' },
   manualOverride:{ type:Boolean, default:false },
+  analysisAttempts:{ type:Number, default:0 },
+  nextAnalysisAt:{ type:Date, default:Date.now },
   encounterCount:{ type:Number, default:0, min:0 },
   occurrenceCount:{ type:Number, default:0, min:0 },
   workCount:{ type:Number, default:0, min:0 },
@@ -28,6 +30,7 @@ const entrySchema = new mongoose.Schema({
 }, options);
 entrySchema.index({ userId:1, language:1, type:1, key:1 }, { unique:true });
 entrySchema.index({ userId:1, language:1, encounterCount:-1 });
+entrySchema.index({ classificationSource:1, nextAnalysisAt:1 });
 
 const candidateSchema = new mongoose.Schema({
   key:String, text:String, type:String, meaning:String,
