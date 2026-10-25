@@ -11,6 +11,8 @@
     both:'Cả hai',unclassified:'Chưa phân loại'
   };
   let version=0, activeRefresh=null;
+  const expandedTypes=new Set();
+  const PREVIEW_LIMIT=3;
   function node(parent,tag,className,text) {
     const item=document.createElement(tag);
     if(className)item.className=className;
@@ -56,21 +58,41 @@
     if(message)node(root,'div','translation-vocab-error',message);
     for(const type of ['word','phrase','pattern']) {
       const values=all.filter(item=>item.type===type);
-      if(!values.length)continue;
+      // Keep all three groups visible, even when AI1 supplied no items in one.
       const section=node(root,'section','translation-vocab-section');
       const heading=node(section,'div','translation-vocab-section-heading');
       node(heading,'span','',typeNames[type]);
       node(heading,'small','',values.length+' mục');
       const grid=node(section,'div','translation-vocab-grid');
-      values.forEach(item=>createCard(grid,item));
+      grid.id='translation-vocab-group-'+type;
+      const expanded=expandedTypes.has(type);
+      const visible=expanded?values:values.slice(0,PREVIEW_LIMIT);
+      if(!values.length) {
+        node(grid,'p','translation-vocab-empty','Chưa có mục');
+      } else {
+        visible.forEach(item=>createCard(grid,item));
+      }
+      if(values.length>PREVIEW_LIMIT) {
+        const more=node(section,'button','translation-vocab-more',
+          expanded?'Thu gọn':'Xem thêm ('+(values.length-PREVIEW_LIMIT)+')');
+        more.type='button';
+        more.id='translation-vocab-more-'+type;
+        more.setAttribute('aria-expanded',String(expanded));
+        more.setAttribute('aria-controls',grid.id);
+        more.addEventListener('click',()=>{
+          if(expandedTypes.has(type))expandedTypes.delete(type);
+          else expandedTypes.add(type);
+          paint(items,message);
+          root.querySelector('#translation-vocab-more-'+type)?.focus();
+        });
+      }
     }
-    if(all.length)node(root,'p','translation-vocab-note',
-      'Màu viền theo tần suất gặp: xanh lá 1–2 · xanh dương 3–9 · vàng 10–29 · tím 30+.');
   }
 
   function render(items,error='',language='zh') {
     version++;
     activeRefresh=null;
+    expandedTypes.clear();
     const currentVersion=version;
     if(!Array.isArray(items)) {
       root.replaceChildren();root.hidden=true;raw.hidden=false;
