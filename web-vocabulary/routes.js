@@ -1,7 +1,9 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const { requireRole } = require('../modules/users/user.middleware');
-const { VocabularySetting, VocabularyEntry, VocabularyJob, VocabularyMuted } = require('./models');
+const { VocabularyEntry, VocabularyMuted } = require('./models');
+const { normalize, isSafeTerm } = require('./extractor');
+const { serializeEntry } = require('./resolver');
 
 const router = express.Router();
 router.use(requireRole('pro','admin'));
@@ -16,34 +18,12 @@ router.use((req,res,next)=>{
   next();
 });
 
-router.get('/settings', async(req,res)=>{
-  try {
-    const row=await VocabularySetting.findOne({userId:req.user._id}).lean();
-    res.json({success:true,enabled:row?.enabled === true});
-  } catch(error) {
-    console.error('Vocabulary settings:',error.message);
-    res.status(500).json({success:false,message:'Không thể tải cài đặt'});
-  }
-});
-router.put('/settings', async(req,res)=>{
-  if(typeof req.body?.enabled!=='boolean') return res.status(400).json({success:false,message:'enabled phải là boolean'});
-  try {
-    const enabled=req.body.enabled;
-    await VocabularySetting.updateOne({userId:req.user._id},{$set:{enabled}},{upsert:true});
-    if(!enabled) await VocabularyJob.deleteMany({userId:req.user._id,status:{$in:['pending','failed']}});
-    res.json({success:true,enabled});
-  } catch(error) {
-    console.error('Vocabulary settings update:',error.message);
-    res.status(500).json({success:false,message:'Không thể lưu cài đặt'});
-  }
-});
-
 router.get('/stats',async(req,res)=>{
   const language=req.query.language||'zh';
   if(!['zh','en'].includes(language)) return res.status(400).json({success:false,message:'Ngôn ngữ không hợp lệ'});
   try {
     const userId=req.user._id;
-    const [totals,top,pendingJobs]=await Promise.all([
+    const [totals,top]=await Promise.all([
       VocabularyEntry.aggregate([
         {$match:{userId:new mongoose.Types.ObjectId(String(userId)),language}},
         {$group:{_id:null,entries:{$sum:1},encounters:{$sum:'$encounterCount'},
@@ -54,18 +34,47 @@ router.get('/stats',async(req,res)=>{
         }}
       ]),
       VocabularyEntry.find({userId,language}).sort({encounterCount:-1,lastSeenAt:-1})
-        .limit(5).select('text type meaning encounterCount category').lean(),
-      VocabularyJob.countDocuments({userId,language,status:{$in:['pending','processing']}})
+        .limit(5).select('text type meaning encounterCount category').lean()
     ]);
     res.json({success:true,stats:{
       entries:totals[0]?.entries||0,encounters:totals[0]?.encounters||0,
       words:totals[0]?.words||0,phrases:totals[0]?.phrases||0,
       patterns:totals[0]?.patterns||0,pending:totals[0]?.pending||0,
-      pendingJobs,top
+      pendingJobs:0,top
     }});
   } catch(error) {
     console.error('Vocabulary stats:',error.message);
     res.status(500).json({success:false,message:'Không thể tải thống kê'});
+  }
+});
+
+
+// Read-only polling endpoint for already-rendered vocabulary cards.
+// A lookup never creates entries, charges AI usage, or increments counters.
+router.post('/lookup',async(req,res)=>{
+  const {language,items}=req.body||{};
+  if(!['zh','en'].includes(language) || !Array.isArray(items) ||
+     !items.length || items.length>24)
+    return res.status(400).json({success:false,message:'Danh sách tra cứu không hợp lệ'});
+  const wanted=[];
+  for(const item of items) {
+    if(!item || !['word','phrase','pattern'].includes(item.type) ||
+       typeof item.key!=='string') {
+      return res.status(400).json({success:false,message:'Mục tra cứu không hợp lệ'});
+    }
+    const key=normalize(item.key,language,item.type);
+    if(!isSafeTerm(key,language,item.type))
+      return res.status(400).json({success:false,message:'Từ vựng không hợp lệ'});
+    wanted.push({type:item.type,key});
+  }
+  try {
+    const rows=await VocabularyEntry.find({
+      userId:req.user._id,language,$or:wanted
+    }).lean();
+    res.json({success:true,items:rows.map(row=>serializeEntry(row))});
+  } catch(error) {
+    console.error('Vocabulary read-only lookup:',error.message);
+    res.status(500).json({success:false,message:'Không thể tra cứu kho học tập'});
   }
 });
 
