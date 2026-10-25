@@ -1,58 +1,61 @@
-# Vocabulary Engine V1 — PRO/Admin
+# Vocabulary Engine V1.1 — PRO/Admin (draft branch)
 
-Kho từ vựng, cụm từ và mẫu câu **riêng từng tài khoản**. Mặc định **tắt**, người dùng PRO/Admin phải bật "Tự động thu thập khi dịch" trong **Kho học tập**.
+## Core behavior
 
-## Luồng xử lý
+The existing PRO **Từ vựng** switch is the sole collection control, default ON.
+- ON: AI1 produces a translation plus words / phrases / grammar patterns; JavaScript reconciles selected items against the user's MongoDB entries and returns rich cards.
+- OFF: no AI1 lexical output, no dictionary read/write/counters, no cards. The study library remains available for reading/editing existing entries.
+- The former **Tự động thu thập khi dịch** switch inside the study library is removed.
+- FREE text translations, Telegram bot and VPS production are not changed. Image translation no longer auto-collects without an explicit vocabulary toggle.
 
-1. Website dịch văn bản (Trung/Anh) hoặc ảnh hội thoại như trước, không đợi engine từ điển.
-2. Server kiểm tra preference `VocabularySetting`. Nếu bật, `extractor.js` dùng `Intl.Segmenter`, từ điển cục bộ (`rules.js`) và mẫu ngữ pháp để nhận diện từ/cụm/cấu trúc. Nếu AI dịch PRO đã cung cấp `VOCABULARY`, tận dụng nghĩa sẵn có sau khi kiểm tra từ có trong văn bản nguồn ngoại ngữ.
-3. Chỉ lưu **ứng viên đã qua lọc** vào `VocabularyJob`, không lưu toàn bộ nội dung chat hoặc ảnh trong engine.
-4. Hệ thống chặn request dịch lại *cùng nội dung và ngôn ngữ của cùng tài khoản* trong 5 phút bằng fingerprint SHA-256 (`VocabularyRecentInput`). Worker nhận tối đa 6 job cùng user/ngôn ngữ một lần; tra `VocabularyEntry` trước, dùng mục cũ trong database nếu đã tồn tại, bỏ từ bị xóa (`VocabularyMuted`).
-5. Nếu có mục mới chưa được code phân loại, bộ xử lý tái sử dụng nghĩa từ `VOCABULARY` của AI 1 (nếu có); với các mục còn khó, gọi lần lượt **Groq FREE** → **OpenRouter FREE** → **DeepL FREE** để lấy nghĩa (DeepL không phân loại được ngữ cảnh). Tối đa 16 mục trong mỗi request phân tích; **không có giới hạn 12 request/ngày do ứng dụng áp đặt**, nhưng vẫn chịu quota/rate-limit của nhà cung cấp.
-6. MongoDB transaction ghi `VocabularyOccurrence` (chống đếm trùng tác vụ) và cập nhật `VocabularyEntry` (`$inc` lượt gặp/lần xuất hiện), sau đó đánh dấu job hoàn thành. **Mục đã tách được vẫn được lưu khi tất cả API phân loại lỗi**, để trạng thái pending và thử làm giàu sau; không trì hoãn từ cũ.
+## AI1 fields and cache
 
-## Collection cá nhân
+AI1 Mandarin and English PRO prompts now request explicitly tagged items, including Vietnamese meanings:
+- [WORD] 工资 : tiền lương
+- [PHRASE] 一年的工资 : lương của một năm
+- [PATTERN] A 不如 B : A không bằng B
 
-- `VocabularySetting`: bật/tắt theo user, mặc định false.
-- `VocabularyEntry`: userId + language + type + normalized key (unique), nghĩa, Pinyin, chủ đề, đếm lượt gặp, học thuộc.
-- `VocabularyJob`: hàng đợi bền vững, chỉ chứa ứng viên, job đã xử lý tự hết hạn.
-- `VocabularyOccurrence`: ledger có unique index, TTL 60 ngày, chống đếm trùng khi retry.
-- `VocabularyMuted`: từ người dùng đã xóa sẽ không tự tạo lại.
-- `VocabularyRecentInput`: fingerprint chống ghi nhận cùng câu lặp lại trong 5 phút; tự hết hạn.
+The PRO translation cache stores vocabularyVersion=2; legacy cached translations keep the original main translation and upgrade the old lexical portion when required.
 
-Tất cả API `/api/vocabulary` dùng `requireRole('pro','admin')`; PRO hết hạn không truy cập được nhưng dữ liệu giữ nguyên. Không sử dụng dữ liệu của user khác.
+## Reconciliation and data safety
 
-## API
+The ai-items.js parser uses only the lexical items explicitly provided by AI1 and checks they belong to the source language text. It does not invent new words or store full messages.
 
-- `GET /api/vocabulary/settings`, `PUT /api/vocabulary/settings` (`{enabled:true|false}`).
-- `GET /api/vocabulary?language=zh|en&category=all|work|daily_life&sort=frequent|recent&seen=all|new|seen&...`.
-- `GET /api/vocabulary/stats?language=zh|en`.
-- `PATCH /api/vocabulary/:id` để sửa nghĩa/chủ đề/mức độ học.
-- `DELETE /api/vocabulary/:id` xóa khỏi thư viện và không tự lưu lại mục đó.
+The resolver.js module finds existing entries before writing:
+1. Use saved MongoDB meanings first, including user-edited values.
+2. Check a per-user, per-language SHA-256 fingerprint, valid for five minutes.
+3. For a new encounter, use a MongoDB transaction and occurrence ledger to save previously unknown AI1 entries and increment existing counters. The same input within five minutes does not increase counters, even if its translation was cached.
+4. Return authoritative MongoDB item information with isNew, encounterCount, saved meaning, pinyin and category. Disabled collection never modifies dictionary data.
 
-## Kiểm thử cục bộ
+If personal dictionary storage fails, the main successful translation is preserved and a secondary vocabularyError is returned.
 
-```bash
-npm install
-node --test tests/vocabulary-engine.test.js
-npm run dev
-```
+## AI2 is CATEGORY-ONLY
 
-Đăng nhập PRO/Admin, mở **Kho học tập**, bật tự động thu thập; dịch ví dụ:
-- `麻烦你确认一下，这个问题解决了吗？`
-- `下班以后，我去超市买菜。`
-- `Please confirm the payment. Let me check.`
+A separate background worker and category-classifier run on new, unclassified saved items only. Groq FREE is the first provider; OpenRouter FREE is fallback. AI2 outputs only work, daily_life, both or unclassified; it must NOT generate new terms, translations or meanings. DeepL is not used for category classification. No artificial 12-calls-per-day cap is imposed, but providers have their own rate limits. Provider errors or uncertainty leave category unclassified with backoff and retries.
 
-Chờ khoảng 35–60 giây để worker xử lý, mở lại Kho học tập và kiểm tra: từ, chủ đề, đếm, tìm kiếm, thay đổi nghĩa, xóa và lọc. Thử nhấn dịch lại *cùng câu* ngay lập tức: bộ đếm **không tăng trong 5 phút**; dịch câu khác có cùng từ sẽ tăng. Sau 5 phút dịch lại câu cũ mới tính tiếp một lượt.
+The read-only lookup endpoint supports frontend polling to show category updates without increasing encounter counters.
 
-Chú ý: tính năng xác định ngôn ngữ ở phiên bản này dùng luồng ngôn ngữ đang chọn của website. Với văn bản đa ngôn ngữ hoặc cực ngắn, một số mục có thể chờ xử lý/chỉnh sửa. Phân tích AI2 là hỗ trợ từ điển, không bảo đảm mọi thuật ngữ kỹ thuật đều chính xác.
+## UI
 
-### Quyền riêng tư
+Translation detail cards are grouped into Từ vựng / Cụm từ / Mẫu câu. Each card contains a New / Already existed badge (based on DB state *before* this translation), actual encounter count, stored meaning/Pinyin/category and a colored left border:
+- 1–2: green; 3–9: blue; 10–29: amber; 30+: purple.
+Frequency color is independent of the manual learned/not learned state.
 
-Không gửi chat/ảnh nguyên gốc đến Groq/OpenRouter/DeepL để phân loại; chỉ gửi các ứng viên từ vựng đã được kiểm tra và loại bớt URL, email, số và mã nhận dạng. Việc loại bỏ thông tin nhạy cảm dựa trên quy tắc **không tuyệt đối**; người dùng nên tránh bật chế độ thu thập khi dịch các bí mật nội bộ. Dịch thuật chính vẫn sử dụng các dịch vụ hiện có của website.
+The study library continues using the same data source and supports its previous filters, editing and deletion.
 
-### Vận hành
+## Legacy modules and QA
 
-Worker chạy cùng tiến trình `translator-web` và chỉ khởi động sau MongoDB. Ghi nhận tần suất chính xác khi retry sử dụng **MongoDB transactions**, vì vậy MongoDB phải là replica set / Atlas. Không dùng Redis và không thay đổi file Telegram bot.
+The old V1.0 queue and meaning-classifier remain only for historic test/source compatibility; server.js no longer imports them or creates those jobs. The active runtime uses resolver.js, worker.js and category-classifier.js. Existing personal entries remain intact.
 
-**Không merge vào main hoặc triển khai VPS trước khi kiểm thử localhost.**
+Before any merge/deployment:
+1. Pull feature/pro-personal-vocabulary-engine on your Mac and run node --test tests/*.test.js.
+2. Start the local server with MongoDB Atlas, log in as PRO/Admin.
+3. Translate 我一年的工资可能还不如他的起薪。 with Vocabulary ON. Check typed cards, meanings, isNew and counters.
+4. Translate the same sentence again within five minutes: counters unchanged.
+5. Translate a different sentence with 工资: existing count increases once.
+6. Turn Vocabulary OFF: no cards and no storage; study library remains viewable.
+7. Edit a meaning in the library and translate again: saved meaning wins.
+8. Test English PRO and FREE to detect regression, plus Groq/OpenRouter failures.
+9. Check mobile card layout and eventual category update.
+
+Requires MongoDB Atlas/replica set transactions. Do not merge or deploy without localhost QA.
