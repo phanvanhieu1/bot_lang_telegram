@@ -37,7 +37,7 @@ The read-only lookup endpoint supports frontend polling to show category updates
 
 ## UI
 
-Translation detail cards are grouped into Từ vựng / Cụm từ / Mẫu câu. Each card contains a New / Already existed badge (based on DB state *before* this translation), actual encounter count, stored meaning/Pinyin/category and a colored left border:
+Translation detail cards are grouped into Từ vựng / Cụm từ / Mẫu câu. Each card contains a New / Already existed badge (based on DB state *before* this translation), actual encounter count, stored meaning/Pinyin/category and a small frequency-color indicator:
 - 1–2: green; 3–9: blue; 10–29: amber; 30+: purple.
 Frequency color is independent of the manual learned/not learned state.
 
