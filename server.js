@@ -3,6 +3,8 @@ require('dotenv').config();
 const { pinyin } = require('pinyin-pro');
 const { getChineseAudio } = require('./web-tts');
 const { translateChatImage } = require('./web-image-translate');
+const vocabularyRoutes = require('./web-vocabulary/routes');
+const { scheduleCapture, startVocabularyWorker } = require('./web-vocabulary/queue');
 const {
   NOTICE: MAINTENANCE_NOTICE,
   effectiveRole,
@@ -164,6 +166,7 @@ app.put('/api/admin/maintenance', requireRole('admin'), async (req, res) => {
   }
 });
 
+app.use('/api/vocabulary', vocabularyRoutes);
 app.use('/api/admin/users', userRoutes);
 app.use('/auth', googleAuthRoutes);
 
@@ -367,6 +370,14 @@ app.post(
             (usage.completion_tokens || 0) * 10) / 1_000_000
         });
       }
+      scheduleCapture({
+        userId:req.user._id,
+        language,
+        foreignText:result.messages.filter(item=>!item.uncertain)
+          .map(item=>result.sourceLanguage===language ? item.original : item.translation)
+          .join('\n'),
+        context:'auto'
+      });
       return res.json({
         success: true,
         sourceLanguage: result.sourceLanguage,
@@ -795,6 +806,11 @@ app.post('/api/translate',requirePro, async (req, res) => {
         learningLang: 'en',
         result: en.content
       });
+      scheduleCapture({
+        userId:req.user._id,language:'en',
+        foreignText:en.parsed.sourceLanguage==='en' ? text.trim() : en.parsed.translation,
+        context
+      });
       return res.json({
         success: true,
         result: en.content,
@@ -1063,6 +1079,12 @@ if (usage.totalTokens > 0) {
   });
 }
 
+scheduleCapture({
+  userId:req.user._id,language:'zh',
+  foreignText:inputIsChinese ? inputText : finalCache.translation,
+  context
+});
+
 res.json({
   success: true,
   result: responseContent,
@@ -1132,6 +1154,7 @@ async function startServer() {
     // Ensure the session collection and its TTL index are ready before
     // accepting Google OAuth callbacks.
     await sessionStore.collectionP;
+    startVocabularyWorker();
 
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
