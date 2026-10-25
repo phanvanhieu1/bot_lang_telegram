@@ -13,7 +13,8 @@
 <link href="/image-translate.css" rel="stylesheet"/>
 <link href="/maintenance-ui.css" rel="stylesheet"/>
 <link href="/vocabulary-ui.css" rel="stylesheet"/>
-<link href="/translation-vocab.css" rel="stylesheet"/></head>
+<link href="/translation-vocab.css" rel="stylesheet"/>
+<link href="/compact-layout.css" rel="stylesheet"/></head>
 <body>
 <main class="container">
 <header class="header gt-header">
@@ -199,15 +200,9 @@
 </section>
 
 <div class="practice-launcher hidden" id="practiceLauncher">
-<div class="practice-launcher-info">
-<span class="practice-launcher-icon">📚</span>
-<div>
-<strong id="practiceLauncherTitle">Luyện tiếng Trung</strong>
-<small>Chấm điểm, sửa câu và giải thích bằng AI</small>
-</div>
-</div>
-<button id="openPracticeBtn" type="button">
-    Mở luyện tập ↗
+  <button id="openPracticeBtn" type="button" title="Mở luyện tập" aria-label="Mở luyện tập" aria-haspopup="dialog" aria-controls="practiceModal">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.5C9.3 4.7 5.8 4.5 3 5.6v13.1c3-1.3 6.5-1.1 9 1 2.5-2.1 6-2.3 9-1V5.6c-2.8-1.1-6.3-.9-9 .9Z"/><path d="M12 6.5v13.2"/></svg>
+    <span class="visually-hidden" id="practiceLauncherTitle">Luyện tiếng Trung</span>
   </button>
 </div>
 <div class="mode-tabs hidden">
@@ -282,11 +277,11 @@
 <div class="free-limit-reset" id="freeReset"></div>
 </div>
 <section aria-label="Chi tiết bản dịch" class="translation-details" id="translationDetails">
-<div class="details-heading"><span>Chi tiết bản dịch</span><small>Từ vựng · Kiểm tra bản dịch</small></div>
+<div class="details-heading"><span>Chi tiết bản dịch</span></div>
 <div class="details-content">
 <div class="translation-extras">
 <div class="result-box hidden" id="vocabularyWrapper">
-<h3 class="result-title">Từ vựng · Cụm từ · Mẫu câu</h3>
+
 <div class="vocabulary-content" id="vocabulary"></div>
 <div class="translation-vocab-cards" id="vocabularyCards" hidden aria-live="polite"></div>
 </div>
@@ -455,5 +450,6 @@
 <script src="/practice-audio.js"></script>
 <script src="/image-translate.js"></script>
 <script src="/maintenance-ui.js"></script>
-<script src="/vocabulary-ui.js"></script></body>
+<script src="/vocabulary-ui.js"></script>
+<script src="/compact-layout.js"></script></body>
 </html>
