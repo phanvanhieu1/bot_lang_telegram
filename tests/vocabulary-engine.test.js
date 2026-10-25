@@ -4,8 +4,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { extractCandidates, normalize, removeSensitiveSegments,
   categoryFromContext } = require('../web-vocabulary/extractor');
-const { cleanLabel } = require('../web-vocabulary/classifier');
-const { presentation } = require('../web-vocabulary/queue');
+const { cleanLabel, parseProviderContent } = require('../web-vocabulary/classifier');
+const { presentation, inputFingerprint } = require('../web-vocabulary/queue');
 
 function id(item) { return item.type+':'+item.key; }
 test('recognizes Mandarin work words and a reusable phrase without AI',()=>{
@@ -100,4 +100,28 @@ test('never imports AI1 vocabulary absent from the source message',()=>{
     additionalVocabulary:'- secret company password : Mật khẩu nội bộ'
   });
   assert.ok(!entries.some(item=>item.key.includes('secret company')));
+});
+
+
+test('duplicate-input fingerprint is normalized but account/window management remains database-scoped',()=>{
+  const first=inputFingerprint('  下班以后，  我去超市买菜。 ', 'zh');
+  const second=inputFingerprint('下班以后， 我去超市买菜。', 'zh');
+  assert.equal(first,second);
+  assert.equal(first.length,64);
+  assert.notEqual(inputFingerprint('Same sentence','zh'),inputFingerprint('Same sentence','en'));
+  assert.notEqual(inputFingerprint('Confirmed','en'),inputFingerprint('Confirm','en'));
+});
+
+test('free-model classifier parses valid JSON with or without code fences',()=>{
+  const sample={items:[{key:'确认',type:'word',valid:true,meaning:'Xác nhận',
+    category:'work',confidence:0.95}]};
+  assert.deepEqual(parseProviderContent(JSON.stringify(sample)),sample);
+  assert.deepEqual(parseProviderContent('<think>Reasoning</think>\n'+JSON.stringify(sample)),sample);
+  assert.deepEqual(parseProviderContent('\x60\x60\x60json\n'+JSON.stringify(sample)+'\n\x60\x60\x60'),sample);
+});
+
+test('DeepL meaning fallback retains correct metadata without reclassifying topic',()=>{
+  const item={key:'transfer',type:'word',source:'pending'};
+  assert.deepEqual(presentation(item,{meaning:'Chuyển khoản',category:'unclassified',source:'deepl'}),
+    {source:'deepl',meaning:'Chuyển khoản',category:'unclassified'});
 });
