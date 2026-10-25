@@ -2,6 +2,16 @@
 const { entries, patterns } = require('./rules');
 const LANGUAGES = new Set(['zh', 'en']);
 const EN_STOP = new Set(('a an the and or but for to of on in at with as by from is are was were be been being i you he she it we they my your our their his her its not do does did can could would should will shall may might must this that these those there here what when where why who how have has had no yes so just very really more most than then about because into over after before if else also too up down out off some any all one two three please').split(' '));
+const ZH_SKIP = new Set('这个 那个 这些 那些 什么 怎么 这么 那么 一下 以后 以前 时候 不是 没有 还有 就是 我们 他们 她们 你们 自己 一个 一些 一点 可以 已是 真的 现在'.split(' '));
+const CHINESE_PRONOUN_START = /^[我你他她它咱您][\p{Script=Han}]{1,3}$/u;
+function removeSensitiveSegments(value) {
+  return String(value||'')
+    .replace(/(?:https?:\/\/|www\.)\S+/giu,' ')
+    .replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/gu,' ')
+    .replace(/\b[A-Z]{1,6}\d[A-Z\d_-]*\b/gu,' ')
+    .replace(/\b\d[\d+().\s-]{4,}\d\b/gu,' ')
+    .replace(/@[A-Za-z][A-Za-z0-9_]{2,}/gu,' ');
+}
 const EN_INFLECT = {
   confirmed:'confirm',confirming:'confirm',processed:'process',processing:'process',
   solved:'solve',solving:'solve',completed:'complete',completing:'complete',
@@ -21,7 +31,8 @@ function normalize(text, language, type = 'word') {
 function isSafeTerm(term, language, type = 'word') {
   if (!term || term.length > 90 || /[\d@#:/\\]|https?|www\.|[_=]|[\r\n]/iu.test(term)) return false;
   if (type === 'pattern') return /^[\p{L}\p{Script=Han}\s.+?!，,？]+$/u.test(term);
-  if (language === 'zh') return /^[\p{Script=Han}]+$/u.test(term) && term.length >= 2 && term.length <= 12;
+  if (language === 'zh') return /^[\p{Script=Han}]+$/u.test(term) && term.length >= 2 && term.length <= 12 &&
+    (type !== 'word' || (!ZH_SKIP.has(term) && !CHINESE_PRONOUN_START.test(term)));
   if (language === 'en') {
     const words = term.split(' ');
     return words.length <= 6 && words.every(word => /^[a-z]+(?:'[a-z]+)?$/i.test(word)) &&
@@ -61,8 +72,8 @@ function categoryFromContext(text, language, context = 'auto') {
 function extractCandidates({ foreignText, language, context = 'auto' }) {
   if (!LANGUAGES.has(language) || typeof foreignText !== 'string') return [];
   // Never store or send full conversations; only vetted lexical candidates.
-  const source = foreignText.trim().slice(0, 3000);
-  if (!source || source.length > 3000) return [];
+  const source = removeSensitiveSegments(foreignText.trim().slice(0, 3000));
+  if (!source.trim() || source.length > 3000) return [];
   const topicHint = categoryFromContext(source, language, context);
   const normalizedSource = language === 'en' ? source.toLowerCase() : source;
   const candidates = new Map();
@@ -114,4 +125,4 @@ function extractCandidates({ foreignText, language, context = 'auto' }) {
       b.occurrences-a.occurrences)
     .slice(0, 32);
 }
-module.exports = { extractCandidates, normalize, isSafeTerm, categoryFromContext };
+module.exports = { extractCandidates, normalize, isSafeTerm, categoryFromContext, removeSensitiveSegments };
