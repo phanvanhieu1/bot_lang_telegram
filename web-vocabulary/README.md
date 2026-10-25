@@ -70,3 +70,17 @@ Before any merge/deployment:
 9. Check mobile card layout and eventual category update.
 
 Requires MongoDB Atlas/replica set transactions. Do not merge or deploy without localhost QA.
+
+## Compact translation page (UI-only revision)
+
+The translation page is now deliberately compact and Google-Translate-inspired:
+- public/compact-layout.css is loaded last and overrides legacy fixed heights, nested outlines, with dark mode and mobile support.
+- public/compact-layout.js measures source and translated text and assigns matching pane heights (minimum 172px, maximum 660px). Long text scrolls inside each pane. It recalculates after typing, translation, pronunciation, resizing or language switching.
+- The full-width Luyện tập banner is now a circular PRO/Admin-only bottom-right action, reusing the existing practice dialog, permissions and audio settings.
+- public/translation-vocab.js presents Word / Phrase / Grammar in compact responsive columns. Each group shows three entries initially with accessible Xem thêm / Thu gọn.
+- The redundant frequency-color legend was removed; encounter counts and a small colored dot indicate frequency without heavy card borders.
+- This is a frontend-only change to layout; translation API, auth, MongoDB, FREE/PRO modes, study-library records and Telegram bot are unchanged.
+- Offline regression tests: node --test tests/compact-layout.test.js
+- Manual QA: one-line vs 20-line text, 1440/900/390px width, dark mode, text/image tabs, audio/Pinyin, keyboard controls, practice modal, expand/collapse and vocabulary toggle.
+
+Not every detail can fit on every screen size; the default preview shows the main categories at once, with optional expansion or page scroll.
