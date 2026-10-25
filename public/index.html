@@ -12,7 +12,8 @@
 <link href="/language-ui.css" rel="stylesheet"/>
 <link href="/image-translate.css" rel="stylesheet"/>
 <link href="/maintenance-ui.css" rel="stylesheet"/>
-<link href="/vocabulary-ui.css" rel="stylesheet"/></head>
+<link href="/vocabulary-ui.css" rel="stylesheet"/>
+<link href="/translation-vocab.css" rel="stylesheet"/></head>
 <body>
 <main class="container">
 <header class="header gt-header">
@@ -125,11 +126,7 @@
       <div><h2 id="vocabTitle">Kho học tập cá nhân</h2><p>Ghi nhớ từ vựng và mẫu câu từ những lượt dịch của bạn</p></div>
       <button type="button" id="vocabCloseBtn" aria-label="Đóng kho học tập">×</button>
     </div>
-    <div class="vocab-optin">
-      <label for="vocabAutoCollect"><strong>Tự động thu thập khi dịch</strong><small>Chỉ lưu từ, cụm từ và mẫu câu. Không lưu nguyên đoạn chat hay ảnh vào kho học tập.</small></label>
-      <input type="checkbox" id="vocabAutoCollect"/>
-    </div>
-    <p class="vocab-notice">Dữ liệu riêng cho tài khoản này · PRO/Admin · Chỉ gọi AI phân loại khi code chưa xử lý được</p>
+    <p class="vocab-notice">Kho học tập dùng chung công tắc <strong>Từ vựng</strong> trong Cài đặt PRO (mặc định bật). Tắt công tắc không xóa các mục đã lưu. AI hỗ trợ chỉ phân loại Công việc / Đời sống.</p>
     <div class="vocab-stats">
       <div><strong id="vocabTotal">0</strong><span>Mục đã lưu</span></div>
       <div><strong id="vocabEncounters">0</strong><span>Lượt gặp</span></div>
@@ -289,8 +286,9 @@
 <div class="details-content">
 <div class="translation-extras">
 <div class="result-box hidden" id="vocabularyWrapper">
-<h3 class="result-title">Từ vựng</h3>
+<h3 class="result-title">Từ vựng · Cụm từ · Mẫu câu</h3>
 <div class="vocabulary-content" id="vocabulary"></div>
+<div class="translation-vocab-cards" id="vocabularyCards" hidden aria-live="polite"></div>
 </div>
 </div>
 <div class="verification-box hidden" id="verificationWrapper">
@@ -451,6 +449,7 @@
 @media(max-width:520px){.practice-audio-settings{grid-template-columns:1fr}}
 </style>
 <script src="/language-ui.js"></script>
+<script src="/translation-vocab.js"></script>
 <script src="/app.js"></script>
 <script src="/google-style.js"></script>
 <script src="/practice-audio.js"></script>
