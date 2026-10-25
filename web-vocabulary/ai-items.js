@@ -30,7 +30,14 @@ function patternBelongsToSource(key, source, language) {
     ? key.match(/[\p{Script=Han}]{2,}/gu) || []
     : (key.match(/[a-z]{3,}/gi) || [])
         .filter(word=>!['pattern','subject','object','verb','noun','adjective','tense','something'].includes(word.toLowerCase()));
-  return words.some(word=>source.toLowerCase().includes(word.toLowerCase()));
+  if(words.some(word=>source.toLowerCase().includes(word.toLowerCase())))return true;
+  // Some Chinese grammar markers consist of a single character ("比", "把",
+  // "被"). Never accept arbitrary one-character overlap.
+  if(language==='zh') {
+    return ['比','把','被','得','过','着'].some(mark=>
+      key.includes(mark)&&source.includes(mark));
+  }
+  return false;
 }
 
 function inferLegacyType(term, language) {
