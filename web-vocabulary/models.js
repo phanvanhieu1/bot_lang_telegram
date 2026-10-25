@@ -71,11 +71,21 @@ const mutedSchema = new mongoose.Schema({
 }, { versionKey:false, timestamps:true });
 mutedSchema.index({ userId:1, language:1, type:1, key:1 }, { unique:true });
 
+const quotaSchema = new mongoose.Schema({
+  userId:id,
+  day:{ type:String, required:true },
+  calls:{ type:Number, default:0 },
+  expiresAt:{ type:Date, required:true }
+}, { versionKey:false });
+quotaSchema.index({ userId:1, day:1 }, { unique:true });
+quotaSchema.index({ expiresAt:1 }, { expireAfterSeconds:0 });
+
 const model = (name,schema) => mongoose.models[name] || mongoose.model(name,schema);
 module.exports = {
   VocabularySetting:model('VocabularySetting',settingSchema),
   VocabularyEntry:model('VocabularyEntry',entrySchema),
   VocabularyJob:model('VocabularyJob',jobSchema),
   VocabularyOccurrence:model('VocabularyOccurrence',occurrenceSchema),
-  VocabularyMuted:model('VocabularyMuted',mutedSchema)
+  VocabularyMuted:model('VocabularyMuted',mutedSchema),
+  VocabularyAiQuota:model('VocabularyAiQuota',quotaSchema)
 };
