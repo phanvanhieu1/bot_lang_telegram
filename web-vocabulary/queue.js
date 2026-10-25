@@ -197,9 +197,29 @@ async function processBatch(jobs) {
     !(item.source === 'translation' && item.category));
   const toAnalyze = missing.slice(0,MAX_ITEMS_PER_CALL);
   let analysis = new Map();
-  if (toAnalyze.length && await reserveAiQuota(userId)) {
-    analysis = await analyzeBatch(userId,first.language,toAnalyze,
-      first.candidates?.[0]?.topicHint || 'auto');
+  if (toAnalyze.length) {
+    if (!(await reserveAiQuota(userId))) {
+      // Never silently mark unknown words as complete solely because the
+      // daily budget is exhausted. Preserve the jobs for the next day.
+      const nextDay = new Date();
+      nextDay.setUTCHours(24, 1, 0, 0);
+      await VocabularyJob.updateMany({
+        _id:{ $in:jobs.map(job=>job._id) }, status:'processing'
+      },{
+        $set:{ status:'pending', runAt:nextDay, lockedUntil:null,
+          error:'Daily AI classification limit reached' },
+        $inc:{ attempts:-1 }
+      });
+      return;
+    }
+    try {
+      analysis = await analyzeBatch(userId,first.language,toAnalyze,
+        first.candidates?.[0]?.topicHint || 'auto');
+    } catch (error) {
+      // A failed optional classifier must not prevent known terms and
+      // known patterns from being saved. Unknown items remain editable.
+      console.error('Vocabulary classifier unavailable:', error.message);
+    }
   }
   // Permission may have changed during AI call.
   const activeSetting = await VocabularySetting.findOne({ userId, enabled:true }).select('_id').lean();
