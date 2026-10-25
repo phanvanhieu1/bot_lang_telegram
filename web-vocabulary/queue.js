@@ -16,6 +16,7 @@ const BATCH_DELAY_MS = 35000;
 const MAX_JOBS_PER_BATCH = 6;
 const MAX_AI_CALLS_PER_DAY = 12;
 let busy = false;
+let lastPendingScan = 0;
 let timer = null;
 
 function entryId(item) {
@@ -103,7 +104,7 @@ function presentation(candidate, analysis = null) {
   return { source, category:category || 'unclassified', meaning };
 }
 
-async function applyBatch(jobs, allowed, existing, analysis, muted) {
+async function applyBatch(jobs, allowed, existing, analysis, muted, attemptedIds = new Set()) {
   const now = new Date();
   const expiresAt = new Date(now.getTime()+60*86400000);
   await mongoose.connection.transaction(async session => {
@@ -136,7 +137,9 @@ async function applyBatch(jobs, allowed, existing, analysis, muted) {
           pinyin:job.language === 'zh' ? pinyin(candidate.text, { toneType:'symbol', type:'string' }).slice(0,250) : '',
           category:classified.category,
           classificationSource:classified.source, manualOverride:false,
-          firstSeenAt:now, mastery:'new'
+          firstSeenAt:now, mastery:'new',
+          analysisAttempts:classified.source==='pending' && attemptedIds.has(id) ? 3 : 0,
+          nextAnalysisAt:new Date(now.getTime()+3600000)
         };
         await VocabularyEntry.updateOne({
           userId:job.userId, language:job.language, type:candidate.type, key:candidate.key
@@ -197,6 +200,7 @@ async function processBatch(jobs) {
     !(item.source === 'translation' && item.category));
   const toAnalyze = missing.slice(0,MAX_ITEMS_PER_CALL);
   let analysis = new Map();
+  let attemptedIds = new Set();
   if (toAnalyze.length) {
     if (!(await reserveAiQuota(userId))) {
       // Never silently mark unknown words as complete solely because the
@@ -215,6 +219,7 @@ async function processBatch(jobs) {
     try {
       analysis = await analyzeBatch(userId,first.language,toAnalyze,
         first.candidates?.[0]?.topicHint || 'auto');
+      attemptedIds = new Set(toAnalyze.map(entryId));
     } catch (error) {
       // A failed optional classifier must not prevent known terms and
       // known patterns from being saved. Unknown items remain editable.
@@ -229,7 +234,49 @@ async function processBatch(jobs) {
     await settleJobs(jobs, activeSetting ? 'pending':'completed', 'Permission changed');
     return;
   }
-  await applyBatch(jobs, new Set(all.keys()), existing, analysis, muted);
+  await applyBatch(jobs, new Set(all.keys()), existing, analysis, muted, attemptedIds);
+}
+
+// Retry only entries that were never successfully reviewed by AI.
+// Rejected/low-confidence AI answers stay available for manual correction.
+async function revisitPendingOnce() {
+  const now = new Date();
+  const entries = await VocabularyEntry.find({
+    classificationSource:'pending', manualOverride:false,
+    analysisAttempts:{ $lt:3 }, nextAnalysisAt:{ $lte:now }
+  }).sort({ nextAnalysisAt:1 }).limit(MAX_ITEMS_PER_CALL).lean();
+  if (!entries.length) return;
+
+  const first = entries[0];
+  const batch = entries.filter(item =>
+    String(item.userId)===String(first.userId) && item.language===first.language);
+  const [setting,user] = await Promise.all([
+    VocabularySetting.findOne({userId:first.userId,enabled:true}).select('_id').lean(),
+    User.findById(first.userId).select('role proExpiresAt isActive').lean()
+  ]);
+  if (!setting || !user?.isActive || !['pro','admin'].includes(effectiveRole(user))) return;
+  if (!(await reserveAiQuota(first.userId))) return;
+  let results = new Map();
+  let success = false;
+  try {
+    results = await analyzeBatch(first.userId,first.language,
+      batch.map(item=>({key:item.key,type:item.type})));
+    success = true;
+  } catch (error) {
+    console.error('Vocabulary pending retry:',error.message);
+  }
+  const nextAnalysisAt = new Date(Date.now()+(success?86400000:3600000));
+  for (const item of batch) {
+    const classified = results.get(entryId(item));
+    const changes = classified
+      ? { $set:{ meaning:classified.meaning,category:classified.category,
+          classificationSource:'ai',nextAnalysisAt }, $inc:{analysisAttempts:1} }
+      : { $set:{ nextAnalysisAt }, $inc:{analysisAttempts:success?3:1} };
+    await VocabularyEntry.updateOne({
+      _id:item._id,userId:item.userId,
+      classificationSource:'pending',manualOverride:false
+    },changes);
+  }
 }
 
 async function runWorkerOnce() {
@@ -238,7 +285,13 @@ async function runWorkerOnce() {
   let jobs = [];
   try {
     const first = await claimJob();
-    if (!first) return;
+    if (!first) {
+      if (Date.now()-lastPendingScan>120000) {
+        lastPendingScan=Date.now();
+        await revisitPendingOnce();
+      }
+      return;
+    }
     jobs = [first];
     for (let i=1;i<MAX_JOBS_PER_BATCH;i++) {
       const next = await claimJob(first.userId, first.language);
@@ -269,5 +322,5 @@ function startVocabularyWorker() {
 
 module.exports = {
   captureTranslation, scheduleCapture, runWorkerOnce, startVocabularyWorker,
-  presentation, reserveAiQuota
+  presentation, reserveAiQuota, revisitPendingOnce
 };
