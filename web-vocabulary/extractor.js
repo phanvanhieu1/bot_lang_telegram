@@ -69,7 +69,7 @@ function categoryFromContext(text, language, context = 'auto') {
   return work > daily ? 'work' : daily > work ? 'daily_life' : null;
 }
 
-function extractCandidates({ foreignText, language, context = 'auto' }) {
+function extractCandidates({ foreignText, language, context = 'auto', additionalVocabulary = '' }) {
   if (!LANGUAGES.has(language) || typeof foreignText !== 'string') return [];
   // Never store or send full conversations; only vetted lexical candidates.
   const source = removeSensitiveSegments(foreignText.trim().slice(0, 3000));
@@ -77,7 +77,7 @@ function extractCandidates({ foreignText, language, context = 'auto' }) {
   const topicHint = categoryFromContext(source, language, context);
   const normalizedSource = language === 'en' ? source.toLowerCase() : source;
   const candidates = new Map();
-  function add(term, type, count, rule = null) {
+  function add(term, type, count, rule = null, providedBy = null) {
     const key = normalize(term, language, type);
     if (!isSafeTerm(key, language, type) || !count) return;
     if (type === 'word' && language === 'en' && EN_STOP.has(key)) return;
@@ -88,7 +88,7 @@ function extractCandidates({ foreignText, language, context = 'auto' }) {
       meaning: rule?.[0] || '',
       category: rule?.[1] || null,
       topicHint,
-      source: rule ? 'rule' : 'pending',
+      source: providedBy || (rule ? 'rule' : 'pending'),
       occurrences: Math.min(50, count)
     });
   }
@@ -102,6 +102,26 @@ function extractCandidates({ foreignText, language, context = 'auto' }) {
   }
   for (const [word, meaning] of Object.entries(entries[language].word)) {
     add(word, 'word', occurrences(normalizedSource, word), meaning);
+  }
+  // Reuse PRO vocabulary when AI 1 has already supplied it in the translation.
+  // This costs zero additional tokens and is accepted only when the item
+  // actually occurs in the scrubbed target-language content.
+  if (typeof additionalVocabulary === 'string') {
+    const lines = additionalVocabulary.split(/\r?\n/).slice(0, 12);
+    for (const line of lines) {
+      const match = line.match(/^\s*(?:[-•*]\s*)?([^:：\n]{2,90})\s*[:：]\s*(.{2,160})$/u);
+      if (!match) continue;
+      const term = match[1].trim().replace(/\([^()]*\)\s*$/u, '').trim();
+      const meaning = match[2].trim().slice(0, 160);
+      if (!term || !meaning || /[\d@#]/u.test(meaning.slice(0, 10))) continue;
+      const kind = language === 'en'
+        ? (term.includes(' ') ? 'phrase' : 'word')
+        : (term.length > 4 ? 'phrase' : 'word');
+      const count = occurrences(normalizedSource, term);
+      if (count && isSafeTerm(normalize(term, language, kind), language, kind)) {
+        add(term, kind, count, [meaning, topicHint || null], 'translation');
+      }
+    }
   }
   const segmenter = new Intl.Segmenter(language === 'zh' ? 'zh-Hans' : 'en',
     { granularity:'word' });
