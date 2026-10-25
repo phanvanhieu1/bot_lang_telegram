@@ -31,12 +31,14 @@
     const count=Math.max(0,Number(item.encounterCount)||0);
     card.dataset.level=level(count);
     const header=node(card,'div','translation-vocab-card-top');
-    const status=node(header,'span','translation-vocab-status'+(item.isNew?' is-new':''),
+    const name=node(header,'div','translation-vocab-name');
+    node(name,'div','translation-vocab-term',item.text || item.key);
+    if(item.pinyin)node(name,'div','translation-vocab-pinyin',item.pinyin);
+    const meta=node(header,'div','translation-vocab-meta');
+    const status=node(meta,'span','translation-vocab-status'+(item.isNew?' is-new':''),
       item.isNew?'Mới':'Đã có');
     status.title=item.isNew?'Mục vừa được thêm vào từ điển':'Mục đã tồn tại trong từ điển';
-    node(header,'span','translation-vocab-count',count+' lần gặp');
-    node(card,'div','translation-vocab-term',item.text || item.key);
-    if(item.pinyin)node(card,'div','translation-vocab-pinyin',item.pinyin);
+    node(meta,'span','translation-vocab-count',count+' lần gặp');
     node(card,'div','translation-vocab-meaning',item.meaning||'Chưa có nghĩa');
     const pending=item.category==='unclassified';
     node(card,'div','translation-vocab-topic'+(pending?' is-pending':''),
@@ -60,7 +62,7 @@
       const values=all.filter(item=>item.type===type);
       // Keep all three groups visible, even when AI1 supplied no items in one.
       const section=node(root,'section','translation-vocab-section');
-      const heading=node(section,'div','translation-vocab-section-heading');
+      const heading=node(section,'h3','translation-vocab-section-heading');
       node(heading,'span','',typeNames[type]);
       node(heading,'small','',values.length+' mục');
       const grid=node(section,'div','translation-vocab-grid');
