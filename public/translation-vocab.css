@@ -1,0 +1,30 @@
+/* Vocabulary Engine V1.1 translation detail cards. Accessible, responsive,
+   light/dark theme compatible; frequency colors do not imply mastery. */
+.translation-vocab-cards[hidden],#vocabulary[hidden]{display:none!important}
+.translation-vocab-cards{display:grid;gap:16px;min-width:0;width:100%}
+.translation-vocab-section{display:grid;gap:10px;min-width:0}
+.translation-vocab-section-heading{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:740;color:var(--ui-text,#202124)}
+.translation-vocab-section-heading small{color:var(--ui-muted,#667085);font-weight:450;font-size:11px}
+.translation-vocab-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.translation-vocab-card{
+  border:1px solid var(--ui-border,#d6dce5);
+  border-left-width:4px;border-radius:12px;padding:13px;
+  background:var(--ui-bg,#fff);min-width:0;display:grid;gap:6px;
+  box-sizing:border-box;
+}
+.translation-vocab-card[data-level="fresh"]{border-left-color:#20a06b}
+.translation-vocab-card[data-level="light"]{border-left-color:#3279e1}
+.translation-vocab-card[data-level="frequent"]{border-left-color:#c68619}
+.translation-vocab-card[data-level="very-frequent"]{border-left-color:#9254c8}
+.translation-vocab-card-top{display:flex;justify-content:space-between;align-items:center;gap:7px;flex-wrap:wrap}
+.translation-vocab-status{border-radius:100px;padding:3px 8px;font-size:11px;font-weight:700;border:1px solid var(--ui-border,#d6dce5);color:var(--ui-muted,#667085)}
+.translation-vocab-status.is-new{border-color:#20a06b;color:#158358}
+.translation-vocab-count{font-size:11px;color:var(--ui-muted,#667085);font-variant-numeric:tabular-nums}
+.translation-vocab-term{font-size:18px;line-height:1.4;font-weight:760;overflow-wrap:anywhere;color:var(--ui-text,#202124)}
+.translation-vocab-pinyin{font-size:12px;color:var(--ui-muted,#667085)}
+.translation-vocab-meaning{font-size:13px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--ui-text,#202124)}
+.translation-vocab-topic{font-size:11px;color:var(--ui-muted,#667085)}
+.translation-vocab-topic.is-pending{font-style:italic}
+.translation-vocab-note{font-size:12px;color:var(--ui-muted,#667085);line-height:1.5;margin:0}
+.translation-vocab-error{border:1px solid #c68619;color:var(--ui-text,#202124);border-radius:10px;padding:10px;font-size:12px}
+@media(max-width:630px){.translation-vocab-grid{grid-template-columns:1fr}}
