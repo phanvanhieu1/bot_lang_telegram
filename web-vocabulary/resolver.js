@@ -87,40 +87,50 @@ async function resolveTranslationVocabulary({userId,language,foreignText,vocabul
     const now=new Date();
     const eventId=crypto.randomUUID();
     try {
-      await mongoose.connection.transaction(async(session)=>{
-        for(const item of allowed) {
-          const id=item.type+':'+item.key;
-          const existing=existed.get(id);
-          const filter=entryFilter(userId,language,item);
-          const category=ruleCategory(language,item);
-          await VocabularyOccurrence.create([{
-            ...filter,eventId,
-            category:category==='unclassified' ? 'unclassified' : category,
-            count:item.occurrences,
-            seenAt:now,expiresAt:new Date(now.getTime()+OCCURRENCE_TTL_MS)
-          }],{session});
-          const setOnInsert={
-            text:item.text,meaning:item.meaning,category,
-            pinyin:language==='zh' && item.type!=='pattern'
-              ? pinyin(item.text,{toneType:'symbol',type:'string'}).slice(0,250):'',
-            classificationSource:category==='unclassified' ? 'pending':'rule',
-            manualOverride:false,mastery:'new',firstSeenAt:now,
-            analysisAttempts:0,nextAnalysisAt:now
-          };
-          await VocabularyEntry.updateOne(filter,{
-            $setOnInsert:setOnInsert,
+      // Batch writes keep the translation response snappy: two MongoDB
+      // roundtrips inside a transaction rather than two requests per item.
+      const occurrences=[];
+      const writes=[];
+      for(const item of allowed) {
+        const id=item.type+':'+item.key;
+        const existing=existed.get(id);
+        const filter=entryFilter(userId,language,item);
+        // A user-edited or AI2-resolved category always overrides static rules.
+        const category=existing?.category && existing.category!=='unclassified'
+          ? existing.category : ruleCategory(language,item);
+        occurrences.push({
+          ...filter,eventId,category,
+          count:item.occurrences,
+          seenAt:now,expiresAt:new Date(now.getTime()+OCCURRENCE_TTL_MS)
+        });
+        const onInsert={
+          text:item.text,meaning:item.meaning,category,
+          pinyin:language==='zh' && item.type!=='pattern'
+            ? pinyin(item.text,{toneType:'symbol',type:'string'}).slice(0,250):'',
+          classificationSource:category==='unclassified' ? 'pending':'rule',
+          manualOverride:false,mastery:'new',firstSeenAt:now,
+          analysisAttempts:0,nextAnalysisAt:now
+        };
+        writes.push({updateOne:{
+          filter,upsert:true,
+          update:{
+            $setOnInsert:onInsert,
             $set:{lastSeenAt:now},
             $inc:{encounterCount:1,occurrenceCount:item.occurrences,
-              workCount:category==='work'?1:0,dailyCount:category==='daily_life'?1:0}
-          },{upsert:true,session,setDefaultsOnInsert:false});
-          // Backfill meaning only for legacy rows where it was absent.
-          // Never overwrite stored meanings, especially manual overrides.
-          if(existing && !existing.meaning && !existing.manualOverride) {
-            await VocabularyEntry.updateOne({
-              ...filter,manualOverride:false,$or:[{meaning:''},{meaning:null}]
-            },{$set:{meaning:item.meaning}},{session});
+              workCount:category==='work'?1:0,
+              dailyCount:category==='daily_life'?1:0}
           }
+        }});
+        if(existing && !existing.meaning && !existing.manualOverride) {
+          writes.push({updateOne:{
+            filter:{...filter,manualOverride:false,$or:[{meaning:''},{meaning:null}]},
+            update:{$set:{meaning:item.meaning}}
+          }});
         }
+      }
+      await mongoose.connection.transaction(async(session)=>{
+        await VocabularyOccurrence.insertMany(occurrences,{session,ordered:true});
+        await VocabularyEntry.bulkWrite(writes,{session,ordered:true});
       });
     } catch(error) {
       // Failed writes must not consume the five-minute deduplication window.
