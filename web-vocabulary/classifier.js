@@ -1,6 +1,7 @@
 // An AI classifier of last resort; never sees raw chat, images or personal identifiers.
 const { getRandomOpenAIClient } = require('../ai/providers/openai.provider');
 const { addUsage } = require('../usage');
+const { removeSensitiveSegments } = require('./extractor');
 
 const MAX_ITEMS_PER_CALL = 16;
 const MIN_CONFIDENCE = 0.72;
@@ -11,7 +12,8 @@ function cleanLabel(answer, expected) {
   if (answer.valid !== true || !['work','daily_life','both'].includes(answer.category)) return null;
   const confidence = Number(answer.confidence);
   if (!Number.isFinite(confidence) || confidence < MIN_CONFIDENCE || confidence > 1) return null;
-  const meaning = typeof answer.meaning === 'string' ? answer.meaning.trim().slice(0, 280) : '';
+  const meaning = typeof answer.meaning === 'string'
+    ? removeSensitiveSegments(answer.meaning).trim().slice(0, 280) : '';
   if (!meaning || meaning.length < 2) return null;
   return { meaning, category:answer.category, source:'ai' };
 }
