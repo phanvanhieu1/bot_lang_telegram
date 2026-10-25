@@ -16,7 +16,7 @@ const entrySchema = new mongoose.Schema({
   meaning:{ type:String, default:'', maxlength:450 },
   pinyin:{ type:String, default:'', maxlength:250 },
   category:{ type:String, enum:['work','daily_life','both','unclassified'], default:'unclassified' },
-  classificationSource:{ type:String, enum:['rule','ai','pending','manual'], default:'pending' },
+  classificationSource:{ type:String, enum:['rule','translation','ai','pending','manual'], default:'pending' },
   manualOverride:{ type:Boolean, default:false },
   encounterCount:{ type:Number, default:0, min:0 },
   occurrenceCount:{ type:Number, default:0, min:0 },
