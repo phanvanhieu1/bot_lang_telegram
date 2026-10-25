@@ -1,9 +1,6 @@
 // Vocabulary enrichment only: reuse existing FREE translation providers.
 // Groq/OpenRouter can classify context; DeepL is a meaning-only fallback.
 // Never send raw messages, screenshots, personal IDs or full translation history.
-const { requestGroq } = require('../ai/providers/groq.provider');
-const { requestOpenRouter } = require('../ai/providers/openrouter.provider');
-const { requestDeepLBatch } = require('../ai/providers/deepl.provider');
 const { removeSensitiveSegments } = require('./extractor');
 
 const MAX_ITEMS_PER_CALL = 16;
@@ -54,6 +51,11 @@ async function analyzeBatch(_userId, language, candidates) {
     .filter(item=>item?.key && ['word','phrase','pattern'].includes(item.type));
   const results = new Map();
   if (!terms.length) return results;
+  // Load API clients only when unknown terms genuinely require enrichment.
+  // Tests and jobs made entirely of cached words never construct them.
+  const { requestGroq } = require('../ai/providers/groq.provider');
+  const { requestOpenRouter } = require('../ai/providers/openrouter.provider');
+  const { requestDeepLBatch } = require('../ai/providers/deepl.provider');
   const expected = new Map(terms.map(item=>[item.type+':'+item.key,item]));
   let hadFailure = false;
   for (const provider of [requestGroq, requestOpenRouter]) {
