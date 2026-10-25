@@ -2,7 +2,7 @@
 const { entries, patterns } = require('./rules');
 const LANGUAGES = new Set(['zh', 'en']);
 const EN_STOP = new Set(('a an the and or but for to of on in at with as by from is are was were be been being i you he she it we they my your our their his her its not do does did can could would should will shall may might must this that these those there here what when where why who how have has had no yes so just very really more most than then about because into over after before if else also too up down out off some any all one two three please').split(' '));
-const ZH_SKIP = new Set('这个 那个 这些 那些 什么 怎么 这么 那么 一下 以后 以前 时候 不是 没有 还有 就是 我们 他们 她们 你们 自己 一个 一些 一点 可以 已是 真的 现在'.split(' '));
+const ZH_SKIP = new Set('这个 那个 这些 那些 什么 怎么 这么 那么 一下 以后 以前 时候 不是 没有 还有 就是 我们 他们 她们 你们 自己 一个 一些 一点 可以 已是 真的'.split(' '));
 const CHINESE_PRONOUN_START = /^[我你他她它咱您][\p{Script=Han}]{1,3}$/u;
 function removeSensitiveSegments(value) {
   return String(value||'')
