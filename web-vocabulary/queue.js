@@ -112,7 +112,7 @@ async function settleJobs(jobs, status, error = '') {
 function presentation(candidate, analysis = null) {
   const fromTranslator = candidate.source === 'translation' && Boolean(candidate.meaning);
   const source = candidate.source === 'rule' ? 'rule'
-    : fromTranslator ? 'translation' : analysis ? 'ai' : 'pending';
+    : fromTranslator ? 'translation' : analysis ? (analysis.source || 'ai') : 'pending';
   const category = candidate.source === 'rule'
     ? candidate.category : analysis?.category || candidate.category || 'unclassified';
   const meaning = candidate.source === 'rule'
