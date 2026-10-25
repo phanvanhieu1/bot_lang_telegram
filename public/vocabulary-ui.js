@@ -3,7 +3,7 @@
   const el = id => document.getElementById(id);
   const openBtn=el('vocabOpenBtn'), dialog=el('vocabDialog'), closeBtn=el('vocabCloseBtn');
   const toggle=el('vocabAutoCollect'), status=el('vocabStatus'), list=el('vocabItems');
-  const category=el('vocabCategory'), type=el('vocabType'), sort=el('vocabSort');
+  const category=el('vocabCategory'), type=el('vocabType'), sort=el('vocabSort'), seen=el('vocabSeen');
   const search=el('vocabSearch'), prev=el('vocabPrevious'), next=el('vocabNext');
   const pageLabel=el('vocabPage');
   let page=1,total=0,loading=false,requestVersion=0,lastFocus=null;
@@ -143,7 +143,13 @@
     const left=box(head,'div','');
     box(left,'div','vocab-entry-word',entry.text);
     if(entry.pinyin)box(left,'div','vocab-entry-pinyin',entry.pinyin);
-    box(head,'span','vocab-entry-badge',labels[entry.type]||entry.type);
+    const badges=box(head,'div','vocab-entry-badges');
+    box(badges,'span','vocab-entry-badge',labels[entry.type]||entry.type);
+    // First encounter vs previously encountered is separate from mastery
+    // ('Mới' in the mastery dropdown means not yet learned).
+    box(badges,'span','vocab-entry-badge '+
+      (Number(entry.encounterCount||0)<=1?'vocab-first':'vocab-seen'),
+      Number(entry.encounterCount||0)<=1?'Mới gặp':'Đã gặp trước đây');
     box(card,'div','vocab-entry-meaning',
       entry.meaning || 'Chưa xác định được nghĩa · có thể chỉnh sửa thủ công');
     box(card,'div','vocab-entry-detail',
@@ -203,7 +209,7 @@
     setStatus('Đang tải...');
     const query=new URLSearchParams({
       language:currentLanguage(),category:category.value,type:type.value,
-      sort:sort.value,page:String(page),q:search.value.trim()
+      sort:sort.value,seen:seen.value,page:String(page),q:search.value.trim()
     });
     try {
       const [data]=await Promise.all([api('?'+query.toString()),refreshStats()]);
@@ -221,7 +227,7 @@
       if(version===requestVersion)setStatus(error.message,true);
     } finally {if(version===requestVersion)loading=false;}
   }
-  for(const control of [category,type,sort])control.addEventListener('change',()=>{
+  for(const control of [category,type,sort,seen])control.addEventListener('change',()=>{
     page=1;void refresh();
   });
   search.addEventListener('input',()=>{
