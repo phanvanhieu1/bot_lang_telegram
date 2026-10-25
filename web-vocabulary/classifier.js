@@ -57,9 +57,10 @@ async function analyzeBatch(_userId, language, candidates) {
   const { requestOpenRouter } = require('../ai/providers/openrouter.provider');
   const { requestDeepLBatch } = require('../ai/providers/deepl.provider');
   const expected = new Map(terms.map(item=>[item.type+':'+item.key,item]));
+  const rejected = new Set();
   let hadFailure = false;
   for (const provider of [requestGroq, requestOpenRouter]) {
-    const pending = terms.filter(item=>!results.has(item.type+':'+item.key));
+    const pending = terms.filter(item=>!results.has(item.type+':'+item.key) && !rejected.has(item.type+':'+item.key));
     if (!pending.length) break;
     try {
       const raw = await provider(createPrompt(language,pending));
@@ -69,6 +70,9 @@ async function analyzeBatch(_userId, language, candidates) {
         const id = String(answer?.type)+':'+String(answer?.key);
         const expectedItem = expected.get(id);
         if (!expectedItem || results.has(id)) continue;
+        // Don't ask another provider to translate known non-lexical/private
+        // items that a classifier has explicitly rejected.
+        if (answer.valid === false) { rejected.add(id); continue; }
         const label = cleanLabel(answer,expectedItem);
         if (label) results.set(id,label);
       }
@@ -80,7 +84,7 @@ async function analyzeBatch(_userId, language, candidates) {
 
   // DeepL translates isolated words/phrases, but cannot infer usage categories.
   // This path stores meaning and leaves category unclassified without a topic hint.
-  const remaining = terms.filter(item=>!results.has(item.type+':'+item.key) && item.type!=='pattern');
+  const remaining = terms.filter(item=>!results.has(item.type+':'+item.key) && !rejected.has(item.type+':'+item.key) && item.type!=='pattern');
   if (remaining.length) {
     try {
       const translations = await requestDeepLBatch(
