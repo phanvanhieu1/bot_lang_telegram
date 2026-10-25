@@ -16,7 +16,7 @@ const entrySchema = new mongoose.Schema({
   meaning:{ type:String, default:'', maxlength:450 },
   pinyin:{ type:String, default:'', maxlength:250 },
   category:{ type:String, enum:['work','daily_life','both','unclassified'], default:'unclassified' },
-  classificationSource:{ type:String, enum:['rule','translation','ai','pending','manual'], default:'pending' },
+  classificationSource:{ type:String, enum:['rule','translation','ai','deepl','pending','manual'], default:'pending' },
   manualOverride:{ type:Boolean, default:false },
   analysisAttempts:{ type:Number, default:0 },
   nextAnalysisAt:{ type:Date, default:Date.now },
@@ -74,14 +74,17 @@ const mutedSchema = new mongoose.Schema({
 }, { versionKey:false, timestamps:true });
 mutedSchema.index({ userId:1, language:1, type:1, key:1 }, { unique:true });
 
-const quotaSchema = new mongoose.Schema({
+// An account/language-specific, five-minute fingerprint of an already
+// processed source. TTL is for cleanup; expiry checks are always performed
+// explicitly because MongoDB TTL deletion can lag behind.
+const recentSchema = new mongoose.Schema({
   userId:id,
-  day:{ type:String, required:true },
-  calls:{ type:Number, default:0 },
+  language:{ type:String, enum:['zh','en'], required:true },
+  fingerprint:{ type:String, required:true, maxlength:64 },
   expiresAt:{ type:Date, required:true }
 }, { versionKey:false });
-quotaSchema.index({ userId:1, day:1 }, { unique:true });
-quotaSchema.index({ expiresAt:1 }, { expireAfterSeconds:0 });
+recentSchema.index({ userId:1, language:1, fingerprint:1 }, { unique:true });
+recentSchema.index({ expiresAt:1 }, { expireAfterSeconds:0 });
 
 const model = (name,schema) => mongoose.models[name] || mongoose.model(name,schema);
 module.exports = {
@@ -90,5 +93,5 @@ module.exports = {
   VocabularyJob:model('VocabularyJob',jobSchema),
   VocabularyOccurrence:model('VocabularyOccurrence',occurrenceSchema),
   VocabularyMuted:model('VocabularyMuted',mutedSchema),
-  VocabularyAiQuota:model('VocabularyAiQuota',quotaSchema)
+  VocabularyRecentInput:model('VocabularyRecentInput',recentSchema)
 };
