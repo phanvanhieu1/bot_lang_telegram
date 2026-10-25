@@ -43,6 +43,17 @@ Frequency color is independent of the manual learned/not learned state.
 
 The study library continues using the same data source and supports its previous filters, editing and deletion.
 
+### Compact translation UI (responsive)
+
+The website loads public/compact-layout.css after legacy styles and public/compact-layout.js at the end of the app scripts:
+- Smaller header, tabs, translation labels and button, with only minimal borders.
+- Both source and result panes start at 172px on short text. A hidden measurement element measures wrapped text and visible inline Pinyin/back-translation, then adjusts both panes together, capped at 660px; long text scrolls. Text mode stays two-column on desktop and stacks on mobile.
+- Practice popup remains intact but its launch button is an accessible circular floating button in the bottom-right. The old full-width practice banner is removed.
+- Translation details show three parallel groups: words, phrases and grammar patterns. Each displays the first three items and reveals the rest through an accessible Xem thêm / Thu gọn button. Tablet uses two columns and mobile uses one.
+- Frequency is still encoded by a small colored dot rather than a full card border; the color legend beneath every translation is removed.
+- No changes to translation APIs, MongoDB schemas, FREE permissions, or Telegram bot for this UI redesign.
+- Browser-independent UI regression checks: tests/compact-ui.test.js (three tests: preview, expansion, dynamic resizing).
+
 ## Legacy modules and QA
 
 The old V1.0 queue and meaning-classifier remain only for historic test/source compatibility; server.js no longer imports them or creates those jobs. The active runtime uses resolver.js, worker.js and category-classifier.js. Existing personal entries remain intact.
