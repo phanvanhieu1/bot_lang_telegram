@@ -86,7 +86,7 @@ router.get('/',async(req,res)=>{
     ? {$in:[category,'both']}:category;
   if(q) {
     const escaped=q.replace(/[^a-zA-Z0-9\u00c0-\u024f\u3400-\u9fff]/g,'\\$&');
-    filter.$or=[{text:{$regex:escaped,$options:'i'}},{meaning:{$regex:escaped,$options:'i'}}];
+    filter.$or=[{text:{$regex:escaped,$options:'i'}},{meaning:{$regex:escaped,$options:'i'}},{pinyin:{$regex:escaped,$options:'i'}}];
   }
   const order=sort==='recent'?{lastSeenAt:-1,_id:-1}
     :sort==='alphabetical'?{text:1,_id:1}
