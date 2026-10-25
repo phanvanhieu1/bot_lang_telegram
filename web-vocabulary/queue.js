@@ -22,13 +22,13 @@ function entryId(item) {
   return item.type + ':' + item.key;
 }
 
-async function captureTranslation({ userId, language, foreignText, context = 'auto' }) {
+async function captureTranslation({ userId, language, foreignText, context = 'auto', additionalVocabulary = '' }) {
   if (!userId || !['zh','en'].includes(language)) return false;
   if (typeof foreignText !== 'string' || !foreignText.trim()) return false;
   const setting = await VocabularySetting.findOne({ userId, enabled:true }).select('_id').lean();
   if (!setting) return false;
 
-  const candidates = extractCandidates({ foreignText, language, context });
+  const candidates = extractCandidates({ foreignText, language, context, additionalVocabulary });
   if (!candidates.length) return false;
   await VocabularyJob.create({
     userId, language, candidates, status:'pending',
