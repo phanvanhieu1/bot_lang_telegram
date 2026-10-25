@@ -54,7 +54,7 @@ async function reserveAiQuota(userId) {
     const row = await VocabularyAiQuota.findOneAndUpdate(
       { userId, day, calls:{ $lt:MAX_AI_CALLS_PER_DAY } },
       { $inc:{ calls:1 }, $setOnInsert:{ expiresAt } },
-      { upsert:true, new:true }
+      { upsert:true, new:true, setDefaultsOnInsert:false }
     ).lean();
     return Boolean(row);
   } catch (error) {
