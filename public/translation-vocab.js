@@ -10,7 +10,7 @@
     work:'Công việc',daily_life:'Đời sống',
     both:'Cả hai',unclassified:'Chưa phân loại'
   };
-  let version=0;
+  let version=0, activeRefresh=null;
   function node(parent,tag,className,text) {
     const item=document.createElement(tag);
     if(className)item.className=className;
@@ -70,6 +70,7 @@
 
   function render(items,error='',language='zh') {
     version++;
+    activeRefresh=null;
     const currentVersion=version;
     if(!Array.isArray(items)) {
       root.replaceChildren();root.hidden=true;raw.hidden=false;
@@ -77,7 +78,7 @@
     }
     let current=items.map(item=>({...item}));
     paint(current,error);
-    if(!current.some(item=>item.category==='unclassified')||error)return;
+    if(!current.length)return;
     // AI2 runs independently after the translation; refresh category ONLY.
     // This endpoint never records additional encounters.
     const refresh=async()=>{
@@ -94,15 +95,23 @@
         const data=await res.json();
         if(currentVersion!==version||!data.success||!Array.isArray(data.items))return;
         const map=new Map(data.items.map(item=>[item.type+':'+item.key,item]));
-        current=current.map(item=>{
-          const updated=map.get(item.type+':'+item.key);
-          return updated?{...item,...updated,isNew:item.isNew}:item;
-        });
+        current=current.filter(item=>map.has(item.type+':'+item.key))
+          .map(item=>{
+            const updated=map.get(item.type+':'+item.key);
+            return {...item,...updated,isNew:item.isNew};
+          });
         paint(current,error);
       }catch(_){}
     };
-    setTimeout(()=>void refresh(),18000);
-    setTimeout(()=>void refresh(),45000);
+    activeRefresh=refresh;
+    if(current.some(item=>item.category==='unclassified')&&!error){
+      setTimeout(()=>void refresh(),18000);
+      setTimeout(()=>void refresh(),45000);
+    }
   }
+  // Edit/delete in the study library refreshes the currently visible cards.
+  window.addEventListener('vocabulary-library-updated',()=>{
+    if(activeRefresh)void activeRefresh();
+  });
   window.renderTranslationVocabulary=render;
 })();
