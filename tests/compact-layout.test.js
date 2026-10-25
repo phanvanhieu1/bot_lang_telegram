@@ -66,3 +66,87 @@ test('the full library and grammar classifier remain independent from visual res
   assert.match(read('index.html'),/<script src="\/app\.js"><\/script>/);
   assert.match(read('index.html'),/<script src="\/compact-layout\.js"><\/script>/);
 });
+
+
+test('dynamic pane heights grow, cap, and shrink with text; launcher label follows language',()=>{
+  const vm=require('node:vm');
+  const callbacks=new Map();
+  const subscribe=(id,type,fn)=>{
+    const key=id+':'+type;
+    if(!callbacks.has(key))callbacks.set(key,[]);
+    callbacks.get(key).push(fn);
+  };
+  const element=id=>({
+    id,hidden:false,value:'',textContent:'',scrollHeight:24,
+    classList:{contains:()=>false},style:{},
+    setAttribute(name,value){this[name]=value;},
+    getBoundingClientRect:()=>({width:500}),
+    getClientRects:()=>[1],
+    addEventListener(type,fn){subscribe(id,type,fn);},
+    querySelector:()=>null
+  });
+  const ids={
+    text:element('text'),translation:element('translation'),
+    translationResult:element('translationResult'),
+    realtimePinyin:element('realtimePinyin'),
+    backTranslationWrapper:element('backTranslationWrapper'),
+    pronunciationWrapper:element('pronunciationWrapper'),
+    practiceLauncherTitle:element('practiceLauncherTitle'),
+    openPracticeBtn:element('openPracticeBtn')
+  };
+  ids.practiceLauncherTitle.textContent='Luyện tiếng Trung';
+  const workspace=element('workspace');
+  workspace.style.setProperty=(_name,value)=>{workspace.paneHeight=parseInt(value,10);};
+  const mirror={
+    style:{},textContent:'',setAttribute(){},
+    get scrollHeight(){
+      const width=parseInt(this.style.width||'500',10);
+      const perLine=Math.max(10,Math.floor(width/18));
+      const rows=this.textContent.split('\n').reduce(
+        (sum,line)=>sum+Math.max(1,Math.ceil(line.length/perLine)),0);
+      return Math.ceil(rows*27+24);
+    }
+  };
+  const document={
+    querySelector:()=>workspace,
+    getElementById:id=>ids[id],
+    createElement:()=>mirror,
+    body:{appendChild(){}}
+  };
+  const frames=[];
+  const window={
+    getComputedStyle:()=>({
+      padding:'15px',fontFamily:'Arial',fontSize:'19px',fontWeight:'400',
+      fontStyle:'normal',letterSpacing:'normal',lineHeight:'27px',
+      textTransform:'none',display:'block'
+    }),
+    requestAnimationFrame:fn=>{frames.push(fn);return frames.length;},
+    addEventListener:(type,fn)=>subscribe('window',type,fn)
+  };
+  class MutationObserver{observe(){}}
+  class ResizeObserver{observe(){}}
+  vm.runInNewContext(read('compact-layout.js'),{window,document,MutationObserver,ResizeObserver});
+  const flush=()=>{
+    for(let i=0;i<30&&frames.length;i++)frames.shift()();
+    assert.equal(frames.length,0);
+  };
+  const trigger=(id,type)=>{
+    for(const fn of callbacks.get(id+':'+type)||[])fn();
+    flush();
+  };
+  flush();
+  assert.equal(workspace.paneHeight,172);
+  ids.text.value='Một câu ngắn';
+  trigger('text','input');
+  const short=workspace.paneHeight;
+  ids.text.value='Đây là một đoạn văn dài để kiểm tra chiều cao. '.repeat(120);
+  trigger('text','input');
+  assert.ok(workspace.paneHeight>short);
+  assert.equal(workspace.paneHeight,660);
+  ids.text.value='Xin chào';
+  trigger('text','input');
+  assert.equal(workspace.paneHeight,172);
+  ids.practiceLauncherTitle.textContent='Luyện tiếng Anh';
+  trigger('window','learning-language-change');
+  assert.equal(ids.openPracticeBtn['aria-label'],'Mở luyện tiếng anh');
+});
