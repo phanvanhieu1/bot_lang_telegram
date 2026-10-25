@@ -113,12 +113,25 @@
     });
   }
 
-  // Recalculate after fonts/layout settle or a tab becomes visible.
+  // The panes' heights themselves change while resizing. Observing their
+  // heights would feed back into ResizeObserver and can generate continuous
+  // resize warnings. Only react when the available text width changes.
   if (typeof ResizeObserver === 'function') {
-    const resizeObserver = new ResizeObserver(schedule);
+    let lastInputWidth = 0;
+    let lastOutputWidth = 0;
+    const resizeObserver = new ResizeObserver(() => {
+      const inputWidth = Math.round(input.getBoundingClientRect().width);
+      const outputWidth = Math.round(output.getBoundingClientRect().width);
+      if (inputWidth === lastInputWidth && outputWidth === lastOutputWidth) return;
+      lastInputWidth = inputWidth;
+      lastOutputWidth = outputWidth;
+      schedule();
+    });
     resizeObserver.observe(input);
-    resizeObserver.observe(result);
+    resizeObserver.observe(output);
   }
+  // Respect late-loaded fonts: their glyph metrics affect text wrapping.
+  if (document.fonts?.ready) document.fonts.ready.then(schedule).catch(() => {});
   schedule();
   window.addEventListener('load', schedule, { once:true });
 })();
