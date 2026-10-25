@@ -177,7 +177,7 @@ html[data-theme] .translation-vocab-section{
 html[data-theme] .translation-vocab-section-heading{
   display:flex!important;align-items:baseline!important;
   gap:7px!important;min-height:26px!important;margin:0 0 4px!important;
-  padding:0 3px!important;font-size:13px!important;color:var(--ui-text)!important;
+  padding:0 3px!important;font-size:13px!important;font-weight:700!important;color:var(--ui-text)!important;
 }
 html[data-theme] .translation-vocab-section-heading small{
   font-size:11px!important;color:var(--ui-muted)!important;
@@ -201,8 +201,14 @@ html[data-theme] .translation-vocab-card[data-level="light"]{--frequency-color:#
 html[data-theme] .translation-vocab-card[data-level="frequent"]{--frequency-color:#c68619}
 html[data-theme] .translation-vocab-card[data-level="very-frequent"]{--frequency-color:#9254c8}
 html[data-theme] .translation-vocab-card-top{
-  justify-content:flex-end!important;gap:5px!important;
+  display:flex!important;align-items:flex-start!important;
+  justify-content:space-between!important;gap:8px!important;
   flex-wrap:nowrap!important;margin:0!important;
+}
+html[data-theme] .translation-vocab-name{flex:1 1 auto;min-width:0}
+html[data-theme] .translation-vocab-meta{
+  display:flex;flex:0 0 auto;flex-direction:column;
+  align-items:flex-end;gap:3px;white-space:nowrap;
 }
 html[data-theme] .translation-vocab-status{
   border:0!important;border-radius:99px!important;
@@ -213,7 +219,8 @@ html[data-theme] .translation-vocab-status.is-new{
   background:rgba(32,160,107,.12)!important;color:#16815a!important;
 }
 html[data-theme] .translation-vocab-count{
-  font-size:10px!important;white-space:nowrap!important;color:var(--ui-muted)!important;
+  font-size:10px!important;white-space:nowrap!important;
+  color:var(--frequency-color,var(--ui-muted))!important;font-weight:650!important;
 }
 html[data-theme] .translation-vocab-term{
   font-size:15px!important;line-height:1.35!important;
@@ -234,6 +241,13 @@ html[data-theme] .translation-vocab-empty{
   margin:5px 3px!important;padding:0!important;
   font-size:11px!important;line-height:1.4!important;
   color:var(--ui-muted)!important;
+}
+html[data-theme] .translation-vocab-empty{
+  color:var(--ui-muted)!important;font-size:11px!important;
+  line-height:1.5!important;margin:2px 3px 8px!important;
+}
+html[data-theme] .translation-vocab-card:last-child{
+  border-bottom-color:transparent!important;
 }
 html[data-theme] .translation-vocab-more{
   display:inline-flex!important;align-items:center!important;
