@@ -2,7 +2,7 @@
 (() => {
   const el = id => document.getElementById(id);
   const openBtn=el('vocabOpenBtn'), dialog=el('vocabDialog'), closeBtn=el('vocabCloseBtn');
-  const toggle=el('vocabAutoCollect'), status=el('vocabStatus'), list=el('vocabItems');
+  const status=el('vocabStatus'), list=el('vocabItems');
   const category=el('vocabCategory'), type=el('vocabType'), sort=el('vocabSort'), seen=el('vocabSeen');
   const search=el('vocabSearch'), prev=el('vocabPrevious'), next=el('vocabNext');
   const pageLabel=el('vocabPage');
@@ -56,13 +56,6 @@
     closeBtn.focus();
     page=1;
     setStatus('Đang tải kho từ vựng...');
-    toggle.disabled=true;
-    try {
-      const settings=await api('/settings');
-      toggle.checked=Boolean(settings.enabled);
-    } catch(error) {
-      setStatus(error.message,true);
-    } finally { toggle.disabled=false; }
     await refresh();
   }
   openBtn.addEventListener('click',()=>{if(dialog.hidden)void open();else close();});
@@ -92,22 +85,6 @@
   updateRole();
   window.addEventListener('learning-language-change',()=>{
     if(!dialog.hidden){page=1;void refresh();}
-  });
-
-  toggle.addEventListener('change',async()=>{
-    const requested=toggle.checked;
-    toggle.disabled=true;
-    try {
-      const data=await api('/settings',{
-        method:'PUT',body:JSON.stringify({enabled:requested})
-      });
-      toggle.checked=data.enabled;
-      setStatus(requested?'Đã bật tự động thu thập cho các lượt dịch tiếp theo.':'Đã tắt tự động thu thập. Các mục đã lưu vẫn được giữ.');
-    } catch(error) {
-      toggle.checked=!requested;
-      setStatus(error.message,true);
-    } finally {toggle.disabled=false;}
-    await refreshStats();
   });
 
   function box(parent,tag,className,textValue) {
@@ -218,7 +195,7 @@
       total=data.total;
       data.items.forEach(renderItem);
       if(!data.items.length)box(list,'p','vocab-notice',
-        'Chưa có mục phù hợp. Hãy bật tự động thu thập và dịch vài tin nhắn.');
+        'Chưa có mục phù hợp. Bật Từ vựng trong Cài đặt PRO và thực hiện dịch để lưu.');
       prev.disabled=page<=1;
       next.disabled=page*data.pageSize>=total;
       pageLabel.textContent='Trang '+page+' · '+total+' mục';
