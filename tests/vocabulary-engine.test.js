@@ -78,3 +78,26 @@ test('manual, local rules and pending candidate presentation are distinct',()=>{
     source:'pending',meaning:'',category:'unclassified'
   });
 });
+
+test('uses AI1 vocabulary already supplied by PRO translation without extra classifier',()=>{
+  const entries=extractCandidates({
+    language:'zh',context:'colleague',foreignText:'经理说：请复核一下。',
+    additionalVocabulary:'- 复核 : Rà soát, kiểm tra lại'
+  });
+  const item=entries.find(entry=>entry.key==='复核');
+  assert.ok(item);
+  assert.equal(item.source,'translation');
+  assert.equal(item.meaning,'Rà soát, kiểm tra lại');
+  assert.equal(item.category,'work');
+  assert.deepEqual(presentation(item),{
+    source:'translation',meaning:'Rà soát, kiểm tra lại',category:'work'
+  });
+});
+
+test('never imports AI1 vocabulary absent from the source message',()=>{
+  const entries=extractCandidates({
+    language:'en',foreignText:'Please check the payment',
+    additionalVocabulary:'- secret company password : Mật khẩu nội bộ'
+  });
+  assert.ok(!entries.some(item=>item.key.includes('secret company')));
+});
