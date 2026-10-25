@@ -93,11 +93,13 @@ async function settleJobs(jobs, status, error = '') {
 }
 
 function presentation(candidate, analysis = null) {
-  const source = candidate.source === 'rule' ? 'rule' : analysis ? 'ai' : 'pending';
+  const fromTranslator = candidate.source === 'translation' && Boolean(candidate.meaning);
+  const source = candidate.source === 'rule' ? 'rule'
+    : fromTranslator ? 'translation' : analysis ? 'ai' : 'pending';
   const category = candidate.source === 'rule'
-    ? candidate.category : analysis?.category || 'unclassified';
+    ? candidate.category : analysis?.category || candidate.category || 'unclassified';
   const meaning = candidate.source === 'rule'
-    ? candidate.meaning : analysis?.meaning || '';
+    ? candidate.meaning : fromTranslator ? candidate.meaning : analysis?.meaning || '';
   return { source, category:category || 'unclassified', meaning };
 }
 
@@ -191,7 +193,8 @@ async function processBatch(jobs) {
   const existing = new Map(already.map(item=>[entryId(item),item]));
   const muted = new Set(blocked.map(item=>entryId(item)));
   const missing = items.filter(item=>!existing.has(entryId(item)) &&
-    !muted.has(entryId(item)) && item.source !== 'rule');
+    !muted.has(entryId(item)) && item.source !== 'rule' &&
+    !(item.source === 'translation' && item.category));
   const toAnalyze = missing.slice(0,MAX_ITEMS_PER_CALL);
   let analysis = new Map();
   if (toAnalyze.length && await reserveAiQuota(userId)) {
