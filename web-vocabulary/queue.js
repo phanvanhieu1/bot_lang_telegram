@@ -146,7 +146,7 @@ async function applyBatch(jobs, allowed, existing, analysis, muted) {
             workCount:eventCategory==='work'?1:0,
             dailyCount:eventCategory==='daily_life'?1:0
           }
-        }, { upsert:true, session });
+        }, { upsert:true, session, setDefaultsOnInsert:false });
       }
       await VocabularyJob.updateOne({ _id:job._id, status:'processing' }, {
         $set:{ status:'completed', lockedUntil:null, expiresAt:new Date(Date.now()+7*86400000) },
