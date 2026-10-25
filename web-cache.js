@@ -106,6 +106,7 @@ const PRO_FIELDS = new Set([
   'backTranslation',
   'pronunciation',
   'vocabulary',
+  'vocabularyVersion',
   'verification'
 ]);
 
