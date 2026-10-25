@@ -8,19 +8,28 @@ const { extractCandidates } = require('./extractor');
 const { analyzeBatch, MAX_ITEMS_PER_CALL } = require('./classifier');
 const {
   VocabularySetting, VocabularyEntry, VocabularyJob,
-  VocabularyOccurrence, VocabularyMuted, VocabularyAiQuota
+  VocabularyOccurrence, VocabularyMuted, VocabularyRecentInput
 } = require('./models');
 
 const POLL_MS = 15000;
 const BATCH_DELAY_MS = 35000;
 const MAX_JOBS_PER_BATCH = 6;
-const MAX_AI_CALLS_PER_DAY = 12;
+const DUPLICATE_WINDOW_MS = 5 * 60 * 1000;
 let busy = false;
 let lastPendingScan = 0;
 let timer = null;
 
 function entryId(item) {
   return item.type + ':' + item.key;
+}
+
+function inputFingerprint(foreignText, language) {
+  // Never save the original message for deduplication: store only SHA256.
+  const normalized = String(foreignText).normalize('NFKC')
+    .replace(/\s+/g,' ').trim();
+  return crypto.createHash('sha256').update(
+    language+':'+(language==='en'?normalized.toLowerCase():normalized)
+  ).digest('hex');
 }
 
 async function captureTranslation({ userId, language, foreignText, context = 'auto', additionalVocabulary = '' }) {
@@ -31,11 +40,35 @@ async function captureTranslation({ userId, language, foreignText, context = 'au
 
   const candidates = extractCandidates({ foreignText, language, context, additionalVocabulary });
   if (!candidates.length) return false;
-  await VocabularyJob.create({
-    userId, language, candidates, status:'pending',
-    eventId:crypto.randomUUID(),
-    runAt:new Date(Date.now() + BATCH_DELAY_MS)
-  });
+
+  const fingerprint = inputFingerprint(foreignText,language);
+  const expiresAt = new Date(Date.now()+DUPLICATE_WINDOW_MS);
+  const filter = { userId,language,fingerprint };
+  // Atomic claim also works if the old TTL document has not been cleaned up.
+  let claimed = await VocabularyRecentInput.findOneAndUpdate(
+    { ...filter, expiresAt:{ $lte:new Date() } },
+    { $set:{ expiresAt } },{ new:true }
+  ).lean();
+  if (!claimed) {
+    try {
+      claimed = await VocabularyRecentInput.create({ ...filter, expiresAt });
+    } catch (error) {
+      if (error?.code===11000) return false; // Same input in the last 5 minutes.
+      throw error;
+    }
+  }
+
+  try {
+    await VocabularyJob.create({
+      userId, language, candidates, status:'pending',
+      eventId:crypto.randomUUID(),
+      runAt:new Date(Date.now()+BATCH_DELAY_MS)
+    });
+  } catch (error) {
+    // Permit retry if a transient MongoDB failure stopped job creation.
+    await VocabularyRecentInput.deleteOne({ ...filter, expiresAt }).catch(()=>{});
+    throw error;
+  }
   return true;
 }
 
@@ -45,23 +78,6 @@ function scheduleCapture(args) {
   void captureTranslation(args).catch(error => {
     console.error('Vocabulary enqueue failed:', error.message);
   });
-}
-
-async function reserveAiQuota(userId) {
-  const date = new Date();
-  const day = date.toISOString().slice(0, 10);
-  const expiresAt = new Date(date.getTime() + 3*24*60*60*1000);
-  try {
-    const row = await VocabularyAiQuota.findOneAndUpdate(
-      { userId, day, calls:{ $lt:MAX_AI_CALLS_PER_DAY } },
-      { $inc:{ calls:1 }, $setOnInsert:{ expiresAt } },
-      { upsert:true, new:true, setDefaultsOnInsert:false }
-    ).lean();
-    return Boolean(row);
-  } catch (error) {
-    if (error.code === 11000) return false; // daily quota already reached
-    throw error;
-  }
 }
 
 async function claimJob(userId = null, language = null) {
@@ -202,28 +218,13 @@ async function processBatch(jobs) {
   let analysis = new Map();
   let attemptedIds = new Set();
   if (toAnalyze.length) {
-    if (!(await reserveAiQuota(userId))) {
-      // Never silently mark unknown words as complete solely because the
-      // daily budget is exhausted. Preserve the jobs for the next day.
-      const nextDay = new Date();
-      nextDay.setUTCHours(24, 1, 0, 0);
-      await VocabularyJob.updateMany({
-        _id:{ $in:jobs.map(job=>job._id) }, status:'processing'
-      },{
-        $set:{ status:'pending', runAt:nextDay, lockedUntil:null,
-          error:'Daily AI classification limit reached' },
-        $inc:{ attempts:-1 }
-      });
-      return;
-    }
     try {
-      analysis = await analyzeBatch(userId,first.language,toAnalyze,
-        first.candidates?.[0]?.topicHint || 'auto');
+      analysis = await analyzeBatch(userId,first.language,toAnalyze);
       attemptedIds = new Set(toAnalyze.map(entryId));
     } catch (error) {
-      // A failed optional classifier must not prevent known terms and
-      // known patterns from being saved. Unknown items remain editable.
-      console.error('Vocabulary classifier unavailable:', error.message);
+      // The FREE providers may be unavailable/rate-limited: still persist
+      // every extracted candidate, and retry enrichment in a later worker pass.
+      console.warn('Vocabulary FREE enrichment temporarily unavailable:', error.message);
     }
   }
   // Permission may have changed during AI call.
@@ -255,7 +256,7 @@ async function revisitPendingOnce() {
     User.findById(first.userId).select('role proExpiresAt isActive').lean()
   ]);
   if (!setting || !user?.isActive || !['pro','admin'].includes(effectiveRole(user))) return;
-  if (!(await reserveAiQuota(first.userId))) return;
+  // No artificial daily quota; providers keep their own service limits.
   let results = new Map();
   let success = false;
   try {
@@ -322,5 +323,5 @@ function startVocabularyWorker() {
 
 module.exports = {
   captureTranslation, scheduleCapture, runWorkerOnce, startVocabularyWorker,
-  presentation, reserveAiQuota, revisitPendingOnce
+  presentation, inputFingerprint, revisitPendingOnce
 };
