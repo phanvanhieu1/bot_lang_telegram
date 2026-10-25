@@ -72,16 +72,18 @@ router.get('/stats',async(req,res)=>{
 router.get('/',async(req,res)=>{
   const language=req.query.language||'zh';
   const type=req.query.type||'all',category=req.query.category||'all';
-  const sort=req.query.sort||'frequent',page=Number(req.query.page||1);
+  const sort=req.query.sort||'frequent',seen=req.query.seen||'all',page=Number(req.query.page||1);
   if(!['zh','en'].includes(language)||!['all','word','phrase','pattern'].includes(type)||
      !['all','work','daily_life','both','unclassified'].includes(category)||
-     !['frequent','recent','alphabetical'].includes(sort)||
+     !['frequent','recent','alphabetical'].includes(sort)||!['all','new','seen'].includes(seen)||
      !Number.isInteger(page)||page<1||page>10000){
     return res.status(400).json({success:false,message:'Bộ lọc không hợp lệ'});
   }
   const q=typeof req.query.q==='string'?req.query.q.trim().slice(0,60):'';
   const filter={userId:req.user._id,language};
   if(type!=='all') filter.type=type;
+  if(seen==='new') filter.encounterCount={$lte:1};
+  if(seen==='seen') filter.encounterCount={$gt:1};
   if(category!=='all') filter.category= ['work','daily_life'].includes(category)
     ? {$in:[category,'both']}:category;
   if(q) {
