@@ -1,7 +1,5 @@
 // AI2 V1.1: CATEGORY ONLY. Do not generate or modify words, patterns or meanings.
 // Send only vetted AI1 lexical terms and their AI1 Vietnamese glosses, never chats.
-const { requestGroq } = require('../ai/providers/groq.provider');
-const { requestOpenRouter } = require('../ai/providers/openrouter.provider');
 
 const MAX_CATEGORY_BATCH=12;
 const ALLOWED=new Set(['work','daily_life','both','unclassified']);
@@ -38,13 +36,19 @@ async function classifyCategories(language,candidates) {
     .filter(item=>item?.key && ['word','phrase','pattern'].includes(item.type));
   const classified=new Map();
   if(!items.length)return classified;
+  // Missing credentials must not prevent website startup.
+  // Providers are loaded only when new terms actually need classification.
+  const providers=[
+    () => require('../ai/providers/groq.provider').requestGroq,
+    () => require('../ai/providers/openrouter.provider').requestOpenRouter
+  ];
   const expected=new Set(items.map(item=>item.type+':'+item.key));
   let lastError=null;
-  for(const provider of [requestGroq,requestOpenRouter]) {
+  for(const getProvider of providers) {
     const remaining=items.filter(item=>!classified.has(item.type+':'+item.key));
     if(!remaining.length)break;
     try {
-      const result=await provider(categoryPrompt(language,remaining));
+      const result=await getProvider()(categoryPrompt(language,remaining));
       const response=parseCategoryJSON(result.content);
       if(!Array.isArray(response?.items))throw new Error('Missing categories');
       for(const row of response.items) {
