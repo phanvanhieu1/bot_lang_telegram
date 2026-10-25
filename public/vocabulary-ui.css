@@ -40,3 +40,13 @@
 .vocab-entry.vocab-pending{border-style:dashed}
 @media(max-width:700px){.vocab-dialog{max-height:95vh;padding:17px;border-radius:15px}.vocab-toolbar{grid-template-columns:1fr 1fr}.vocab-toolbar label:last-child{grid-column:1/-1}.vocab-stats strong{font-size:21px}.vocab-optin{align-items:flex-start}.vocab-dialog-header h2{font-size:20px}}
 @media(max-width:410px){.vocab-overlay{padding:5px}.vocab-dialog{padding:12px}.vocab-stats>div{padding:10px}.vocab-stats span{font-size:10px}}
+
+/* Distinguish whether a term is new to the personal dictionary or has been encountered again. */
+.vocab-entry-badges{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:5px}
+.vocab-entry-badge.vocab-first{color:var(--ui-blue,#1967d2);border-color:currentColor}
+.vocab-entry-badge.vocab-seen{color:var(--ui-muted,#667085)}
+.vocab-toolbar{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media(max-width:700px){
+  .vocab-toolbar{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .vocab-toolbar label:last-child{grid-column:auto}
+}
