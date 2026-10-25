@@ -274,6 +274,7 @@
     byId('backTranslationWrapper').classList.add('hidden');
     byId('pronunciationWrapper').classList.add('hidden');
     byId('vocabularyWrapper').classList.add('hidden');
+    window.renderTranslationVocabulary?.([], '', window.languageUI?.get?.() || 'zh');
     byId('verificationWrapper').classList.add('hidden');
     byId('status').textContent = '';
   });
