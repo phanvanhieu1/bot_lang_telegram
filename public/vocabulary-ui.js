@@ -110,6 +110,7 @@
         method:'PATCH',body:JSON.stringify(changes)
       });
       setStatus('Đã cập nhật: '+data.item.text);
+      window.dispatchEvent(new Event('vocabulary-library-updated'));
       await refresh();
     } catch(error) {setStatus(error.message,true);}
   }
@@ -162,6 +163,7 @@
       try {
         await api('/'+encodeURIComponent(entry._id),{method:'DELETE'});
         setStatus('Đã xóa '+entry.text);
+        window.dispatchEvent(new Event('vocabulary-library-updated'));
         await refresh();
       } catch(error) {setStatus(error.message,true);remove.disabled=false;}
     });
