@@ -16,7 +16,21 @@ const entries = {
       回家:['Về nhà','daily_life'],衣服:['Quần áo','daily_life'],
       天气:['Thời tiết','daily_life'],朋友:['Bạn bè','daily_life'],
       喜欢:['Thích','daily_life'],谢谢:['Cảm ơn','both'],对不起:['Xin lỗi','both'],
-      知道:['Biết','both'],明白:['Hiểu','both']
+      知道:['Biết','both'],明白:['Hiểu','both'],多久:['Bao lâu','both'],
+      回复:['Trả lời','work'],信息:['Thông tin, tin nhắn','both'],
+      负责:['Phụ trách','work'],更新:['Cập nhật','work'],
+      状态:['Trạng thái','work'],账户:['Tài khoản','work'],
+      系统:['Hệ thống','work'],余额:['Số dư','work'],
+      失败:['Thất bại','both'],成功:['Thành công','both'],
+      等待:['Chờ đợi','both'],通过:['Thông qua','work'],
+      拒绝:['Từ chối','both'],时间:['Thời gian','both'],
+      客户:['Khách hàng','work'],结果:['Kết quả','both'],
+      联系:['Liên hệ','both'],发送:['Gửi','work'],
+      收到:['Nhận được','both'],检查:['Kiểm tra','work'],
+      查询:['Tra cứu','work'],提现:['Rút tiền','work'],
+      转账:['Chuyển khoản','work'],金额:['Số tiền','work'],
+      记录:['Ghi chép, bản ghi','work'],电话:['Điện thoại','daily_life'],
+      电脑:['Máy tính','both'],手机:['Điện thoại di động','daily_life']
     },
     phrase: {
       确认一下:['Xác nhận giúp một chút','work'],麻烦你:['Phiền bạn','work'],
@@ -25,7 +39,12 @@ const entries = {
       已经处理好了:['Đã xử lý xong rồi','work'],
       下班以后:['Sau khi tan làm','daily_life'],
       什么时候:['Khi nào','both'],多少钱:['Bao nhiêu tiền','daily_life'],
-      不客气:['Không có gì','daily_life']
+      不客气:['Không có gì','daily_life'],没问题:['Không có vấn đề gì','both'],
+      没关系:['Không sao','daily_life'],还没有:['Vẫn chưa','both'],
+      你看一下:['Bạn xem qua giúp','work'],
+      帮我看一下:['Xem giúp tôi','work'],
+      处理一下:['Xử lý giúp một chút','work'],
+      等一会儿:['Chờ thêm một chút','both']
     }
   },
   en: {
@@ -44,6 +63,11 @@ const entries = {
       water:['Nước','daily_life'],grocery:['Thực phẩm','daily_life'],
       supermarket:['Siêu thị','daily_life'],weather:['Thời tiết','daily_life'],
       friend:['Bạn bè','daily_life'],thanks:['Cảm ơn','both'],
+      check:['Kiểm tra','work'],transfer:['Chuyển khoản, chuyển','work'],
+      contact:['Liên hệ','both'],ticket:['Phiếu yêu cầu','work'],
+      verify:['Xác minh','work'],receive:['Nhận','both'],
+      send:['Gửi','both'],request:['Yêu cầu','work'],status:['Trạng thái','work'],
+      balance:['Số dư','work'],amount:['Số tiền','work'],
       please:['Làm ơn','both'],already:['Đã','both'],today:['Hôm nay','both'],
       tomorrow:['Ngày mai','both'],yesterday:['Hôm qua','both'],
       ready:['Sẵn sàng','both'],help:['Giúp đỡ','both']
