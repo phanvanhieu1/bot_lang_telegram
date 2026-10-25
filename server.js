@@ -809,6 +809,7 @@ app.post('/api/translate',requirePro, async (req, res) => {
       scheduleCapture({
         userId:req.user._id,language:'en',
         foreignText:en.parsed.sourceLanguage==='en' ? text.trim() : en.parsed.translation,
+        additionalVocabulary:en.parsed.vocabulary || '',
         context
       });
       return res.json({
@@ -1082,6 +1083,7 @@ if (usage.totalTokens > 0) {
 scheduleCapture({
   userId:req.user._id,language:'zh',
   foreignText:inputIsChinese ? inputText : finalCache.translation,
+  additionalVocabulary:finalCache.vocabulary || '',
   context
 });
 
