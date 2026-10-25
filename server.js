@@ -4,7 +4,8 @@ const { pinyin } = require('pinyin-pro');
 const { getChineseAudio } = require('./web-tts');
 const { translateChatImage } = require('./web-image-translate');
 const vocabularyRoutes = require('./web-vocabulary/routes');
-const { scheduleCapture, startVocabularyWorker } = require('./web-vocabulary/queue');
+const { startVocabularyWorker } = require('./web-vocabulary/worker');
+const { resolveTranslationVocabulary } = require('./web-vocabulary/resolver');
 const {
   NOTICE: MAINTENANCE_NOTICE,
   effectiveRole,
@@ -49,6 +50,17 @@ const { translateFree } =
 } = require('./modules/users/user.middleware');
 
 const User = require('./modules/users/user.model');
+
+// Vocabulary enrichment is optional: never fail a successful translation
+// because a personal dictionary read/write is temporarily unavailable.
+async function personalVocabularyCards(args) {
+  try {
+    return { items:await resolveTranslationVocabulary(args), error:null };
+  } catch(error) {
+    console.error('Vocabulary V1.1 resolution:',error.message);
+    return {items:[],error:'Kho từ vựng đang tạm thời không khả dụng'};
+  }
+}
 
 const app = express();
 const PORT = process.env.WEB_PORT || 3000;
@@ -370,14 +382,7 @@ app.post(
             (usage.completion_tokens || 0) * 10) / 1_000_000
         });
       }
-      scheduleCapture({
-        userId:req.user._id,
-        language,
-        foreignText:result.messages.filter(item=>!item.uncertain)
-          .map(item=>result.sourceLanguage===language ? item.original : item.translation)
-          .join('\n'),
-        context:'auto'
-      });
+      // Image translation has no PRO vocabulary-toggle payload: do not auto-collect.
       return res.json({
         success: true,
         sourceLanguage: result.sourceLanguage,
@@ -806,15 +811,18 @@ app.post('/api/translate',requirePro, async (req, res) => {
         learningLang: 'en',
         result: en.content
       });
-      scheduleCapture({
-        userId:req.user._id,language:'en',
-        foreignText:en.parsed.sourceLanguage==='en' ? text.trim() : en.parsed.translation,
-        additionalVocabulary:en.parsed.vocabulary || '',
-        context
-      });
+      const personal=vocabulary
+        ? await personalVocabularyCards({
+          userId:req.user._id,language:'en',
+          foreignText:en.parsed.sourceLanguage==='en' ? text.trim() : en.parsed.translation,
+          vocabulary:en.parsed.vocabulary || ''
+        })
+        : {items:[],error:null};
       return res.json({
         success: true,
         result: en.content,
+        vocabularyItems:personal.items,
+        vocabularyError:personal.error,
         cached: en.cached,
         sourceLanguage: en.parsed.sourceLanguage,
         usage: en.usage
@@ -845,7 +853,8 @@ const missing = {
 
   vocabulary:
     vocabulary &&
-    !hasCacheField(cachedData, 'vocabulary')
+    (!hasCacheField(cachedData, 'vocabulary') ||
+      cachedData?.vocabularyVersion !== 2)
 };
 
 
@@ -877,6 +886,9 @@ let finalCache = cachedData || {};
 
 if (result) {
   const newData = parseTranslationResult(result.content);
+  // Previously cached translations contain legacy WORD-only vocabulary.
+  // Upgrade only the lexical field, preserving the already cached translation.
+  if (missing.vocabulary) newData.vocabularyVersion = 2;
 
   // Nếu đã có translation trong cache thì đây là request bổ sung.
   // Tuyệt đối không cho response bổ sung ghi đè bản dịch chính.
@@ -1010,8 +1022,12 @@ if (pronunciation && finalCache.pronunciation) {
 }
 
 if (vocabulary && finalCache.vocabulary) {
+  // Typed V1.1 entries receive Pinyin from MongoDB, not mixed into the
+  // AI1 payload. Keep the legacy renderer compatible with older cache.
   const vocabularyWithPinyin =
-    addPinyinToVocabulary(finalCache.vocabulary);
+    /\[(?:WORD|PHRASE|PATTERN)\]/i.test(finalCache.vocabulary)
+      ? finalCache.vocabulary
+      : addPinyinToVocabulary(finalCache.vocabulary);
 
   responseContent +=
     `\nVOCABULARY:\n${vocabularyWithPinyin}`;
@@ -1080,16 +1096,19 @@ if (usage.totalTokens > 0) {
   });
 }
 
-scheduleCapture({
-  userId:req.user._id,language:'zh',
-  foreignText:inputIsChinese ? inputText : finalCache.translation,
-  additionalVocabulary:finalCache.vocabulary || '',
-  context
-});
+const personal=vocabulary
+  ? await personalVocabularyCards({
+    userId:req.user._id,language:'zh',
+    foreignText:inputIsChinese ? inputText : finalCache.translation,
+    vocabulary:finalCache.vocabulary || ''
+  })
+  : {items:[],error:null};
 
 res.json({
   success: true,
   result: responseContent,
+  vocabularyItems:personal.items,
+  vocabularyError:personal.error,
   cached: !result && !verificationUsage,
   usage
 });
