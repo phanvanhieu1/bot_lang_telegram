@@ -1147,6 +1147,7 @@ window.addEventListener('learning-language-change', () => {
   backTranslationWrapper.classList.add('hidden');
   pronunciationWrapper.classList.add('hidden');
   vocabularyWrapper.classList.add('hidden');
+  window.renderTranslationVocabulary?.([], '', window.languageUI?.get?.() || 'zh');
   verificationWrapper.classList.add('hidden');
   const practiceResultBox = document.getElementById('practiceModalResult');
   practiceResultBox.classList.add('hidden');
