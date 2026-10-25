@@ -28,3 +28,8 @@
 .translation-vocab-note{font-size:12px;color:var(--ui-muted,#667085);line-height:1.5;margin:0}
 .translation-vocab-error{border:1px solid #c68619;color:var(--ui-text,#202124);border-radius:10px;padding:10px;font-size:12px}
 @media(max-width:630px){.translation-vocab-grid{grid-template-columns:1fr}}
+
+/* The legacy theme split translation extras into two columns. V1.1 cards
+   own their internal grid, so the parent should span the entire details row. */
+.details-content .translation-extras{grid-template-columns:minmax(0,1fr)!important}
+.details-content .translation-extras #vocabularyWrapper{width:100%;grid-column:1/-1}
