@@ -16,6 +16,7 @@ test('accepts independent projects and only whitelisted event fields', () => {
   assert.equal(data.costUsd, 0.12);
   assert.equal(data.apiKey, undefined);
   assert.equal(data.prompt, undefined);
+  assert.equal(normalizeEvent('translator', {provider:'groq',status:200}).costUsd, null);
   assert.ok(data.at instanceof Date);
 });
 
