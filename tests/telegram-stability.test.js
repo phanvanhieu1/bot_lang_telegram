@@ -7,6 +7,7 @@ const { Readable } = require('node:stream');
 const { splitLongText, buildStudyMessages, copyButtonText } = require('../telegram-utils');
 const { withDownloadedVoice } = require('../telegram-media');
 const { classifyError } = require('../errorHandler');
+const { exportAnkiCsv, vocabColumns } = require('../telegram-vocabulary');
 
 test('splits long texts without exceeding Telegram limit or corrupting Unicode', () => {
   const original = '你好 🌟\n'.repeat(1200) + 'kết thúc';
@@ -60,6 +61,15 @@ test('voice helper deletes temporary file even when transcriber fails', async ()
 test('voice helper rejects oversized downloads', async () => {
   const mockHttp = { get: async () => ({ data: Readable.from([Buffer.alloc(20 * 1024 * 1024 + 1)]) }) };
   await assert.rejects(withDownloadedVoice('https://example.com/large', async () => true, mockHttp), /20 MB/);
+});
+
+test('CSV export has two quoted Anki columns and handles commas and quotes', () => {
+  const csv = exportAnkiCsv(['- 你好 (nǐ hǎo): Xin chào, bạn', '- \"书\": quyển sách']);
+  assert.ok(csv.startsWith('\\uFEFF'));
+  assert.ok(csv.includes('\"Front\",\"Back\"'));
+  assert.ok(csv.includes('\"你好 (nǐ hǎo)\",\"Xin chào, bạn\"'));
+  assert.ok(csv.includes('\"\"书\"\"'));
+  assert.deepEqual(vocabColumns('- 水：nước'), ['水', 'nước']);
 });
 
 test('error handler does not mention unused Gemini APIs', () => {
