@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { LANG_CONFIG, VOICES, SPEED_OPTIONS } = require('./config');
 
 const DB_PATH = path.join(__dirname, 'database.json');
 const WL_PATH = path.join(__dirname, 'whitelist.json');
@@ -70,6 +71,18 @@ const getUserConfig = (userId) => {
     
     if (!userSessions[userId].pendingVocabs || typeof userSessions[userId].pendingVocabs !== 'object' || Array.isArray(userSessions[userId].pendingVocabs)) {
       userSessions[userId].pendingVocabs = {};
+      isUpdated = true;
+    }
+    if (!Object.prototype.hasOwnProperty.call(LANG_CONFIG, userSessions[userId].targetLang)) {
+      userSessions[userId].targetLang = 'zh';
+      isUpdated = true;
+    }
+    if (!Object.prototype.hasOwnProperty.call(VOICES, userSessions[userId].voiceKey)) {
+      userSessions[userId].voiceKey = 'sarah';
+      isUpdated = true;
+    }
+    if (!Object.keys(SPEED_OPTIONS).some(k => Number(k) === Number(userSessions[userId].speed))) {
+      userSessions[userId].speed = 1;
       isUpdated = true;
     }
     // Lưu lại ổ cứng nếu có vá thêm dữ liệu mới
