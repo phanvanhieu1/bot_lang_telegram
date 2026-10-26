@@ -25,7 +25,7 @@ test('long messages keep untrusted Markdown literally without parsing', () => {
   assert.ok(output.length >= 2);
   assert.equal(output.join(''), source);
   assert.ok(output.every(x => x.length <= 3500));
-  assert.match(output[0], /\\[broken\\]\\(markdown\\)/);
+  assert.match(output[0], /\[broken\]\(markdown\)/);
 });
 
 test('copy button rejects values exceeding Telegram 256 character limit', () => {
