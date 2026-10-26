@@ -4,7 +4,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { Readable } = require('node:stream');
-const { splitLongText, buildStudyMessages, copyButtonText } = require('../telegram-utils');
+const { splitLongText, buildStudyMessages, copyButtonText, copyInlineButton } = require('../telegram-utils');
+const { VOICES } = require('../config');
 const { withDownloadedVoice } = require('../telegram-media');
 const { classifyError } = require('../errorHandler');
 const { exportAnkiCsv, vocabColumns } = require('../telegram-vocabulary');
@@ -33,6 +34,39 @@ test('copy button rejects values exceeding Telegram 256 character limit', () => 
   assert.equal(copyButtonText('a'.repeat(256)), 'a'.repeat(256));
   assert.equal(copyButtonText('a'.repeat(257)), null);
   assert.equal(copyButtonText(''), null);
+  assert.deepEqual(copyInlineButton('我喜欢学习中文'), {
+    text: '📋 Copy bản dịch',
+    copy_text: { text: '我喜欢学习中文' }
+  });
+  assert.equal(copyInlineButton('x'.repeat(257)), null);
+  const source = fs.readFileSync(path.join(__dirname, '..', 'bot.js'), 'utf8');
+  assert.doesNotMatch(source, /Markup\.button\.copyText/);
+  assert.match(source, /copyInlineButton\(translatedText\)/);
+});
+
+test('Telegram uses exactly the four PRO web voice IDs', () => {
+  const webHtml = fs.readFileSync(path.join(__dirname, '..', 'public/index.html'), 'utf8');
+  const webTts = fs.readFileSync(path.join(__dirname, '..', 'web-tts.js'), 'utf8');
+  const expected = [
+    'ByhETIclHirOlWnWKhHc', 'D9bZgM9Er0PhIxuW9Jqa',
+    '2I36mEahS1u7ZnTKUoaB', 'BqljjWyTnrioXPCNkCd4'
+  ];
+  assert.deepEqual(Object.values(VOICES).map(v => v.id), expected);
+  for (const id of expected) {
+    assert.ok(webHtml.includes(id), `Missing voice ${id} in web`);
+    assert.ok(webTts.includes(id), `Missing voice ${id} in web TTS`);
+  }
+  const session = fs.readFileSync(path.join(__dirname, '..', 'session.js'), 'utf8');
+  assert.match(session, /voiceKey: 'female1'/);
+  assert.doesNotMatch(session, /voiceKey: 'sarah'/);
+});
+
+test('ElevenLabs uses PRO web model and correct chosen voice ID', async () => {
+  const speechSource = fs.readFileSync(path.join(__dirname, '..', 'ai/services/speech.service.js'), 'utf8');
+  assert.match(speechSource, /eleven_flash_v2_5/);
+  assert.match(speechSource, /output_format=mp3_44100_128/);
+  assert.match(speechSource, /VOICES\[voiceKey\]/);
+  assert.doesNotMatch(speechSource, /VOICES\.sarah/);
 });
 
 test('voice helper writes and deletes temporary file on success', async () => {
