@@ -55,7 +55,7 @@ async function claimInput(userId,language,source) {
   const expiry=new Date(now.getTime()+DUPLICATE_WINDOW_MS);
   const updated=await VocabularyRecentInput.findOneAndUpdate(
     { ...key,expiresAt:{$lte:now} },
-    { $set:{expiresAt:expiry} },{new:true}
+    { $set:{expiresAt:expiry} },{returnDocument: 'after'}
   ).lean();
   if(updated) return {claimed:true,key,expiry};
   try {
