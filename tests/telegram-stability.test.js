@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { Readable } = require('node:stream');
-const { splitLongText, buildStudyMessages, copyButtonText, copyInlineButton } = require('../telegram-utils');
+const { splitLongText, copyButtonText, copyInlineButton } = require('../telegram-utils');
 const { VOICES } = require('../config');
 const { withDownloadedVoice } = require('../telegram-media');
 const { classifyError } = require('../errorHandler');
@@ -19,15 +19,13 @@ test('splits long texts without exceeding Telegram limit or corrupting Unicode',
   assert.ok(chunks.every(x => !/[\uD800-\uDBFF]$/.test(x) && !/^[\uDC00-\uDFFF]/.test(x)));
 });
 
-test('rendered translation messages are safe plain text even with Markdown syntax', () => {
-  const output = buildStudyMessages([
-    { title: '📖 Bản dịch:', body: '_start_ *bold* [broken](markdown) ' + '🤖'.repeat(3000) },
-    { title: '📝 Từ vựng:', body: '- 中文: tiếng Trung' }
-  ]);
-  assert.ok(output.length >= 3);
-  assert.ok(output.every(x => x.length <= 4096));
-  assert.match(output[0], /\[broken\]\(markdown\)/);
-  assert.match(output.at(-1), /中文/);
+test('long messages keep untrusted Markdown literally without parsing', () => {
+  const source = '_start_ *bold* [broken](markdown) ' + '🤖'.repeat(3000);
+  const output = splitLongText(source);
+  assert.ok(output.length >= 2);
+  assert.equal(output.join(''), source);
+  assert.ok(output.every(x => x.length <= 3500));
+  assert.match(output[0], /\\[broken\\]\\(markdown\\)/);
 });
 
 test('copy button rejects values exceeding Telegram 256 character limit', () => {
