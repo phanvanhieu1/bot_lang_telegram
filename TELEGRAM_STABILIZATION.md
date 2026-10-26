@@ -2,6 +2,14 @@
 
 Branch: `feature/telegram-stabilization` (based on `feature/shared-api-monitoring`).
 
+## Compact translation controls (new)
+
+- Only the primary TRANSLATION field is copied or spoken; BACK_TRANSLATION, VOCABULARY and PRONUNCIATION are separate display sections.
+- New translation messages have one horizontal icon row: 📋 Copy (up to 256 characters), 💾 Save vocabulary (when available), and 🔊 Generate speech.
+- No automatic voice on each translation; the "Giọng đọc AI BẬT/TẮT" setting has been removed. Tap 🔊 to speak the specific saved sentence with the currently selected voice/speed.
+- Save vocabulary preserves the Copy and Speaker buttons. Speech requests are guarded against duplicate rapid taps and cached by sentence/voice/speed.
+- The existing Bản dịch / Phiên âm / Từ vựng display controls remain; previously generated Telegram messages need a fresh translation to show the new buttons.
+
 ## Copy button and web PRO voice parity
 
 - Replaced unavailable `Markup.button.copyText()` with the Telegram Bot API's raw `copy_text: { text }` inline button payload; results longer than 256 characters do not show a Copy button.
