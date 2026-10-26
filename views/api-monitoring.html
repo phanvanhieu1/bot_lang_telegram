@@ -67,7 +67,7 @@ function draw(data){
   $('requests').textContent=val(total.requests);
   $('success').textContent=percent(total.succeeded,total.requests);
   $('tokens').textContent=val(total.tokens);
-  $('cost').textContent='$'+decimal.format(total.costUsd);
+  $('cost').textContent=total.pricedRequests>0?'$'+decimal.format(total.costUsd):'Chưa xác định';
   const table=$('providers');table.replaceChildren();
   for(const p of data.providers){
     discovered.add(p.project);
