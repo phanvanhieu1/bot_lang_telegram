@@ -20,7 +20,7 @@ test('copy and speaker use only TRANSLATION, never BACK_TRANSLATION', () => {
   assert.equal(parsed.vocabulary, '- [WORD] 大哥: anh ơi');
   const keyboard = makeActions(parsed.translation);
   assert.equal(keyboard.inline_keyboard.length, 1);
-  assert.deepEqual(keyboard.inline_keyboard[0].map(x => x.text), ['📋 Copy bản dịch', '💾', '🔊']);
+  assert.deepEqual(keyboard.inline_keyboard[0].map(x => x.text), ['📋', '💾', '🔊']);
   assert.deepEqual(keyboard.inline_keyboard[0][0].copy_text, { text: '大哥，快下班了。' });
   assert.ok(!JSON.stringify(keyboard).includes('BACK_TRANSLATION'));
   assert.ok(!JSON.stringify(keyboard).includes('Anh ơi'));
@@ -77,7 +77,7 @@ test('copy button is optional for >256 chars but Save and Speaker remain in a si
 
 test('no vocabulary only gives Copy and Speaker', () => {
   const buttons = makeActions('你好', null);
-  assert.deepEqual(buttons.inline_keyboard[0].map(x => x.text), ['📋 Copy bản dịch', '🔊']);
+  assert.deepEqual(buttons.inline_keyboard[0].map(x => x.text), ['📋', '🔊']);
 });
 
 test('bot no longer calls speech automatically and keeps on-demand text per message', () => {
