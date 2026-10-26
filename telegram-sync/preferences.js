@@ -4,7 +4,7 @@ const { getUserConfig } = require('../session');
 
 const fields = [
   'targetLang','voiceKey','speed',
-  'showTranslation','showPronunciation','showBackTranslation','showVocabulary'
+  'showPronunciation','showBackTranslation','showVocabulary'
 ];
 const schema = new mongoose.Schema({
   telegramId: { type: String, required: true },
