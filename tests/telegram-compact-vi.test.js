@@ -8,6 +8,7 @@ const crypto = require('node:crypto');
 const { buildCompactTranslation, getChineseSentence, getSpeechLanguage } = require('../telegram-translation');
 const { generatePinyin } = require('../ai/utils/pinyin');
 const { buildProPrompt } = require('../ai/prompts/pro.prompt');
+const sharedTts = require('../tts-shared');
 
 test('Mandarin Telegram shows translation, pinyin and back translation in one bubble', () => {
   const zh = '今晚喝点什么吗，兄弟？';
@@ -69,6 +70,7 @@ function mockedWebTts() {
     module: { exports: {} },
     require: name => {
       if (name === 'crypto') return crypto;
+      if (name === './tts-shared') return sharedTts;
       if (name === 'mongoose') return {
         Schema,
         models: { WebAudioCache: AudioCache },
@@ -100,6 +102,8 @@ test('Vietnamese synthesis uses the exact dedicated ElevenLabs voice', async () 
   assert.match(api.requests[0].url, /CQAD6iKxS73fEAGjSwt5/);
   assert.equal(JSON.parse(api.requests[0].options.body).text, 'Tối nay uống chút gì không?');
   assert.equal(api.saved.length, 1);
+  assert.equal(JSON.parse(api.requests[0].options.body).language_code, 'vi');
+  assert.equal(JSON.parse(api.requests[0].options.body).model_id, 'eleven_flash_v2_5');
 });
 
 test('Vietnamese synthesis rejects Chinese input instead of misrouting it', async () => {
