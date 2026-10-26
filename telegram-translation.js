@@ -2,8 +2,6 @@
 
 // Parse named fields before presenting a translation. Do not let text from
 // BACK_TRANSLATION, VOCABULARY or PRONUNCIATION leak into Copy or TTS.
-const FIELDS = new Set(['TRANSLATION', 'BACK_TRANSLATION', 'PRONUNCIATION', 'VOCABULARY', 'VERIFICATION']);
-
 function parseTelegramTranslation(raw) {
   const source = typeof raw === 'string' ? raw.replace(/\r\n/g, '\n').trim() : '';
   if (!source) throw new Error('AI không trả về bản dịch');
@@ -18,7 +16,6 @@ function parseTelegramTranslation(raw) {
   for (let i = 0; i < positions.length; i++) {
     const match = positions[i];
     const name = match[1].toUpperCase();
-    if (!FIELDS.has(name)) continue;
     const nextStart = i + 1 < positions.length ? positions[i + 1].index : source.length;
     const value = source.slice(match.index + match[0].length, nextStart).trim();
     if (!(name in parsed)) parsed[name] = value;
@@ -50,18 +47,13 @@ function buildTranslationButtons({ translation, speechId, vocabId, copyInlineBut
 
 // The three learner-facing fields are rendered together in ONE Telegram message.
 // Vocabulary is available via the Save action, never appended as a separate bubble.
-function buildCompactTranslation({ translation, pinyin, backTranslation, vocabulary = '' }) {
+function buildCompactTranslation({ translation, pinyin, backTranslation }) {
   if (typeof translation !== 'string' || !translation.trim()) {
     throw new TypeError('Missing primary translation');
   }
   const lines = ['📖 ' + translation.trim()];
   if (typeof pinyin === 'string' && pinyin.trim()) lines.push('🔤 ' + pinyin.trim());
   if (typeof backTranslation === 'string' && backTranslation.trim()) lines.push('🔁 ' + backTranslation.trim());
-  if (typeof vocabulary === 'string' && vocabulary.trim()) {
-    lines.push('');
-    lines.push('📝 Từ vựng:');
-    lines.push(vocabulary.trim());
-  }
   return lines.join('\n');
 }
 
