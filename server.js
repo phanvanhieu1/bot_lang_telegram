@@ -23,6 +23,8 @@ const mongoose = require('mongoose');
 const googleAuthRoutes = require('./modules/auth/google.routes');
 const connectDatabase = require('./config/database');
 const userRoutes = require('./modules/users/user.routes');
+const apiMonitoringRoutes = require('./api-monitoring/router');
+const { startQuotaPolling } = require('./api-monitoring/quotas');
 const { addUsage, getUsageStats } = require('./usage');
 const {
   translateFull,
@@ -180,6 +182,7 @@ app.put('/api/admin/maintenance', requireRole('admin'), async (req, res) => {
 
 app.use('/api/vocabulary', vocabularyRoutes);
 app.use('/api/admin/users', userRoutes);
+app.use('/api/monitoring', apiMonitoringRoutes);
 app.use('/auth', googleAuthRoutes);
 
 app.post('/api/logout', (req, res) => {
@@ -285,6 +288,11 @@ app.get('/login', async (req, res) => {
   }
 });
 
+
+app.get('/admin/monitoring', requireRole('admin'), (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  return res.sendFile(path.join(__dirname, 'views', 'api-monitoring.html'));
+});
 
 app.get('/admin', requireRole('admin'), (req, res) => {
   return res.sendFile(
@@ -1176,6 +1184,7 @@ async function startServer() {
     // accepting Google OAuth callbacks.
     await sessionStore.collectionP;
     startVocabularyWorker();
+    startQuotaPolling();
 
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
