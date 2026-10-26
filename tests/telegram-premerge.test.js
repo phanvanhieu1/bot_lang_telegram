@@ -11,6 +11,7 @@ function mockedPreferences() {
   const writes = [];
   const store = new Map();
   class Schema { index() {} }
+  Schema.Types = { Mixed: String };
   const mongoose = {
     Schema, connection:{readyState:1}, models:{},
     model:()=>model
