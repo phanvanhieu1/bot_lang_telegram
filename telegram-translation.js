@@ -50,13 +50,18 @@ function buildTranslationButtons({ translation, speechId, vocabId, copyInlineBut
 
 // The three learner-facing fields are rendered together in ONE Telegram message.
 // Vocabulary is available via the Save action, never appended as a separate bubble.
-function buildCompactTranslation({ translation, pinyin, backTranslation }) {
+function buildCompactTranslation({ translation, pinyin, backTranslation, vocabulary = '' }) {
   if (typeof translation !== 'string' || !translation.trim()) {
     throw new TypeError('Missing primary translation');
   }
   const lines = ['📖 ' + translation.trim()];
   if (typeof pinyin === 'string' && pinyin.trim()) lines.push('🔤 ' + pinyin.trim());
   if (typeof backTranslation === 'string' && backTranslation.trim()) lines.push('🔁 ' + backTranslation.trim());
+  if (typeof vocabulary === 'string' && vocabulary.trim()) {
+    lines.push('');
+    lines.push('📝 Từ vựng:');
+    lines.push(vocabulary.trim());
+  }
   return lines.join('\n');
 }
 
