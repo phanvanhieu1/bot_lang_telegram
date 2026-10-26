@@ -68,7 +68,8 @@ test('display preferences affect actual Telegram output and persist per user', (
   const menu = fs.readFileSync(path.join(root, 'ui.js'), 'utf8');
   assert.match(bot, /c\.showPronunciation \? generatePinyin/);
   assert.match(bot, /c\.showBackTranslation \? parsed\.backTranslation : ''/);
-  assert.match(bot, /c\.showVocabulary \? parsed\.vocabulary : ''/);
+  assert.match(bot, /if \(c\.showVocabulary && parsed\.vocabulary\)/);
+  assert.match(bot, /ctx\.reply\(message\)/);
   assert.match(session, /showBackTranslation: true/);
   assert.match(menu, /toggle_pron/);
   assert.match(menu, /toggle_back/);
