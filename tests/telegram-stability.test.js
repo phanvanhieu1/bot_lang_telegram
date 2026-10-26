@@ -35,7 +35,7 @@ test('copy button rejects values exceeding Telegram 256 character limit', () => 
   assert.equal(copyButtonText('a'.repeat(257)), null);
   assert.equal(copyButtonText(''), null);
   assert.deepEqual(copyInlineButton('我喜欢学习中文'), {
-    text: '📋 Copy bản dịch',
+    text: '📋',
     copy_text: { text: '我喜欢学习中文' }
   });
   assert.equal(copyInlineButton('x'.repeat(257)), null);
