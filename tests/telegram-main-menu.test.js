@@ -224,7 +224,8 @@ test('settings actions do not change hidden legacy toggles or translate menu lab
     const fn = handlers.hears.find(([name]) => name === label)[1];
     const ctx = context();
     await fn(ctx);
-    assert.match(ctx.messages[0].text, /đang được phát triển/);
+    assert.match(ctx.messages[0].text, label === MAIN_MENU.vocabulary
+      ? /web PRO|\/link/ : /đang được phát triển/);
   }
   // Even if a menu label reaches the generic text fallback, it must be ignored.
   const fallback = handlers.on.find(([name]) => name === 'text')[1];
