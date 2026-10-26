@@ -30,7 +30,7 @@ const getUserConfig = (userId) => {
   if (!userSessions[userId]) {
     userSessions[userId] = { 
       targetLang: 'zh', 
-      voiceKey: 'sarah', 
+      voiceKey: 'female1', 
       speed: 1.0, 
       showTranslation: true, 
       showPronunciation: true, 
@@ -46,7 +46,7 @@ const getUserConfig = (userId) => {
   else {
     let isUpdated = false;
     const defaults = {
-      targetLang: 'zh', voiceKey: 'sarah', speed: 1,
+      targetLang: 'zh', voiceKey: 'female1', speed: 1,
       showTranslation: true, showPronunciation: true,
       showVocabulary: true, enableVoice: true
     };
@@ -81,8 +81,9 @@ const getUserConfig = (userId) => {
       userSessions[userId].targetLang = 'zh';
       isUpdated = true;
     }
+    // Old Telegram voices are not among the PRO web voices.
     if (!Object.prototype.hasOwnProperty.call(VOICES, userSessions[userId].voiceKey)) {
-      userSessions[userId].voiceKey = 'sarah';
+      userSessions[userId].voiceKey = 'female1';
       isUpdated = true;
     }
     if (!Object.keys(SPEED_OPTIONS).some(k => Number(k) === Number(userSessions[userId].speed))) {
