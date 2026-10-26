@@ -10,12 +10,12 @@ function normalizeEvent(project, input) {
   if (!NAME.test(project) || !input || typeof input !== 'object' || Array.isArray(input)) {
     throw new TypeError('Invalid project or event');
   }
-  const { provider, operation = 'request', status, latencyMs = 0, tokens = 0, costUsd = 0 } = input;
+  const { provider, operation = 'request', status, latencyMs = 0, tokens = 0, costUsd = null } = input;
   if (!NAME.test(provider) || !OPER.test(operation) ||
       !Number.isInteger(status) || status < 100 || status > 599 ||
       !bounded(latencyMs, 3_600_000) ||
       !Number.isSafeInteger(tokens) || tokens < 0 || tokens > 1_000_000_000 ||
-      !bounded(costUsd, 1_000_000)) {
+      (costUsd !== null && !bounded(costUsd, 1_000_000))) {
     throw new TypeError('Invalid monitoring fields');
   }
   return { project, provider, operation, status, latencyMs, tokens, costUsd, at: new Date() };
@@ -64,6 +64,7 @@ async function summary({ project, hours }) {
         succeeded: { $sum: { $cond: [{ $lt: ['$status', 400] }, 1, 0] } },
         avgLatencyMs: { $avg: '$latencyMs' },
         tokens: { $sum: '$tokens' }, costUsd: { $sum: '$costUsd' },
+        pricedRequests: { $sum: { $cond: [{ $ne: ['$costUsd', null] }, 1, 0] } },
         lastSeen: { $max: '$at' } } },
       { $sort: { requests: -1 } }, { $limit: 200 }
     ]),
@@ -82,13 +83,14 @@ async function summary({ project, hours }) {
     requests: o.requests + p.requests,
     succeeded: o.succeeded + p.succeeded,
     tokens: o.tokens + p.tokens,
-    costUsd: o.costUsd + p.costUsd
-  }), { requests: 0, succeeded: 0, tokens: 0, costUsd: 0 });
+    costUsd: o.costUsd + p.costUsd,
+    pricedRequests: o.pricedRequests + p.pricedRequests
+  }), { requests: 0, succeeded: 0, tokens: 0, costUsd: 0, pricedRequests: 0 });
   return { hours, project: project || null, total, providers: providers.map(p => ({
     project: p._id.project, provider: p._id.provider,
     requests: p.requests, succeeded: p.succeeded,
     avgLatencyMs: p.avgLatencyMs, tokens: p.tokens,
-    costUsd: p.costUsd, lastSeen: p.lastSeen
+    costUsd: p.costUsd, pricedRequests: p.pricedRequests, lastSeen: p.lastSeen
   })), trend: trend.map(t => ({ hour: t._id, requests: t.requests,
     succeeded: t.succeeded })), quotas };
 }
