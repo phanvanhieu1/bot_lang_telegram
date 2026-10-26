@@ -4,6 +4,10 @@ const crypto = require('node:crypto');
 const { withDownloadedVoice } = require('./telegram-media');
 const { copyInlineButton, splitLongText } = require('./telegram-utils');
 const { exportAnkiCsv } = require('./telegram-vocabulary');
+const { translateViaSharedCache, ready: sharedDbReady } = require('./telegram-sync/cache');
+const { connectTelegram, findLinkedUser } = require('./telegram-sync/link');
+const { saveLinkedVocabulary, exportLinkedVocabulary } = require('./telegram-sync/vocabulary');
+const connectDatabase = require('./config/database');
 const { MAIN_MENU, replyMenuOptions } = require('./telegram-main-menu');
 const { parseTelegramTranslation, buildTranslationButtons, buildCompactTranslation, getChineseSentence, getSpeechLanguage } = require('./telegram-translation');
 
@@ -32,7 +36,8 @@ const BOT_COMMANDS = [
   { command: 'listusers', description: '📋 Xem danh sách người dùng (Chỉ Admin)' },
   { command: 'settings', description: '⚙️ Cài đặt dịch thuật' },
   { command: 'menu', description: '📱 Hiển thị menu chức năng' },
-  { command: 'newchat', description: '🆕 Xóa ngữ cảnh hội thoại hiện tại' }
+  { command: 'newchat', description: '🆕 Xóa ngữ cảnh hội thoại hiện tại' },
+  { command: 'link', description: '🔗 Liên kết với tài khoản web PRO' }
 ];
 // ==========================================
 // 1. MIDDLEWARE: BẢO VỆ BOT (CHẶN NGƯỜI LẠ)
@@ -178,28 +183,56 @@ bot.action(/^toggle_(pron|back|vocab)$/, async (ctx) => {
 bot.action('toggle_voice', ctx => ctx.answerCbQuery('Hãy bấm 🔊 dưới bản dịch để tạo âm thanh.'));
 bot.action('toggle_trans', ctx => ctx.answerCbQuery('Bản dịch chính luôn hiển thị. Có thể bật/tắt Pinyin, dịch ngược và từ vựng.'));
 
+// Only the logged-in website can issue a short-lived linking code.
+// Telegram ID alone is not enough to identify an account on the website.
+bot.command('link', async (ctx) => {
+  if (ctx.chat?.type !== 'private') return ctx.reply('🔒 Chỉ liên kết tài khoản trong tin nhắn riêng với bot.');
+  if (!sharedDbReady()) return ctx.reply('⚠️ Bot chưa kết nối MongoDB chung với website.');
+  const parts = String(ctx.message?.text || '').trim().split(/\s+/);
+  if (parts.length === 1) {
+    const account = await findLinkedUser(ctx.from.id);
+    return ctx.reply(account
+      ? '✅ Telegram đã liên kết với tài khoản web PRO. Bạn có thể lưu từ vựng bằng 💾.'
+      : '🔗 Mở /telegram/connect trên website sau khi đăng nhập PRO, tạo mã một lần rồi gửi: /link MÃ');
+  }
+  const outcome = await connectTelegram(ctx.from.id, parts[1]);
+  return ctx.reply(outcome.ok
+    ? '✅ Liên kết thành công! Từ vựng mới lưu bằng 💾 sẽ vào kho học tập trên web.'
+    : '⚠️ Liên kết không thành công. Mã có thể đã hết hạn, đã sử dụng hoặc tài khoản đã liên kết với Telegram khác.');
+});
+
 // Each Save button refers to the vocabulary of THAT translation, not the latest.
 bot.action(/^save_vocab_([a-f0-9]{12})$/, async (ctx) => {
   const c = getUserConfig(ctx.from.id);
   const key = ctx.match[1];
-  const vocabulary = c.pendingVocabs?.[key];
-  if (!vocabulary) return ctx.answerCbQuery('Mục này đã được lưu hoặc hết hạn.');
-  const saved = saveVocabulary(ctx.from.id, vocabulary);
-  delete c.pendingVocabs[key];
-  saveDatabase();
-  await ctx.answerCbQuery(saved ? `✅ Đã lưu ${saved} mục từ vựng!` : 'Các từ này đã có trong sổ tay.');
+  const item = c.pendingVocabs?.[key];
+  if (!item) return ctx.answerCbQuery('Từ vựng này đã được lưu hoặc hết hạn.');
+  if (!sharedDbReady()) return ctx.answerCbQuery('Chưa có MongoDB chung. Không thể lưu.', { show_alert: true });
+
   try {
-    const oldRows = ctx.callbackQuery?.message?.reply_markup?.inline_keyboard || [];
-    const rows = oldRows.map(row => row.map(button =>
-      button.callback_data === 'save_vocab_' + key
-        ? Markup.button.callback('✅', 'noop')
-        : button
-    ));
-    if (rows.length) await ctx.editMessageReplyMarkup({ inline_keyboard: rows });
-  } catch (error) {
-    if (!/message is not modified/i.test(error?.message || '')) {
-      console.warn('Telegram update save button:', error.message);
+    const result = await saveLinkedVocabulary(ctx.from.id, {
+      chineseText: typeof item === 'object' ? item.chineseText : '',
+      vocabulary: typeof item === 'object' ? item.vocabulary : ''
+    });
+    if (!result.linked) {
+      return ctx.answerCbQuery('Hãy liên kết tài khoản web PRO bằng /link trước.', { show_alert: true });
     }
+    delete c.pendingVocabs[key];
+    saveDatabase();
+    await ctx.answerCbQuery(`✅ Đã đồng bộ ${result.saved} mục vào kho từ vựng web!`);
+    try {
+      const rows = (ctx.callbackQuery?.message?.reply_markup?.inline_keyboard || [])
+        .map(row => row.map(button => button.callback_data === 'save_vocab_' + key
+          ? Markup.button.callback('✅', 'noop') : button));
+      if (rows.length) await ctx.editMessageReplyMarkup({ inline_keyboard: rows });
+    } catch (error) {
+      if (!/message is not modified/i.test(error?.message || '')) {
+        console.warn('Telegram save button update:', error.message);
+      }
+    }
+  } catch (error) {
+    console.error('Shared vocabulary save failed:', error.message);
+    await ctx.answerCbQuery('Không thể lưu MongoDB lúc này. Hãy thử lại.', { show_alert: true });
   }
 });
 
@@ -251,22 +284,24 @@ bot.action('noop', ctx => ctx.answerCbQuery());
 
 // Lệnh xuất sổ tay từ vựng ra file CSV
 bot.command('export', async (ctx) => {
-  const vocabs = getVocabulary(ctx.from.id);
-  if (vocabs.length === 0) return ctx.reply('📭 Sổ tay của bạn đang trống!');
-
-  const csvContent = exportAnkiCsv(vocabs);
-  const buffer = Buffer.from(csvContent, 'utf-8');
-  
-  await ctx.replyWithDocument(
-    { source: buffer, filename: 'Flashcard_Anki.csv' },
-    { caption: `📚 Bạn có tổng cộng ${vocabs.length} từ vựng.\n👉 Nạp file này vào Anki hoặc Quizlet để ôn tập nhé!` }
-  );
+  if (!sharedDbReady()) return ctx.reply('⚠️ Chưa kết nối MongoDB chung với web.');
+  try {
+    const data = await exportLinkedVocabulary(ctx.from.id);
+    if (!data.linked) return ctx.reply('🔗 Hãy liên kết với tài khoản web PRO bằng /link trước.');
+    if (!data.count) return ctx.reply('📭 Kho từ vựng web của bạn chưa có mục nào.');
+    await ctx.replyWithDocument(
+      { source: Buffer.from(data.csv, 'utf8'), filename: 'Web_PRO_Vocabulary.csv' },
+      { caption: `📚 Đã xuất ${data.count} mục từ vựng từ MongoDB chung với website.` }
+    );
+  } catch (error) {
+    console.error('Shared vocabulary export failed:', error.message);
+    await ctx.reply('⚠️ Không thể xuất kho từ vựng lúc này.');
+  }
 });
 
-// Lệnh xóa sạch sổ tay
+// Clearing Telegram-local legacy data must never delete personal web entries.
 bot.command('clearvocab', async (ctx) => {
-  clearVocabulary(ctx.from.id);
-  await ctx.reply('🗑 Đã xóa sạch sổ tay từ vựng!');
+  await ctx.reply('🔒 Kho từ vựng MongoDB được dùng chung với web. Để xóa mục, hãy mở Kho học tập trên website. Lệnh này không xóa dữ liệu dùng chung.');
 });
 
 bot.command('newchat', async (ctx) => {
@@ -290,36 +325,26 @@ async function processStudyContent(ctx, text = '', imageUrl = null, statusMsgPre
   let statusMsg = null;
   try {
     statusMsg = await ctx.reply(`${statusMsgPrefix}...`);
-    let aiResult = null;
-    // Dialog context changes the answer; only reuse text cache for a fresh dialog.
-    const eligibleForCache = Boolean(text && !imageUrl && c.history.length === 0);
-    // New cache namespace prevents older bot results missing reverse translations.
-    const cacheText = 'telegram-compact-v2:vocab=' + Number(c.showVocabulary) + ':' + text;
-    if (eligibleForCache) aiResult = getCachedText(cacheText, c.targetLang, isFast);
-    if (!aiResult) {
-      aiResult = await translateFull(text, c.targetLang, isFast, imageUrl, c.history, false, {
+    // Share the exact same PRO MongoDB translation cache as the web.
+    // Text requests are stateless, matching the web's context='auto' cache.
+    // Photos cannot be keyed by raw text and are never shared-cached.
+    let parsed;
+    if (text && !imageUrl && sharedDbReady()) {
+      parsed = await translateViaSharedCache(text, c.targetLang, c.showVocabulary);
+    } else {
+      const raw = await translateFull(text, c.targetLang, false, imageUrl, [], false, {
         telegramMode: true, backTranslation: true, vocabulary: c.showVocabulary
       });
-      if (eligibleForCache) setCachedText(cacheText, c.targetLang, isFast, aiResult);
-    }
-    if (typeof aiResult !== 'string' || !aiResult.trim()) {
-      throw new Error('AI returned an empty translation');
+      parsed = parseTelegramTranslation(raw);
     }
 
-    // Always keep the actual exchange in conversation history (including cached replies).
-    c.history.push({ user: (text || 'Image/Audio').slice(0, 3000), bot: aiResult.slice(0, 4000) });
-    if (c.history.length > 5) c.history.splice(0, c.history.length - 5);
-    saveDatabase();
-
-    const parsed = parseTelegramTranslation(aiResult);
     const translatedText = parsed.translation;
     const chineseText = getChineseSentence(text, translatedText, parsed.backTranslation);
     const pinyin = chineseText && c.targetLang === 'zh' && c.showPronunciation ? generatePinyin(chineseText) : '';
     const combinedText = buildCompactTranslation({
       translation: translatedText,
       pinyin,
-      backTranslation: c.showBackTranslation ? parsed.backTranslation : '',
-      vocabulary: c.showVocabulary ? parsed.vocabulary : ''
+      backTranslation: c.showBackTranslation ? parsed.backTranslation : ''
     });
 
     const nonce = crypto.randomBytes(6).toString('hex');
@@ -333,7 +358,7 @@ async function processStudyContent(ctx, text = '', imageUrl = null, statusMsgPre
     let vocabId = null;
     if (!isFast && c.showVocabulary && parsed.vocabulary) {
       vocabId = nonce;
-      c.pendingVocabs[vocabId] = parsed.vocabulary;
+      c.pendingVocabs[vocabId] = { vocabulary: parsed.vocabulary, chineseText };
       for (const old of Object.keys(c.pendingVocabs).slice(0, -30)) delete c.pendingVocabs[old];
     }
     saveDatabase();
@@ -346,12 +371,16 @@ async function processStudyContent(ctx, text = '', imageUrl = null, statusMsgPre
       callbackButton: Markup.button.callback
     });
 
-    const messages = splitLongText(combinedText);
-    for (const [index, message] of messages.entries()) {
-      const extra = {};
-      // All icons appear in ONE row below the compact translation message.
-      if (index === 0) extra.reply_markup = actions;
-      await ctx.reply(message, extra);
+    // Translation / Pinyin / back translation remain together.
+    const mainMessages = splitLongText(combinedText);
+    for (const [index, message] of mainMessages.entries()) {
+      await ctx.reply(message, index === 0 ? { reply_markup: actions } : {});
+    }
+    // Vocabulary, when enabled, is a separate Telegram message.
+    if (c.showVocabulary && parsed.vocabulary) {
+      for (const message of splitLongText('📝 Từ vựng:\n' + parsed.vocabulary)) {
+        await ctx.reply(message);
+      }
     }
 
   } catch (error) {
@@ -408,6 +437,11 @@ bot.catch(async (error, ctx) => {
 });
 
 async function launchTelegramBot() {
+  if (process.env.MONGODB_URI && !sharedDbReady()) {
+    await connectDatabase();
+  } else if (!process.env.MONGODB_URI) {
+    console.warn('⚠️ MongoDB chung chưa cấu hình: cache web và lưu từ vựng web chưa khả dụng.');
+  }
   await bot.launch();
   console.log('🚀 Telegram bot đã khởi chạy');
   try { await bot.telegram.setMyCommands(BOT_COMMANDS); } catch (error) {
