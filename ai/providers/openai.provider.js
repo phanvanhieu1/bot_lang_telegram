@@ -21,10 +21,13 @@ function createOpenAIClient(key) {
         status = response.status;
         return response;
       } finally {
-        void recordEvent('translator', {
-          provider: 'openai', operation: 'api',
-          status, latencyMs: Date.now() - started
-        }).catch(error => console.warn('OpenAI monitoring:', error.message));
+        // Local test bot should not write events into the production DB.
+        if (process.env.TELEGRAM_TEST_MODE !== '1') {
+          void recordEvent('translator', {
+            provider: 'openai', operation: 'api',
+            status, latencyMs: Date.now() - started
+          }).catch(error => console.warn('OpenAI monitoring:', error.message));
+        }
       }
     }
   });
