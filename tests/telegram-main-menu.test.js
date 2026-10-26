@@ -135,6 +135,7 @@ test('settings actions do not change hidden legacy toggles or translate menu lab
     './telegram-sync/vocabulary': { saveLinkedVocabulary: async () => ({}), exportLinkedVocabulary: async () => ({}) },
     './telegram-sync/preferences': { syncTelegramPreferences: async (ctx, next) => next() },
     './config/database': async () => {},
+    './web-tts': { getChineseAudio: async () => ({audio: Buffer.from([])}), getVietnameseAudio: async () => ({audio: Buffer.from([])}) },
     './errorHandler': async () => {}
   };
   const fakeModule = { exports: {} };
