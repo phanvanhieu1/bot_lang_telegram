@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const { VOICES } = require('../config');
+const sharedTts = require('../tts-shared');
 
 function mockedSpeech(env = { ELEVENLABS_API_KEY: 'unit-test-key' }) {
   const calls = [];
@@ -20,6 +21,7 @@ function mockedSpeech(env = { ELEVENLABS_API_KEY: 'unit-test-key' }) {
     require: name => {
       if (name === 'axios') return axios;
       if (name === '../../config') return { VOICES };
+      if (name === '../../tts-shared') return sharedTts;
       throw new Error('Unexpected test module: ' + name);
     },
     process: { env },
@@ -43,6 +45,7 @@ test('all four Telegram voices exactly match the web PRO ElevenLabs IDs', async 
     const call = speech.calls.at(-1);
     assert.ok(call.url.includes('/' + voice.id + '?output_format=mp3_44100_128'));
     assert.equal(call.body.model_id, 'eleven_flash_v2_5');
+    assert.equal(call.body.language_code, 'zh');
     assert.equal(call.body.voice_settings.speed, 1);
     assert.equal(call.options.headers['xi-api-key'], 'unit-test-key');
   }
@@ -51,9 +54,9 @@ test('all four Telegram voices exactly match the web PRO ElevenLabs IDs', async 
 
 test('invalid voice, empty text or missing credentials never call ElevenLabs', async () => {
   const speech = mockedSpeech();
-  await assert.rejects(() => speech.generateSpeech('你好', 'sarah', 1), /Giọng đọc không hợp lệ/);
-  await assert.rejects(() => speech.generateSpeech('', 'female1', 1), /Nội dung giọng đọc/);
-  await assert.rejects(() => speech.generateSpeech('你好', 'female1', 3), /Tốc độ đọc/);
+  await assert.rejects(() => speech.generateSpeech('你好', 'sarah', 1), /Unknown Chinese speech voice/);
+  await assert.rejects(() => speech.generateSpeech('', 'female1', 1), /Speech input must be/);
+  await assert.rejects(() => speech.generateSpeech('你好', 'female1', 3), /Invalid speech speed/);
   assert.equal(speech.calls.length, 0);
   const missingKey = mockedSpeech({});
   await assert.rejects(() => missingKey.generateSpeech('你好', 'female1', 1), /ELEVENLABS_API_KEY/);
