@@ -277,7 +277,10 @@ async function processStudyContent(ctx, text = '', imageUrl = null, statusMsgPre
 
     const parsed = parseTelegramTranslation(aiResult);
     const translatedText = parsed.translation; // ONLY this text is copied or spoken.
-    const sections = [{ title: isFast ? '⚡ Dịch nhanh:' : '📖 Bản dịch:', body: translatedText }];
+    const sections = [];
+    if (isFast || c.showTranslation) {
+      sections.push({ title: isFast ? '⚡ Dịch nhanh:' : '📖 Bản dịch:', body: translatedText });
+    }
     if (!isFast) {
       if (c.showTranslation && parsed.backTranslation) {
         sections.push({ title: '🔁 Bản dịch ngược:', body: parsed.backTranslation });
@@ -288,6 +291,10 @@ async function processStudyContent(ctx, text = '', imageUrl = null, statusMsgPre
       if (c.showVocabulary && parsed.vocabulary) {
         sections.push({ title: '📝 Từ vựng:', body: parsed.vocabulary });
       }
+    }
+    if (!sections.length) {
+      // Avoid an empty response if all requested AI sections are missing.
+      sections.push({ title: '📖 Bản dịch:', body: translatedText });
     }
 
     const nonce = crypto.randomBytes(6).toString('hex');
