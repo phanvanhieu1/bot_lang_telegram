@@ -85,16 +85,16 @@ test('bot no longer calls speech automatically and keeps on-demand text per mess
   const bot = fs.readFileSync(path.join(root, 'bot.js'), 'utf8');
   const settings = fs.readFileSync(path.join(root, 'ui.js'), 'utf8');
   const sessions = fs.readFileSync(path.join(root, 'session.js'), 'utf8');
-  assert.match(bot, /parseTelegramTranslation\(aiResult\)/);
+  assert.match(bot, /parseTelegramTranslation\(raw\)/);
   assert.match(bot, /c\.pendingSpeech\[nonce\]\s*=\s*\{\s*text: translatedText/);
   assert.match(bot, /bot\.action\(\/\^speak_translation_/);
   assert.match(bot, /const record = c\.pendingSpeech\?\.\[ctx\.match\[1\]\]/);
   assert.match(bot, /await ctx\.replyWithVoice/);
-  assert.match(bot, /if \(index === 0\) extra\.reply_markup = actions/);
+  assert.match(bot, /index === 0 \? \{ reply_markup: actions \}/);
   assert.doesNotMatch(bot, /if \(c\.enableVoice && translatedText\)/);
   assert.match(bot, /const isFast = false/);
   assert.match(bot, /activeSpeechRequests\.has\(requestKey\)/);
   assert.doesNotMatch(settings, /Giọng đọc AI: BẬT|Giọng đọc AI: TẮT/);
   assert.match(sessions, /pendingSpeech: \{\}/);
-  assert.match(bot, /oldRows\.map\(row => row\.map/); // preserve Copy/Speaker after Save
+  assert.match(bot, /\.map\(row => row\.map\(button => button\.callback_data/); // preserve Copy/Speaker after Save
 });
