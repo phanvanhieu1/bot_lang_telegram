@@ -212,6 +212,7 @@ bot.action(/^save_vocab_([a-f0-9]{12})$/, async (ctx) => {
   const key = ctx.match[1];
   const item = c.pendingVocabs?.[key];
   if (!item) return ctx.answerCbQuery('Từ vựng này đã được lưu hoặc hết hạn.');
+  if (typeof item !== 'object' || !item.chineseText) return ctx.answerCbQuery('Nút lưu cũ chưa liên kết được với kho web. Hãy dịch lại.', { show_alert: true });
   if (!sharedDbReady()) return ctx.answerCbQuery('Chưa có MongoDB chung. Không thể lưu.', { show_alert: true });
 
   try {
@@ -221,6 +222,9 @@ bot.action(/^save_vocab_([a-f0-9]{12})$/, async (ctx) => {
     });
     if (!result.linked) {
       return ctx.answerCbQuery('Hãy liên kết tài khoản web PRO bằng /link trước.', { show_alert: true });
+    }
+    if (!result.saved) {
+      return ctx.answerCbQuery('Không có mục hợp lệ để lưu (hoặc đã bị loại khỏi kho).', { show_alert: true });
     }
     delete c.pendingVocabs[key];
     saveDatabase();
