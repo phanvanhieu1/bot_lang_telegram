@@ -126,7 +126,7 @@ bot.hears(MAIN_MENU.voice, ctx =>
     return ctx.reply(text, { parse_mode: 'Markdown', ...keyboard });
   }
 );
-bot.hears(MAIN_MENU.vocabulary, ctx => ctx.reply('📚 Kho từ vựng đang được phát triển. Bạn vẫn có thể lưu bằng 💾 và dùng /export để xuất CSV.'));
+bot.hears(MAIN_MENU.vocabulary, ctx => ctx.reply('📚 Từ vựng được lưu vào kho web PRO sau khi liên kết. Dùng /link để kiểm tra, 💾 để lưu, /export để xuất kho chung, hoặc /exportlocal để tải dữ liệu Telegram cũ.'));
 bot.hears(MAIN_MENU.practice, ctx => ctx.reply('📝 Chức năng luyện tập đang được phát triển.'));
 bot.hears(MAIN_MENU.statistics, ctx => ctx.reply('📊 Thống kê học tập đang được phát triển.'));
 
