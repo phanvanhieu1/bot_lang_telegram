@@ -24,6 +24,7 @@ const googleAuthRoutes = require('./modules/auth/google.routes');
 const connectDatabase = require('./config/database');
 const userRoutes = require('./modules/users/user.routes');
 const apiMonitoringRoutes = require('./api-monitoring/router');
+const telegramLinkRoutes = require('./telegram-sync/routes');
 const { startQuotaPolling } = require('./api-monitoring/quotas');
 const { addUsage, getUsageStats } = require('./usage');
 const {
@@ -183,6 +184,7 @@ app.put('/api/admin/maintenance', requireRole('admin'), async (req, res) => {
 app.use('/api/vocabulary', vocabularyRoutes);
 app.use('/api/admin/users', userRoutes);
 app.use('/api/monitoring', apiMonitoringRoutes);
+app.use('/api/telegram', telegramLinkRoutes);
 app.use('/auth', googleAuthRoutes);
 
 app.post('/api/logout', (req, res) => {
@@ -288,6 +290,11 @@ app.get('/login', async (req, res) => {
   }
 });
 
+
+app.get('/telegram/connect', requireRole('pro','admin'), (req, res) => {
+  res.set('Cache-Control', 'private, no-store');
+  return res.sendFile(path.join(__dirname, 'views', 'telegram-connect.html'));
+});
 
 app.get('/admin/monitoring', requireRole('admin'), (req, res) => {
   res.set('Cache-Control', 'no-store');
