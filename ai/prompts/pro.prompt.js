@@ -65,7 +65,16 @@ ${existingTranslation}
 Không dịch lại và không thay đổi bản dịch trên.`;
 
   if (backTranslation) {
-    systemPrompt += `
+    if (telegramMode) {
+      systemPrompt += `
+
+QUY TẮC DỊCH NGƯỢC CHO TELEGRAM:
+- Dịch ngược chính BẢN DỊCH ĐÃ CÓ sang ngôn ngữ của NGUYÊN VĂN.
+- Nếu BẢN DỊCH ĐÃ CÓ là tiếng Trung, BACK_TRANSLATION phải là tiếng Việt.
+- Nếu BẢN DỊCH ĐÃ CÓ là tiếng Việt, BACK_TRANSLATION phải là tiếng Trung.
+- Không dịch lại phần TRANSLATION, không thêm Pinyin, giải thích, từ vựng.`;
+    } else {
+      systemPrompt += `
 
 QUY TẮC DỊCH NGƯỢC:
 - Chỉ tạo BACK_TRANSLATION khi NGUYÊN VĂN là tiếng Việt và BẢN DỊCH ĐÃ CÓ là tiếng Trung.
@@ -73,6 +82,7 @@ QUY TẮC DỊCH NGƯỢC:
 - Phải dựa vào câu tiếng Trung trong BẢN DỊCH ĐÃ CÓ, không được dùng NGUYÊN VĂN tiếng Việt để tạo kết quả.
 - Nếu NGUYÊN VĂN không phải tiếng Việt hoặc BẢN DỊCH ĐÃ CÓ không phải tiếng Trung, để BACK_TRANSLATION trống.
 - BACK_TRANSLATION chỉ chứa tiếng Việt, không chứa Pinyin, từ vựng hoặc giải thích.`;
+    }
   }
 
   if (vocabulary) {
