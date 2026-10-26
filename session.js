@@ -33,7 +33,8 @@ const getUserConfig = (userId) => {
       voiceKey: 'female1', 
       speed: 1.0, 
       showTranslation: true, 
-      showPronunciation: true, 
+      showPronunciation: true,
+      showBackTranslation: true,
       showVocabulary: true, 
       enableVoice: process.env.TELEGRAM_TEST_MODE === '1' ? Boolean(process.env.ELEVENLABS_API_KEY) : true,
       history: [],  // Thuộc tính mới
@@ -49,7 +50,7 @@ const getUserConfig = (userId) => {
     const defaults = {
       targetLang: 'zh', voiceKey: 'female1', speed: 1,
       showTranslation: true, showPronunciation: true,
-      showVocabulary: true, enableVoice: true
+      showBackTranslation: true, showVocabulary: true, enableVoice: true
     };
     for (const [key, value] of Object.entries(defaults)) {
       if (userSessions[userId][key] === undefined) {
