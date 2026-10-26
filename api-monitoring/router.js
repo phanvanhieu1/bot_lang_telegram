@@ -27,9 +27,11 @@ function authenticateProject(req, res, next) {
   const configured = keysFromEnv()[project];
   const provided = auth.slice(7);
   // A long, independently generated secret per project; never store it in MongoDB.
-  if (typeof configured !== 'string' || configured.length < 24 ||
-      provided.length !== configured.length || provided.length > 512 ||
-      !crypto.timingSafeEqual(Buffer.from(configured), Buffer.from(provided))) {
+  const expectedBytes = typeof configured === 'string' ? Buffer.from(configured) : Buffer.alloc(0);
+  const providedBytes = Buffer.from(provided);
+  if (expectedBytes.length < 24 || expectedBytes.length > 512 ||
+      providedBytes.length !== expectedBytes.length ||
+      !crypto.timingSafeEqual(expectedBytes, providedBytes)) {
     return res.status(401).json({ success: false, message: 'Invalid monitoring credentials' });
   }
   req.monitorProject = project;
