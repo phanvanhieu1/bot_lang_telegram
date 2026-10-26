@@ -3,19 +3,11 @@ const { LANG_CONFIG, VOICES, SPEED_OPTIONS } = require('./config');
 
 const getSpeedKey = speed => Object.keys(SPEED_OPTIONS).find(key => Number(key) === Number(speed)) || '1.0';
 
-const getDisplaySummary = (c) => {
-  const parts = [
-    c.showTranslation ? 'Bản' : '', 
-    c.showPronunciation ? 'Âm' : '', 
-    c.showVocabulary ? 'Từ' : ''
-  ].filter(Boolean);
-  
-  const textSummary = parts.length > 0 ? parts.join('-') : '⚡ Siêu Tốc';
-  return textSummary;
-};
+const getDisplaySummary = c =>
+  `Bản dịch · Pinyin · Dịch ngược | Lưu từ: ${c.showVocabulary ? 'BẬT' : 'TẮT'}`;
 
 const renderDashboard = (c) => ({
-  text: `⚙️ *BẢNG ĐIỀU KHIỂN CÀI ĐẶT*\n\n🌐 *Ngôn ngữ:* ${LANG_CONFIG[c.targetLang].name}\n🎙 *Giọng đọc:* ${VOICES[c.voiceKey].name}\n⏩ *Tốc độ:* ${SPEED_OPTIONS[getSpeedKey(c.speed)]}\n📋 *Hiển thị:* ${getDisplaySummary(c)}`,
+  text: `⚙️ *BẢNG ĐIỀU KHIỂN CÀI ĐẶT*\n\n🌐 *Ngôn ngữ:* ${LANG_CONFIG[c.targetLang].name}\n🎙 *Giọng tiếng Trung:* ${VOICES[c.voiceKey].name}\n⏩ *Tốc độ:* ${SPEED_OPTIONS[getSpeedKey(c.speed)]}\n📋 *Kết quả:* ${getDisplaySummary(c)}\n🇻🇳 *Giọng tiếng Việt:* Cố định`,
   keyboard: Markup.inlineKeyboard([
     [Markup.button.callback('🌐 Đổi Ngôn ngữ', 'menu_lang'), Markup.button.callback('🎙 Đổi Giọng đọc', 'menu_voice')],
     [Markup.button.callback('⏩ Đổi Tốc độ', 'menu_speed'), Markup.button.callback('📋 Tùy chỉnh hiển thị', 'menu_display')],
@@ -36,11 +28,9 @@ const renderMenu = (title, configObj, currentVal, prefix) => ({
 });
 
 const renderDisplayMenu = (c) => ({
-  text: `📋 *TÙY CHỈNH NỘI DUNG*\n\n🔊 Tạo âm thanh bằng nút loa bên dưới mỗi bản dịch.`,
+  text: '📋 *KẾT QUẢ DỊCH*\n\nBản dịch, Pinyin và bản dịch ngược được gộp trong một tin nhắn. Nút 🔊 tạo âm thanh khi bấm.\n\nBật/tắt việc phân tích và lưu từ vựng:',
   keyboard: Markup.inlineKeyboard([
-    [Markup.button.callback(c.showTranslation ? '🟢 Bản dịch: BẬT' : '🔴 Bản dịch: TẮT', 'toggle_trans')],
-    [Markup.button.callback(c.showPronunciation ? '🟢 Phiên âm: BẬT' : '🔴 Phiên âm: TẮT', 'toggle_pron')],
-    [Markup.button.callback(c.showVocabulary ? '🟢 Từ vựng: BẬT' : '🔴 Từ vựng: TẮT', 'toggle_vocab')],
+    [Markup.button.callback(c.showVocabulary ? '💾 Lưu từ vựng: BẬT' : '💾 Lưu từ vựng: TẮT', 'toggle_vocab')],
     [Markup.button.callback('🔙 Quay lại', 'menu_main')]
   ])
 });
