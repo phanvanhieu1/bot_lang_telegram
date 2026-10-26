@@ -1,6 +1,5 @@
 const {
-  getRandomOpenAIClient,
-  getOpenAIKeyCount
+  getShuffledOpenAIClients
 } = require('../providers/openai.provider');
 
 const {
@@ -42,32 +41,26 @@ async function translateFull(
 
   messages.push({ role: 'user', content: userContent });
 
-  let attempts = 0;
-  const maxAttempts = getOpenAIKeyCount();
+  const clients = getShuffledOpenAIClients();
+  if (!clients.length) throw new Error('Chưa cấu hình OPENAI_API_KEYS cho Telegram bot');
 
-  while (attempts < maxAttempts) {
+  let lastError = null;
+  for (const openai of clients) {
     try {
-      const openai = getRandomOpenAIClient();
       const response = await openai.chat.completions.create({
-        model: 'gpt-4o',
-        messages: messages, // Đã bao gồm cả system, history và tin nhắn mới
-        temperature: 0.3,
+        model: 'gpt-4o', messages, temperature: 0.3
       });
-      const content = response.choices[0].message.content.trim();
-
-if (returnUsage) {
-  return {
-    content,
-    usage: response.usage
-  };
-}
-
-return content;
+      const content = response.choices?.[0]?.message?.content?.trim();
+      if (!content) throw new Error('OpenAI returned an empty translation');
+      return returnUsage ? { content, usage: response.usage } : content;
     } catch (error) {
-      attempts++;
-      if (attempts >= maxAttempts) throw new Error('❌ Hết Key.');
+      lastError = error;
+      // Invalid input will fail for every key; do not burn retries.
+      if ([400, 413, 422].includes(error?.status)) throw error;
+      console.error('[Telegram translation] OpenAI attempt failed:', error?.status || error?.code || 'UNKNOWN');
     }
   }
+  throw new Error('Tất cả API key OpenAI đã thử đều không khả dụng', { cause: lastError });
 }
 
 module.exports = {
