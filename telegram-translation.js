@@ -48,4 +48,32 @@ function buildTranslationButtons({ translation, speechId, vocabId, copyInlineBut
   return { inline_keyboard: [row] };
 }
 
-module.exports = { parseTelegramTranslation, buildTranslationButtons };
+// The three learner-facing fields are rendered together in ONE Telegram message.
+// Vocabulary is available via the Save action, never appended as a separate bubble.
+function buildCompactTranslation({ translation, pinyin, backTranslation }) {
+  if (typeof translation !== 'string' || !translation.trim()) {
+    throw new TypeError('Missing primary translation');
+  }
+  const lines = ['📖 ' + translation.trim()];
+  if (typeof pinyin === 'string' && pinyin.trim()) lines.push('🔤 ' + pinyin.trim());
+  if (typeof backTranslation === 'string' && backTranslation.trim()) lines.push('🔁 ' + backTranslation.trim());
+  return lines.join('\n');
+}
+
+const hasHan = text => /[\u3400-\u9FFF]/u.test(String(text || ''));
+
+function getChineseSentence(source, translation) {
+  return hasHan(translation) ? translation : (hasHan(source) ? source : '');
+}
+
+// In the Mandarin workflow, a non-Chinese TRANSLATION is Vietnamese.
+// The language is stored with its translation so later language changes
+// don't affect an existing Telegram speaker button.
+function getSpeechLanguage(source, translation, targetLang) {
+  if (hasHan(translation)) return 'zh';
+  if (targetLang === 'zh') return 'vi';
+  if (/[À-ỹ]/u.test(translation)) return 'vi';
+  return 'other';
+}
+
+module.exports = { parseTelegramTranslation, buildTranslationButtons, buildCompactTranslation, getChineseSentence, getSpeechLanguage };
