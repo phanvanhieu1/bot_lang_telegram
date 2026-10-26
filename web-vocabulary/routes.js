@@ -142,7 +142,7 @@ router.patch('/:entryId',async(req,res)=>{
   try {
     const item=await VocabularyEntry.findOneAndUpdate(
       {_id:req.params.entryId,userId:req.user._id},
-      {$set:updates},{new:true,runValidators:true}).lean();
+      {$set:updates},{returnDocument: 'after',runValidators:true}).lean();
     if(!item) return res.status(404).json({success:false,message:'Không tìm thấy mục'});
     res.json({success:true,item});
   } catch(error) {
