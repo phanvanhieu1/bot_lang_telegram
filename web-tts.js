@@ -5,7 +5,7 @@ const { buildSpeechRequest, CHINESE_VOICE_IDS, VIETNAMESE_VOICE_ID } = require('
 const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_TEXT_LENGTH = 500;
 const VOICE_IDS = CHINESE_VOICE_IDS;
-const SPEEDS = [0.8, 0.9, 1, 1.1, 1.2];
+const SPEEDS = [0.8, 0.9, 1, 1.1, 1.15, 1.2];
 
 const audioSchema = new mongoose.Schema({
   key: { type: String, required: true, unique: true },
