@@ -104,6 +104,7 @@ const PRO_FIELDS = new Set([
   'translation',
   'sourceLanguage',
   'backTranslation',
+  'telegramBackTranslation',
   'pronunciation',
   'vocabulary',
   'vocabularyVersion',
