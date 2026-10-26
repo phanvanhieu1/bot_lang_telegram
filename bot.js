@@ -4,6 +4,7 @@ const crypto = require('node:crypto');
 const { withDownloadedVoice } = require('./telegram-media');
 const { copyInlineButton, splitLongText } = require('./telegram-utils');
 const { exportAnkiCsv } = require('./telegram-vocabulary');
+const { MAIN_MENU, replyMenuOptions } = require('./telegram-main-menu');
 const { parseTelegramTranslation, buildTranslationButtons, buildCompactTranslation, getChineseSentence, getSpeechLanguage } = require('./telegram-translation');
 
 // Import Modules
@@ -29,6 +30,7 @@ const BOT_COMMANDS = [
   { command: 'clearcache', description: '🧹 Xóa cache audio (chỉ Admin)' },
   { command: 'listusers', description: '📋 Xem danh sách người dùng (Chỉ Admin)' },
   { command: 'settings', description: '⚙️ Cài đặt dịch thuật' },
+  { command: 'menu', description: '📱 Hiển thị menu chức năng' },
   { command: 'newchat', description: '🆕 Xóa ngữ cảnh hội thoại hiện tại' }
 ];
 // ==========================================
@@ -86,23 +88,49 @@ bot.command('listusers', async (ctx) => {
   for (const chunk of splitLongText('📋 DANH SÁCH ĐƯỢC CẤP QUYỀN:\n\n' + wl.map((id, i) => `${i+1}. ${id}`).join('\n'))) await ctx.reply(chunk);
 });
 
-// --- CÁC LỆNH MENU TELEGRAM ---
-bot.start(async (ctx) => {
+// --- PERSISTENT TELEGRAM REPLY KEYBOARD ---
+async function sendSettings(ctx) {
   const { text, keyboard } = renderDashboard(getUserConfig(ctx.from.id));
-  await ctx.reply(`${TEST_MODE ? '🧪 *BOT THỬ NGHIỆM*\n\n' : ''}👋 *Chào mừng bạn tới Bot AI (Modular Architecture)!*\nBạn có thể Gõ chữ, Gửi ảnh hoặc Ghi âm để bot dịch thuật.\n\n👉 Bấm /settings để mở cài đặt.`, { parse_mode: 'Markdown' });
-  await ctx.reply(text, { parse_mode: 'Markdown', ...keyboard });
-});
+  return ctx.reply(text, { parse_mode: 'Markdown', ...keyboard });
+}
 
-bot.command('settings', async (ctx) => {
-  const { text, keyboard } = renderDashboard(getUserConfig(ctx.from.id));
-  await ctx.reply(text, { parse_mode: 'Markdown', ...keyboard });
-});
+async function showMainMenu(ctx) {
+  const marker = TEST_MODE ? '🧪 BOT THỬ NGHIỆM\n\n' : '';
+  return ctx.reply(marker + '📖 Gửi văn bản, ảnh hoặc ghi âm để dịch. Chọn chức năng ở menu dưới ô nhập.', replyMenuOptions());
+}
+
+bot.start(showMainMenu);
+bot.command('menu', showMainMenu);
+bot.command('settings', sendSettings);
+
+// The reply keyboard sends text messages, unlike per-translation inline buttons.
+// Register before bot.on('text') so menu labels cannot go through paid translation.
+bot.hears(MAIN_MENU.translate, ctx => ctx.reply('📖 Chế độ dịch đã sẵn sàng. Hãy gửi câu, ảnh hoặc ghi âm.'));
+bot.hears(MAIN_MENU.settings, sendSettings);
+bot.hears(MAIN_MENU.voice, ctx =>
+  { const c = getUserConfig(ctx.from.id);
+    const { text, keyboard } = renderMenu('🎙 *CHỌN GIỌNG TIẾNG TRUNG*', VOICES, c.voiceKey, 'set_voice');
+    return ctx.reply(text, { parse_mode: 'Markdown', ...keyboard });
+  }
+);
+bot.hears(MAIN_MENU.vocabulary, ctx => ctx.reply('📚 Kho từ vựng đang được phát triển. Bạn vẫn có thể lưu bằng 💾 và dùng /export để xuất CSV.'));
+bot.hears(MAIN_MENU.practice, ctx => ctx.reply('📝 Chức năng luyện tập đang được phát triển.'));
+bot.hears(MAIN_MENU.statistics, ctx => ctx.reply('📊 Thống kê học tập đang được phát triển.'));
 
 const editMenu = async (ctx, renderData) => {
+  const options = { parse_mode: 'Markdown', ...renderData.keyboard };
   try {
-    await ctx.editMessageText(renderData.text, { parse_mode: 'Markdown', ...renderData.keyboard });
+    await ctx.editMessageText(renderData.text, options);
   } catch (error) {
-    if (!/message is not modified/i.test(error?.message || '')) throw error;
+    const reason = String(error?.description || error?.message || '');
+    if (!/message is not modified/i.test(reason)) {
+      if (/message to edit not found|message can't be edited|message identifier is not specified|MESSAGE_ID_INVALID/i.test(reason)) {
+        // Old/deleted inline settings message: open a fresh editable menu.
+        await ctx.reply(renderData.text, options);
+      } else {
+        throw error;
+      }
+    }
   }
   await ctx.answerCbQuery();
 };
@@ -115,7 +143,7 @@ bot.action('menu_display', (ctx) => editMenu(ctx, renderDisplayMenu(getUserConfi
 bot.action('menu_close', async (ctx) => { try { await ctx.deleteMessage(); } catch(e){} await ctx.answerCbQuery('Đã đóng'); });
 
 // Thay đổi Ngôn ngữ / Giọng đọc / Tốc độ
-bot.action(/set_(lang|voice|speed)_(.+)/, async (ctx) => {
+bot.action(/^set_(lang|voice|speed)_([a-zA-Z0-9.]+)$/, async (ctx) => {
   const [type, val] = [ctx.match[1], ctx.match[2]];
   const allowed = { lang: LANG_CONFIG, voice: VOICES, speed: SPEED_OPTIONS };
   if (!Object.prototype.hasOwnProperty.call(allowed[type], val)) {
@@ -136,14 +164,11 @@ bot.action(/set_(lang|voice|speed)_(.+)/, async (ctx) => {
   await editMenu(ctx, renderFunc);
 });
 
-// Bật/Tắt Hiển thị và Âm thanh
-bot.action(/toggle_(trans|pron|vocab)/, async (ctx) => {
+// Only vocabulary analysis remains configurable in the compact interface.
+bot.action(/^toggle_vocab$/, async (ctx) => {
   const c = getUserConfig(ctx.from.id);
-  const map = { trans: 'showTranslation', pron: 'showPronunciation', vocab: 'showVocabulary' };
-  
-  c[map[ctx.match[1]]] = !c[map[ctx.match[1]]];
+  c.showVocabulary = !c.showVocabulary;
   saveDatabase();
-  
   await editMenu(ctx, renderDisplayMenu(c));
 });
 
@@ -335,6 +360,7 @@ async function processStudyContent(ctx, text = '', imageUrl = null, statusMsgPre
 // --- MESSAGE HANDLERS: NHẬN SỰ KIỆN ĐẦU VÀO ---
 bot.on('text', async (ctx) => {
   if (ctx.message.text.startsWith('/')) return;
+  if (Object.values(MAIN_MENU).includes(ctx.message.text)) return;
   await processStudyContent(ctx, ctx.message.text.trim(), null, '⏳ Đang phân tích văn bản');
 });
 
