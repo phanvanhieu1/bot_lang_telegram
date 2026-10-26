@@ -39,7 +39,8 @@ const BOT_COMMANDS = [
   { command: 'settings', description: '⚙️ Cài đặt dịch thuật' },
   { command: 'menu', description: '📱 Hiển thị menu chức năng' },
   { command: 'newchat', description: '🆕 Xóa ngữ cảnh hội thoại hiện tại' },
-  { command: 'link', description: '🔗 Liên kết với tài khoản web PRO' }
+  { command: 'link', description: '🔗 Liên kết với tài khoản web PRO' },
+  { command: 'exportlocal', description: '📤 Xuất từ vựng Telegram đã lưu trước đây' }
 ];
 // ==========================================
 // 1. MIDDLEWARE: BẢO VỆ BOT (CHẶN NGƯỜI LẠ)
@@ -319,6 +320,17 @@ bot.command('export', async (ctx) => {
     console.error('Shared vocabulary export failed:', error.message);
     await ctx.reply('⚠️ Không thể xuất kho từ vựng lúc này.');
   }
+});
+
+// Preserve access to older saved JSON vocabulary; never silently delete it.
+bot.command('exportlocal', async (ctx) => {
+  const previous = getVocabulary(ctx.from.id);
+  if (!previous.length) return ctx.reply('📭 Không có từ vựng cũ trong file JSON của Telegram.');
+  const csv = exportAnkiCsv(previous);
+  await ctx.replyWithDocument(
+    { source: Buffer.from(csv, 'utf8'), filename: 'Telegram_Legacy_Vocabulary.csv' },
+    { caption: `📚 Đã xuất ${previous.length} mục từ file JSON cũ. Không ảnh hưởng kho web.` }
+  );
 });
 
 // Clearing Telegram-local legacy data must never delete personal web entries.
