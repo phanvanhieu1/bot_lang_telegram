@@ -49,17 +49,18 @@ test('cache identity includes model, language and voice ID', () => {
   assert.match(bot, /getCachedAudio\(record\.text, ttsRequest\.cacheVoice, speed\)/);
 });
 
-test('one message includes vocabulary only when enabled', () => {
-  const vocab = '- [WORD] 你好: xin chào\n- [PHRASE] 早上好: chào buổi sáng';
-  const base = { translation: '你好！', pinyin: 'nǐ hǎo', backTranslation: 'Xin chào!' };
-  const enabled = buildCompactTranslation({ ...base, vocabulary: vocab });
-  assert.match(enabled, /📝 Từ vựng:/);
-  assert.match(enabled, /\[WORD\] 你好/);
-  assert.match(enabled, /\[PHRASE\] 早上好/);
-  const disabled = buildCompactTranslation(base);
-  assert.equal(disabled.split('\n').length, 3);
-  assert.doesNotMatch(disabled, /Từ vựng/);
+test('primary translation stays concise; vocabulary is a separate Telegram message', () => {
+  const compact = buildCompactTranslation({
+    translation: '你好！', pinyin: 'nǐ hǎo',
+    backTranslation: 'Xin chào!'
+  });
+  assert.equal(compact.split(String.fromCharCode(10)).length, 3);
+  assert.doesNotMatch(compact, /Từ vựng/);
+  const bot = fs.readFileSync(path.join(__dirname, '..', 'bot.js'), 'utf8');
+  assert.match(bot, /const mainMessages = splitLongText/);
+  assert.match(bot, /📝 Từ vựng:/);
 });
+
 
 test('display preferences affect actual Telegram output and persist per user', () => {
   const root = path.join(__dirname, '..');
