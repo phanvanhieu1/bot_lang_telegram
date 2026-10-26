@@ -4,7 +4,7 @@ const { LANG_CONFIG, VOICES, SPEED_OPTIONS } = require('./config');
 const getSpeedKey = speed => Object.keys(SPEED_OPTIONS).find(key => Number(key) === Number(speed)) || '1.0';
 
 const getDisplaySummary = c =>
-  `Bản dịch · Pinyin · Dịch ngược | Lưu từ: ${c.showVocabulary ? 'BẬT' : 'TẮT'}`;
+  `Bản dịch | Pinyin: ${c.showPronunciation ? 'BẬT' : 'TẮT'} | Dịch ngược: ${c.showBackTranslation !== false ? 'BẬT' : 'TẮT'} | Từ vựng: ${c.showVocabulary ? 'BẬT' : 'TẮT'}`;
 
 const renderDashboard = (c) => ({
   text: `⚙️ *BẢNG ĐIỀU KHIỂN CÀI ĐẶT*\n\n🌐 *Ngôn ngữ:* ${LANG_CONFIG[c.targetLang].name}\n🎙 *Giọng tiếng Trung:* ${VOICES[c.voiceKey].name}\n⏩ *Tốc độ:* ${SPEED_OPTIONS[getSpeedKey(c.speed)]}\n📋 *Kết quả:* ${getDisplaySummary(c)}\n🇻🇳 *Giọng tiếng Việt:* Cố định`,
@@ -28,9 +28,11 @@ const renderMenu = (title, configObj, currentVal, prefix) => ({
 });
 
 const renderDisplayMenu = (c) => ({
-  text: '📋 *KẾT QUẢ DỊCH*\n\nBản dịch, Pinyin và bản dịch ngược được gộp trong một tin nhắn. Nút 🔊 tạo âm thanh khi bấm.\n\nBật/tắt việc phân tích và lưu từ vựng:',
+  text: '📋 *TÙY CHỈNH HIỂN THỊ*\n\nBản dịch chính luôn hiển thị. Pinyin, dịch ngược và từ vựng có thể bật/tắt riêng; tất cả trong một tin nhắn.\n\nTừ vựng được phân tích khi BẬT và có thể lưu bằng 💾.',
   keyboard: Markup.inlineKeyboard([
-    [Markup.button.callback(c.showVocabulary ? '💾 Lưu từ vựng: BẬT' : '💾 Lưu từ vựng: TẮT', 'toggle_vocab')],
+    [Markup.button.callback(c.showPronunciation ? '🟢 Pinyin: BẬT' : '🔴 Pinyin: TẮT', 'toggle_pron')],
+    [Markup.button.callback(c.showBackTranslation !== false ? '🟢 Dịch ngược: BẬT' : '🔴 Dịch ngược: TẮT', 'toggle_back')],
+    [Markup.button.callback(c.showVocabulary ? '🟢 Từ vựng: BẬT' : '🔴 Từ vựng: TẮT', 'toggle_vocab')],
     [Markup.button.callback('🔙 Quay lại', 'menu_main')]
   ])
 });
