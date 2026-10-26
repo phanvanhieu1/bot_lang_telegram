@@ -22,7 +22,7 @@ const BOT_COMMANDS = [
   { command: 'start', description: '🏠 Mở Bảng điều khiển Cài đặt' },
   { command: 'export', description: '💾 Xuất Sổ tay từ vựng ra file CSV' },
   { command: 'clearvocab', description: '🗑 Xóa sạch Sổ tay từ vựng' },
-  { command: 'clearcache', description: '🧹 Dọn dẹp ổ cứng (Xóa bộ nhớ đệm audio)' },
+  { command: 'clearcache', description: '🧹 Xóa cache audio (chỉ Admin)' },
   { command: 'listusers', description: '📋 Xem danh sách người dùng (Chỉ Admin)' },
   { command: 'settings', description: '⚙️ Cài đặt dịch thuật' }
 ];
@@ -112,9 +112,13 @@ bot.action('menu_close', async (ctx) => { try { await ctx.deleteMessage(); } cat
 // Thay đổi Ngôn ngữ / Giọng đọc / Tốc độ
 bot.action(/set_(lang|voice|speed)_(.+)/, async (ctx) => {
   const [type, val] = [ctx.match[1], ctx.match[2]];
+  const allowed = { lang: LANG_CONFIG, voice: VOICES, speed: SPEED_OPTIONS };
+  if (!Object.prototype.hasOwnProperty.call(allowed[type], val)) {
+    return ctx.answerCbQuery('Tùy chọn không hợp lệ.');
+  }
   const c = getUserConfig(ctx.from.id);
   const keyMap = { lang: 'targetLang', voice: 'voiceKey', speed: 'speed' };
-  const actualVal = type === 'speed' ? parseFloat(val) : val;
+  const actualVal = type === 'speed' ? Number(val) : val;
   
   if (c[keyMap[type]] === actualVal) return ctx.answerCbQuery('Đang chọn mục này rồi!');
   
@@ -314,14 +318,21 @@ bot.catch(async (error, ctx) => {
   try { await ctx.reply('❌ Có lỗi khi xử lý yêu cầu. Vui lòng thử lại.'); } catch {}
 });
 
-bot.launch().then(async () => {
+async function launchTelegramBot() {
+  await bot.launch();
   console.log('🚀 Telegram bot đã khởi chạy');
   try { await bot.telegram.setMyCommands(BOT_COMMANDS); } catch (error) {
     console.warn('Không thể cập nhật menu Telegram:', error.message);
   }
-}).catch(error => {
-  console.error('Không thể khởi chạy Telegram bot:', error.message);
-  process.exitCode = 1;
-});
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
+}
+
+if (require.main === module) {
+  launchTelegramBot().catch(error => {
+    console.error('Không thể khởi chạy Telegram bot:', error.message);
+    process.exitCode = 1;
+  });
+  process.once('SIGINT', () => bot.stop('SIGINT'));
+  process.once('SIGTERM', () => bot.stop('SIGTERM'));
+}
+
+module.exports = { bot, launchTelegramBot };
