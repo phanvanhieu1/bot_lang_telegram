@@ -89,7 +89,8 @@ test('bot saves linked vocabulary into website model, not its local JSON list', 
   assert.match(bot, /if \(!sharedDbReady\(\)\)/);
   assert.match(vocab, /resolveTranslationVocabulary\(/);
   assert.match(vocab, /VocabularyEntry\.find\(/);
-  assert.match(session, /saveVocabulary/); // legacy file is retained for backward compatibility
+  assert.match(session, /getVocabulary/); // legacy JSON can still be exported
+  assert.doesNotMatch(session, /const saveVocabulary/); // new saves use MongoDB
   assert.doesNotMatch(bot, /saveVocabulary\(ctx.from.id/);
 });
 
