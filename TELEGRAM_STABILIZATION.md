@@ -7,6 +7,7 @@ Branch: `feature/telegram-stabilization` (based on `feature/shared-api-monitorin
 - Translation content is sent as plain text in bounded chunks, avoiding broken Markdown and 4096-character sendMessage failures.
 - Copy buttons are only generated when the translated text fits the Telegram 256-character limit. Longer content remains visible in the message.
 - Per-message vocabulary snapshot tokens: pressing Save on an earlier translation no longer saves the latest translation's vocabulary. Old `save_vocab` buttons ask the user to translate again rather than silently saving incorrect data.
+- `/export` now generates UTF-8 CSV with real Front/Back columns and escaped values for Anki import.
 - A `/clearcache` command for the master admin removes only cached voice files. This does not delete the shared website's translation cache.
 - Voice downloads have a 20-MB cap and use unique temporary directories, removed whether Whisper succeeds or fails.
 - OpenAI translation and Whisper failover now shuffle *distinct* configured keys and never log their prefixes.
