@@ -49,4 +49,12 @@ function copyButtonText(text) {
   return text.length <= MAX_COPY_CHARS ? text : null;
 }
 
-module.exports = { splitLongText, buildStudyMessages, copyButtonText };
+// Telegraf 4.16.3 does not provide Markup.button.copyText(), but the
+// Telegram Bot API accepts an InlineKeyboardButton.copy_text payload.
+function copyInlineButton(text) {
+  const safe = copyButtonText(text);
+  if (!safe) return null;
+  return { text: '📋 Copy bản dịch', copy_text: { text: safe } };
+}
+
+module.exports = { splitLongText, buildStudyMessages, copyButtonText, copyInlineButton };
