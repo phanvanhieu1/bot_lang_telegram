@@ -4,7 +4,7 @@ const crypto = require('node:crypto');
 const { withDownloadedVoice } = require('./telegram-media');
 const { buildStudyMessages, copyInlineButton, splitLongText } = require('./telegram-utils');
 const { exportAnkiCsv } = require('./telegram-vocabulary');
-const { parseTelegramTranslation, buildTranslationButtons } = require('./telegram-translation');
+const { parseTelegramTranslation, buildTranslationButtons, buildCompactTranslation, getChineseSentence, getSpeechLanguage } = require('./telegram-translation');
 
 // Import Modules
 const { Markup } = require('telegraf'); // Đảm bảo import Markup
@@ -14,7 +14,7 @@ const { LANG_CONFIG, VOICES, SPEED_OPTIONS } = require('./config');
 const MASTER_ADMIN = process.env.MASTER_ADMIN;
 const TEST_MODE = process.env.TELEGRAM_TEST_MODE === '1';
 const { renderDashboard, renderMenu, renderDisplayMenu, getSpeedKey } = require('./ui');
-const { translateFull, transcribeVoice, generateSpeech } = require('./ai');
+const { translateFull, transcribeVoice, generateSpeech, generatePinyin } = require('./ai');
 const handleError = require('./errorHandler');
 
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
@@ -198,7 +198,7 @@ bot.action(/^speak_translation_([a-f0-9]{12})$/, async (ctx) => {
   try {
     await ctx.answerCbQuery('🔊 Đang tạo âm thanh...');
     // Use current voice/speed settings, but preserve the original sentence.
-    const voiceKey = c.voiceKey;
+    const voiceKey = record.language === 'vi' ? 'vi' : c.voiceKey;
     const speed = c.speed;
     let audio = getCachedAudio(record.text, voiceKey, speed);
     if (!audio) {
@@ -254,17 +254,22 @@ bot.command('clearcache', async (ctx) => {
 // --- CORE PROCESSOR: XỬ LÝ CHUNG CHO VĂN BẢN, ẢNH, GIỌNG NÓI ---
 async function processStudyContent(ctx, text = '', imageUrl = null, statusMsgPrefix = '⏳ Đang phân tích') {
   const c = getUserConfig(ctx.from.id);
-  const isFast = !c.showTranslation && !c.showPronunciation && !c.showVocabulary;
+  // Telegram always produces the compact translation + Pinyin + back translation format.
+  const isFast = false;
   let statusMsg = null;
   try {
     statusMsg = await ctx.reply(`${statusMsgPrefix}...`);
     let aiResult = null;
     // Dialog context changes the answer; only reuse text cache for a fresh dialog.
     const eligibleForCache = Boolean(text && !imageUrl && c.history.length === 0);
-    if (eligibleForCache) aiResult = getCachedText(text, c.targetLang, isFast);
+    // New cache namespace prevents older bot results missing reverse translations.
+    const cacheText = 'telegram-compact-v1:' + text;
+    if (eligibleForCache) aiResult = getCachedText(cacheText, c.targetLang, isFast);
     if (!aiResult) {
-      aiResult = await translateFull(text, c.targetLang, isFast, imageUrl, c.history);
-      if (eligibleForCache) setCachedText(text, c.targetLang, isFast, aiResult);
+      aiResult = await translateFull(text, c.targetLang, isFast, imageUrl, c.history, false, {
+        telegramMode: true, backTranslation: true, vocabulary: c.showVocabulary
+      });
+      if (eligibleForCache) setCachedText(cacheText, c.targetLang, isFast, aiResult);
     }
     if (typeof aiResult !== 'string' || !aiResult.trim()) {
       throw new Error('AI returned an empty translation');
@@ -276,29 +281,21 @@ async function processStudyContent(ctx, text = '', imageUrl = null, statusMsgPre
     saveDatabase();
 
     const parsed = parseTelegramTranslation(aiResult);
-    const translatedText = parsed.translation; // ONLY this text is copied or spoken.
-    const sections = [];
-    if (isFast || c.showTranslation) {
-      sections.push({ title: isFast ? '⚡ Dịch nhanh:' : '📖 Bản dịch:', body: translatedText });
-    }
-    if (!isFast) {
-      if (c.showTranslation && parsed.backTranslation) {
-        sections.push({ title: '🔁 Bản dịch ngược:', body: parsed.backTranslation });
-      }
-      if (c.showPronunciation && parsed.pronunciation) {
-        sections.push({ title: '🗣 Phiên âm:', body: parsed.pronunciation });
-      }
-      if (c.showVocabulary && parsed.vocabulary) {
-        sections.push({ title: '📝 Từ vựng:', body: parsed.vocabulary });
-      }
-    }
-    if (!sections.length) {
-      // Avoid an empty response if all requested AI sections are missing.
-      sections.push({ title: '📖 Bản dịch:', body: translatedText });
-    }
+    const translatedText = parsed.translation;
+    const chineseText = getChineseSentence(text, translatedText);
+    const pinyin = chineseText && c.targetLang === 'zh' ? generatePinyin(chineseText) : '';
+    const combinedText = buildCompactTranslation({
+      translation: translatedText,
+      pinyin,
+      backTranslation: parsed.backTranslation
+    });
 
     const nonce = crypto.randomBytes(6).toString('hex');
-    c.pendingSpeech[nonce] = { text: translatedText, at: Date.now() };
+    c.pendingSpeech[nonce] = {
+      text: translatedText,
+      language: getSpeechLanguage(text, translatedText, c.targetLang),
+      at: Date.now()
+    };
     for (const old of Object.keys(c.pendingSpeech).slice(0, -30)) delete c.pendingSpeech[old];
 
     let vocabId = null;
@@ -317,10 +314,10 @@ async function processStudyContent(ctx, text = '', imageUrl = null, statusMsgPre
       callbackButton: Markup.button.callback
     });
 
-    const messages = buildStudyMessages(sections);
+    const messages = splitLongText(combinedText);
     for (const [index, message] of messages.entries()) {
       const extra = {};
-      // All icons appear in ONE row below the primary translation message.
+      // All icons appear in ONE row below the compact translation message.
       if (index === 0) extra.reply_markup = actions;
       await ctx.reply(message, extra);
     }
