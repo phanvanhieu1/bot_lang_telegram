@@ -38,7 +38,8 @@ const getUserConfig = (userId) => {
       enableVoice: process.env.TELEGRAM_TEST_MODE === '1' ? Boolean(process.env.ELEVENLABS_API_KEY) : true,
       history: [],  // Thuộc tính mới
       lastVocab: "", // Legacy pending vocab
-      pendingVocabs: {} // Snapshot per translation message
+      pendingVocabs: {}, // Snapshot per translation message
+      pendingSpeech: {} // On-demand speech per translation message
     };
     saveDatabase();
   } 
@@ -75,6 +76,10 @@ const getUserConfig = (userId) => {
     
     if (!userSessions[userId].pendingVocabs || typeof userSessions[userId].pendingVocabs !== 'object' || Array.isArray(userSessions[userId].pendingVocabs)) {
       userSessions[userId].pendingVocabs = {};
+      isUpdated = true;
+    }
+    if (!userSessions[userId].pendingSpeech || typeof userSessions[userId].pendingSpeech !== 'object' || Array.isArray(userSessions[userId].pendingSpeech)) {
+      userSessions[userId].pendingSpeech = {};
       isUpdated = true;
     }
     if (!Object.prototype.hasOwnProperty.call(LANG_CONFIG, userSessions[userId].targetLang)) {
