@@ -3,6 +3,7 @@ const { Telegraf } = require('telegraf');
 const crypto = require('node:crypto');
 const { withDownloadedVoice } = require('./telegram-media');
 const { buildStudyMessages, copyButtonText, splitLongText } = require('./telegram-utils');
+const { exportAnkiCsv } = require('./telegram-vocabulary');
 
 // Import Modules
 const { Markup } = require('telegraf'); // Đảm bảo import Markup
@@ -173,7 +174,7 @@ bot.command('export', async (ctx) => {
   const vocabs = getVocabulary(ctx.from.id);
   if (vocabs.length === 0) return ctx.reply('📭 Sổ tay của bạn đang trống!');
 
-  const csvContent = vocabs.join('\n');
+  const csvContent = exportAnkiCsv(vocabs);
   const buffer = Buffer.from(csvContent, 'utf-8');
   
   await ctx.replyWithDocument(
