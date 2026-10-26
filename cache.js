@@ -2,11 +2,13 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const CACHE_DIR = path.join(__dirname, 'cache_audio');
-const CACHE_DB = path.join(__dirname, 'cache_index.json');
+// Keep the production cache unchanged unless a separate data directory is requested.
+const DATA_DIR = process.env.TELEGRAM_DATA_DIR || __dirname;
+const CACHE_DIR = path.join(DATA_DIR, 'cache_audio');
+const CACHE_DB = path.join(DATA_DIR, 'cache_index.json');
 
 // Tạo thư mục lưu audio nếu chưa có
-if (!fs.existsSync(CACHE_DIR)) fs.mkdirSync(CACHE_DIR);
+if (!fs.existsSync(CACHE_DIR)) fs.mkdirSync(CACHE_DIR, { recursive: true, mode: 0o700 });
 
 let cacheIndex = {};
 if (fs.existsSync(CACHE_DB)) {
