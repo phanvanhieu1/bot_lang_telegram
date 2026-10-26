@@ -109,7 +109,8 @@ async function requestDeepLBatch(texts, targetLang = 'VI') {
   }
 }
 
+const { observed } = require('../../api-monitoring/observe');
 module.exports = {
-  requestDeepL,
-  requestDeepLBatch
+  requestDeepL: (...args) => observed('deepl', 'translate', () => requestDeepL(...args)),
+  requestDeepLBatch: (...args) => observed('deepl', 'vocabulary', () => requestDeepLBatch(...args))
 };
