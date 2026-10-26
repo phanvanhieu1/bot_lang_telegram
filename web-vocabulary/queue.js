@@ -47,7 +47,7 @@ async function captureTranslation({ userId, language, foreignText, context = 'au
   // Atomic claim also works if the old TTL document has not been cleaned up.
   let claimed = await VocabularyRecentInput.findOneAndUpdate(
     { ...filter, expiresAt:{ $lte:new Date() } },
-    { $set:{ expiresAt } },{ new:true }
+    { $set:{ expiresAt } },{ returnDocument: 'after' }
   ).lean();
   if (!claimed) {
     try {
@@ -94,7 +94,7 @@ async function claimJob(userId = null, language = null) {
   return VocabularyJob.findOneAndUpdate(filter, {
     $set:{ status:'processing', lockedUntil:new Date(Date.now()+300000), error:'' },
     $inc:{ attempts:1 }
-  }, { sort:{ createdAt:1 }, new:true }).lean();
+  }, { sort:{ createdAt:1 }, returnDocument: 'after' }).lean();
 }
 
 async function settleJobs(jobs, status, error = '') {
