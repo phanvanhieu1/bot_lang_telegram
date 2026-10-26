@@ -4,6 +4,7 @@ const crypto = require('node:crypto');
 const { withDownloadedVoice } = require('./telegram-media');
 const { buildStudyMessages, copyInlineButton, splitLongText } = require('./telegram-utils');
 const { exportAnkiCsv } = require('./telegram-vocabulary');
+const { parseTelegramTranslation, buildTranslationButtons } = require('./telegram-translation');
 
 // Import Modules
 const { Markup } = require('telegraf'); // Đảm bảo import Markup
@@ -135,15 +136,18 @@ bot.action(/set_(lang|voice|speed)_(.+)/, async (ctx) => {
 });
 
 // Bật/Tắt Hiển thị và Âm thanh
-bot.action(/toggle_(trans|pron|vocab|voice)/, async (ctx) => {
+bot.action(/toggle_(trans|pron|vocab)/, async (ctx) => {
   const c = getUserConfig(ctx.from.id);
-  const map = { trans: 'showTranslation', pron: 'showPronunciation', vocab: 'showVocabulary', voice: 'enableVoice' };
+  const map = { trans: 'showTranslation', pron: 'showPronunciation', vocab: 'showVocabulary' };
   
   c[map[ctx.match[1]]] = !c[map[ctx.match[1]]];
   saveDatabase();
   
   await editMenu(ctx, renderDisplayMenu(c));
 });
+
+// Legacy setting buttons are no longer used; speech is generated on demand.
+bot.action('toggle_voice', ctx => ctx.answerCbQuery('Hãy bấm 🔊 dưới bản dịch để tạo âm thanh.'));
 
 // Each Save button refers to the vocabulary of THAT translation, not the latest.
 bot.action(/^save_vocab_([a-f0-9]{12})$/, async (ctx) => {
@@ -156,13 +160,49 @@ bot.action(/^save_vocab_([a-f0-9]{12})$/, async (ctx) => {
   saveDatabase();
   await ctx.answerCbQuery(saved ? `✅ Đã lưu ${saved} mục từ vựng!` : 'Các từ này đã có trong sổ tay.');
   try {
-    await ctx.editMessageReplyMarkup({ inline_keyboard: [
-      [Markup.button.callback('✅ Đã lưu vào sổ tay', 'noop')]
-    ] });
+    const oldRows = ctx.callbackQuery?.message?.reply_markup?.inline_keyboard || [];
+    const rows = oldRows.map(row => row.map(button =>
+      button.callback_data === 'save_vocab_' + key
+        ? Markup.button.callback('✅', 'noop')
+        : button
+    ));
+    if (rows.length) await ctx.editMessageReplyMarkup({ inline_keyboard: rows });
   } catch (error) {
     if (!/message is not modified/i.test(error?.message || '')) {
       console.warn('Telegram update save button:', error.message);
     }
+  }
+});
+
+
+// The callback resolves the exact translated sentence that produced this button.
+bot.action(/^speak_translation_([a-f0-9]{12})$/, async (ctx) => {
+  const c = getUserConfig(ctx.from.id);
+  const record = c.pendingSpeech?.[ctx.match[1]];
+  if (!record || !record.text || typeof record.at !== 'number' ||
+      Date.now() - record.at > 7 * 24 * 60 * 60 * 1000) {
+    return ctx.answerCbQuery('Bản dịch này đã hết hạn. Hãy dịch lại.');
+  }
+  if (record.text.length > 500) {
+    return ctx.answerCbQuery('Giọng đọc chỉ hỗ trợ câu tối đa 500 ký tự.', { show_alert: true });
+  }
+  if (!process.env.ELEVENLABS_API_KEY) {
+    return ctx.answerCbQuery('Chưa cấu hình ElevenLabs cho bot này.', { show_alert: true });
+  }
+  await ctx.answerCbQuery('🔊 Đang tạo âm thanh...');
+  try {
+    // Use current voice/speed settings, but preserve the original sentence.
+    const voiceKey = c.voiceKey;
+    const speed = c.speed;
+    let audio = getCachedAudio(record.text, voiceKey, speed);
+    if (!audio) {
+      audio = await generateSpeech(record.text, voiceKey, speed);
+      setCachedAudio(record.text, voiceKey, speed, audio);
+    }
+    await ctx.replyWithVoice({ source: audio, filename: 'translation.mp3' });
+  } catch (error) {
+    console.warn('Telegram on-demand TTS error:', error?.status || error?.code || error?.message);
+    await ctx.reply('⚠️ Không thể tạo âm thanh lúc này. Bạn có thể thử lại bằng nút 🔊.');
   }
 });
 
@@ -227,55 +267,49 @@ async function processStudyContent(ctx, text = '', imageUrl = null, statusMsgPre
     if (c.history.length > 5) c.history.splice(0, c.history.length - 5);
     saveDatabase();
 
-    const sections = [];
-    let translatedText = aiResult.trim();
-    const buttons = [];
-    if (isFast) {
-      sections.push({ title: '⚡ Dịch nhanh:', body: translatedText });
-    } else {
-      const trans = (aiResult.match(/TRANSLATION:\s*([\s\S]*?)(?=PRONUNCIATION:|VOCABULARY:|$)/i) || [])[1]?.trim();
-      const pron = (aiResult.match(/PRONUNCIATION:\s*([\s\S]*?)(?=VOCABULARY:|$)/i) || [])[1]?.trim();
-      const vocab = (aiResult.match(/VOCABULARY:\s*([\s\S]*)/i) || [])[1]?.trim();
-      translatedText = trans || aiResult.split('\n')[0].trim();
-      if (c.showTranslation) sections.push({ title: '📖 Bản dịch:', body: translatedText });
-      if (c.showPronunciation && pron) sections.push({ title: '🗣 Phiên âm:', body: pron });
-      if (c.showVocabulary && vocab) {
-        sections.push({ title: '📝 Từ vựng:', body: vocab });
-        const nonce = crypto.randomBytes(6).toString('hex');
-        c.pendingVocabs[nonce] = vocab;
-        // Bound persisted pending data.
-        const keys = Object.keys(c.pendingVocabs);
-        for (const old of keys.slice(0, -20)) delete c.pendingVocabs[old];
-        saveDatabase();
-        buttons.push([Markup.button.callback('💾 Lưu cụm từ vựng này', 'save_vocab_' + nonce)]);
+    const parsed = parseTelegramTranslation(aiResult);
+    const translatedText = parsed.translation; // ONLY this text is copied or spoken.
+    const sections = [{ title: isFast ? '⚡ Dịch nhanh:' : '📖 Bản dịch:', body: translatedText }];
+    if (!isFast) {
+      if (c.showTranslation && parsed.backTranslation) {
+        sections.push({ title: '🔁 Bản dịch ngược:', body: parsed.backTranslation });
+      }
+      if (c.showPronunciation && parsed.pronunciation) {
+        sections.push({ title: '🗣 Phiên âm:', body: parsed.pronunciation });
+      }
+      if (c.showVocabulary && parsed.vocabulary) {
+        sections.push({ title: '📝 Từ vựng:', body: parsed.vocabulary });
       }
     }
-    if (!sections.length) sections.push({ title: '📖 Kết quả:', body: translatedText });
-    const copyButton = copyInlineButton(translatedText);
-    if (copyButton) buttons.unshift([copyButton]);
+
+    const nonce = crypto.randomBytes(6).toString('hex');
+    c.pendingSpeech[nonce] = { text: translatedText, at: Date.now() };
+    for (const old of Object.keys(c.pendingSpeech).slice(0, -30)) delete c.pendingSpeech[old];
+
+    let vocabId = null;
+    if (!isFast && c.showVocabulary && parsed.vocabulary) {
+      vocabId = nonce;
+      c.pendingVocabs[vocabId] = parsed.vocabulary;
+      for (const old of Object.keys(c.pendingVocabs).slice(0, -30)) delete c.pendingVocabs[old];
+    }
+    saveDatabase();
+
+    const actions = buildTranslationButtons({
+      translation: translatedText,
+      speechId: nonce,
+      vocabId,
+      copyInlineButton,
+      callbackButton: Markup.button.callback
+    });
 
     const messages = buildStudyMessages(sections);
     for (const [index, message] of messages.entries()) {
       const extra = {};
-      // Buttons are attached once to the result, not repeated on every chunk.
-      if (index === 0 && buttons.length) extra.reply_markup = { inline_keyboard: buttons };
+      // All icons appear in ONE row below the primary translation message.
+      if (index === 0) extra.reply_markup = actions;
       await ctx.reply(message, extra);
     }
 
-    if (c.enableVoice && translatedText) {
-      try {
-        let audio = getCachedAudio(translatedText, c.voiceKey, c.speed);
-        if (!audio) {
-          audio = await generateSpeech(translatedText, c.voiceKey, c.speed);
-          setCachedAudio(translatedText, c.voiceKey, c.speed, audio);
-        }
-        // ElevenLabs returns MP3. Telegram sendVoice supports MP3 uploads.
-        await ctx.replyWithVoice({ source: audio, filename: 'translation.mp3' });
-      } catch (error) {
-        console.error('Telegram TTS:', error?.status || error?.code || error?.message);
-        await ctx.reply('⚠️ Bản dịch đã gửi thành công, nhưng chưa thể tạo giọng đọc.');
-      }
-    }
   } catch (error) {
     await handleError(error, ctx);
   } finally {
