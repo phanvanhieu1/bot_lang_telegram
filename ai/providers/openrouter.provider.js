@@ -67,6 +67,7 @@ function getHeaderNumber(headers, name) {
     : null;
 }
 
+const { observed } = require('../../api-monitoring/observe');
 module.exports = {
-  requestOpenRouter
+  requestOpenRouter: (...args) => observed('openrouter', 'translate', () => requestOpenRouter(...args))
 };
