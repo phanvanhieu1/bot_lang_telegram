@@ -7,6 +7,7 @@ const { exportAnkiCsv } = require('./telegram-vocabulary');
 const { translateViaSharedCache, ready: sharedDbReady } = require('./telegram-sync/cache');
 const { connectTelegram, findLinkedUser } = require('./telegram-sync/link');
 const { saveLinkedVocabulary, exportLinkedVocabulary } = require('./telegram-sync/vocabulary');
+const { syncTelegramPreferences } = require('./telegram-sync/preferences');
 const connectDatabase = require('./config/database');
 const { MAIN_MENU, replyMenuOptions } = require('./telegram-main-menu');
 const { parseTelegramTranslation, buildTranslationButtons, buildCompactTranslation, getChineseSentence, getSpeechLanguage } = require('./telegram-translation');
@@ -62,6 +63,10 @@ bot.use(async (ctx, next) => {
     }
   }
 });
+
+// MongoDB is the durable store for per-user Telegram display settings.
+// The test bot uses its own namespace so experiments do not change production bot preferences.
+bot.use(syncTelegramPreferences);
 
 // ==========================================
 // 2. CÁC LỆNH DÀNH RIÊNG CHO ADMIN
