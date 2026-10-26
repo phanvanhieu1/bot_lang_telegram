@@ -2,8 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { LANG_CONFIG, VOICES, SPEED_OPTIONS } = require('./config');
 
-// The production bot uses the repository's legacy data files.
- // The test entry point sets TELEGRAM_DATA_DIR before this module is loaded.
+// Keep existing JSON data readable. Test mode uses a separate directory.
 const DATA_DIR = process.env.TELEGRAM_DATA_DIR || __dirname;
 if (process.env.TELEGRAM_DATA_DIR) fs.mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 });
 const DB_PATH = path.join(DATA_DIR, 'database.json');
@@ -23,7 +22,17 @@ if (fs.existsSync(DB_PATH)) {
   }
 }
 
-const saveDatabase = () => fs.writeFileSync(DB_PATH, JSON.stringify(userSessions, null, 2), 'utf8');
+// Atomic replacement: a process crash must not leave a truncated JSON session.
+function atomicWrite(file, data) {
+  const temp = file + '.' + process.pid + '.tmp';
+  try {
+    fs.writeFileSync(temp, JSON.stringify(data, null, 2), { encoding:'utf8', mode:0o600 });
+    fs.renameSync(temp, file);
+  } finally {
+    if (fs.existsSync(temp)) fs.unlinkSync(temp);
+  }
+}
+const saveDatabase = () => atomicWrite(DB_PATH, userSessions);
 
 const getUserConfig = (userId) => {
   // 1. NẾU LÀ NGƯỜI DÙNG HOÀN TOÀN MỚI
@@ -32,13 +41,9 @@ const getUserConfig = (userId) => {
       targetLang: 'zh', 
       voiceKey: 'female1', 
       speed: 1.0, 
-      showTranslation: true, 
       showPronunciation: true,
       showBackTranslation: true,
-      showVocabulary: true, 
-      enableVoice: process.env.TELEGRAM_TEST_MODE === '1' ? Boolean(process.env.ELEVENLABS_API_KEY) : true,
-      history: [],  // Thuộc tính mới
-      lastVocab: "", // Legacy pending vocab
+      showVocabulary: true,
       pendingVocabs: {}, // Snapshot per translation message
       pendingSpeech: {} // On-demand speech per translation message
     };
@@ -49,8 +54,8 @@ const getUserConfig = (userId) => {
     let isUpdated = false;
     const defaults = {
       targetLang: 'zh', voiceKey: 'female1', speed: 1,
-      showTranslation: true, showPronunciation: true,
-      showBackTranslation: true, showVocabulary: true, enableVoice: true
+      showPronunciation: true,
+      showBackTranslation: true, showVocabulary: true
     };
     for (const [key, value] of Object.entries(defaults)) {
       if (userSessions[userId][key] === undefined) {
@@ -58,23 +63,6 @@ const getUserConfig = (userId) => {
         isUpdated = true;
       }
     }
-    if (!Array.isArray(userSessions[userId].history)) {
-      userSessions[userId].history = [];
-      isUpdated = true;
-    }
-    
-    // Nếu dữ liệu cũ chưa có mảng history -> Khởi tạo mảng rỗng
-    if (!userSessions[userId].history) {
-      userSessions[userId].history = [];
-      isUpdated = true;
-    }
-    
-    // Nếu dữ liệu cũ chưa có biến lưu từ vựng -> Khởi tạo chuỗi rỗng
-    if (userSessions[userId].lastVocab === undefined) {
-      userSessions[userId].lastVocab = "";
-      isUpdated = true;
-    }
-    
     if (!userSessions[userId].pendingVocabs || typeof userSessions[userId].pendingVocabs !== 'object' || Array.isArray(userSessions[userId].pendingVocabs)) {
       userSessions[userId].pendingVocabs = {};
       isUpdated = true;
@@ -116,7 +104,7 @@ function readDataFile(file, fallback) {
   }
 }
 let whitelist = readDataFile(WL_PATH, []);
-const saveWhitelist = () => fs.writeFileSync(WL_PATH, JSON.stringify(whitelist, null, 2), 'utf8');
+const saveWhitelist = () => atomicWrite(WL_PATH, whitelist);
 const isAuthorized = (userId) => whitelist.includes(userId.toString());
 const addAuthorizedUser = (userId) => { if (!whitelist.includes(userId.toString())) { whitelist.push(userId.toString()); saveWhitelist(); } };
 const removeAuthorizedUser = (userId) => { whitelist = whitelist.filter(id => id !== userId.toString()); saveWhitelist(); };
@@ -124,29 +112,12 @@ const getWhitelist = () => whitelist;
 
 // --- 3. QUẢN LÝ TỪ VỰNG (FLASHCARD) ---
 let userVocabs = readDataFile(VOCAB_PATH, {});
-const saveVocabDB = () => fs.writeFileSync(VOCAB_PATH, JSON.stringify(userVocabs, null, 2), 'utf8');
-
-const saveVocabulary = (userId, vocabText) => {
-  if (!userVocabs[userId]) userVocabs[userId] = [];
-  // Tách từng dòng từ vựng và đẩy vào mảng
-  const lines = vocabText.split('\n').filter(l => l.trim().startsWith('-'));
-  const existing = new Set(userVocabs[userId]);
-  const unique = lines.filter(line => {
-    const item = line.trim();
-    if (existing.has(item)) return false;
-    existing.add(item);
-    return true;
-  }).map(line => line.trim());
-  userVocabs[userId].push(...unique);
-  if (unique.length) saveVocabDB();
-  return unique.length;
-};
+// Legacy JSON is read-only, for /exportlocal. New saves use MongoDB.
 
 const getVocabulary = (userId) => userVocabs[userId] || [];
-const clearVocabulary = (userId) => { userVocabs[userId] = []; saveVocabDB(); };
 
 module.exports = { 
   getUserConfig, saveDatabase, 
   isAuthorized, addAuthorizedUser, removeAuthorizedUser, getWhitelist,
-  saveVocabulary, getVocabulary, clearVocabulary
+  getVocabulary
 };
