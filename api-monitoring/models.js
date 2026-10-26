@@ -8,7 +8,7 @@ const eventSchema = new mongoose.Schema({
   status: { type: Number, required: true },
   latencyMs: { type: Number, default: 0, min: 0 },
   tokens: { type: Number, default: 0, min: 0 },
-  costUsd: { type: Number, default: 0, min: 0 },
+  costUsd: { type: Number, default: null, min: 0 },
   at: { type: Date, default: Date.now, expires: 30 * 24 * 3600 }
 }, { versionKey: false });
 eventSchema.index({ project: 1, provider: 1, at: -1 });
