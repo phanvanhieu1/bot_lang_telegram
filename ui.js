@@ -1,6 +1,8 @@
 const { Markup } = require('telegraf');
 const { LANG_CONFIG, VOICES, SPEED_OPTIONS } = require('./config');
 
+const getSpeedKey = speed => Object.keys(SPEED_OPTIONS).find(key => Number(key) === Number(speed)) || '1.0';
+
 const getDisplaySummary = (c) => {
   const parts = [
     c.showTranslation ? 'Bản' : '', 
@@ -15,7 +17,7 @@ const getDisplaySummary = (c) => {
 };
 
 const renderDashboard = (c) => ({
-  text: `⚙️ *BẢNG ĐIỀU KHIỂN CÀI ĐẶT*\n\n🌐 *Ngôn ngữ:* ${LANG_CONFIG[c.targetLang].name}\n🎙 *Giọng đọc:* ${VOICES[c.voiceKey].name}\n⏩ *Tốc độ:* ${SPEED_OPTIONS[c.speed] || c.speed+'x'}\n📋 *Hiển thị:* ${getDisplaySummary(c)}`,
+  text: `⚙️ *BẢNG ĐIỀU KHIỂN CÀI ĐẶT*\n\n🌐 *Ngôn ngữ:* ${LANG_CONFIG[c.targetLang].name}\n🎙 *Giọng đọc:* ${VOICES[c.voiceKey].name}\n⏩ *Tốc độ:* ${SPEED_OPTIONS[getSpeedKey(c.speed)]}\n📋 *Hiển thị:* ${getDisplaySummary(c)}`,
   keyboard: Markup.inlineKeyboard([
     [Markup.button.callback('🌐 Đổi Ngôn ngữ', 'menu_lang'), Markup.button.callback('🎙 Đổi Giọng đọc', 'menu_voice')],
     [Markup.button.callback('⏩ Đổi Tốc độ', 'menu_speed'), Markup.button.callback('📋 Tùy chỉnh hiển thị', 'menu_display')],
@@ -46,4 +48,4 @@ const renderDisplayMenu = (c) => ({
   ])
 });
 
-module.exports = { renderDashboard, renderMenu, renderDisplayMenu };
+module.exports = { renderDashboard, renderMenu, renderDisplayMenu, getSpeedKey };
