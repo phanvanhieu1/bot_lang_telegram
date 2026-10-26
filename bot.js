@@ -2,7 +2,7 @@ require('dotenv').config();
 const { Telegraf } = require('telegraf');
 const crypto = require('node:crypto');
 const { withDownloadedVoice } = require('./telegram-media');
-const { buildStudyMessages, copyButtonText, splitLongText } = require('./telegram-utils');
+const { buildStudyMessages, copyInlineButton, splitLongText } = require('./telegram-utils');
 const { exportAnkiCsv } = require('./telegram-vocabulary');
 
 // Import Modules
@@ -251,8 +251,8 @@ async function processStudyContent(ctx, text = '', imageUrl = null, statusMsgPre
       }
     }
     if (!sections.length) sections.push({ title: '📖 Kết quả:', body: translatedText });
-    const copy = copyButtonText(translatedText);
-    if (copy) buttons.unshift([Markup.button.copyText('📋 Copy bản dịch', copy)]);
+    const copyButton = copyInlineButton(translatedText);
+    if (copyButton) buttons.unshift([copyButton]);
 
     const messages = buildStudyMessages(sections);
     for (const [index, message] of messages.entries()) {
