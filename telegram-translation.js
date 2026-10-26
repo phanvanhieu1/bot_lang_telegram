@@ -62,8 +62,12 @@ function buildCompactTranslation({ translation, pinyin, backTranslation }) {
 
 const hasHan = text => /[\u3400-\u9FFF]/u.test(String(text || ''));
 
-function getChineseSentence(source, translation) {
-  return hasHan(translation) ? translation : (hasHan(source) ? source : '');
+function getChineseSentence(source, translation, backTranslation = '') {
+  if (hasHan(translation)) return translation;
+  if (hasHan(source)) return source;
+  // Photo messages have no recognized source text until AI responds.
+  if (hasHan(backTranslation)) return backTranslation;
+  return '';
 }
 
 // In the Mandarin workflow, a non-Chinese TRANSLATION is Vietnamese.
