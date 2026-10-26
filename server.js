@@ -1,7 +1,7 @@
 require('dotenv').config();
 
 const { pinyin } = require('pinyin-pro');
-const { getChineseAudio } = require('./web-tts');
+const { getChineseAudio, getVietnameseAudio } = require('./web-tts');
 const { translateChatImage } = require('./web-image-translate');
 const vocabularyRoutes = require('./web-vocabulary/routes');
 const { startVocabularyWorker } = require('./web-vocabulary/worker');
@@ -357,6 +357,23 @@ app.post('/api/tts/chinese', requireAuth, async (req, res) => {
     return res.status(error.status || 502).json({
       success: false,
       message: error.status === 400 ? error.message : 'Không thể tạo giọng đọc lúc này'
+    });
+  }
+});
+
+// Vietnamese ElevenLabs voice is fixed server-side and available to PRO users.
+app.post('/api/tts/vietnamese', requirePro, async (req, res) => {
+  try {
+    const { audio, cached } = await getVietnameseAudio(req.body?.text, req.body?.speed);
+    res.set('Content-Type', 'audio/mpeg');
+    res.set('Cache-Control', 'private, no-store');
+    res.set('X-Audio-Cache', cached ? 'HIT' : 'MISS');
+    return res.send(audio);
+  } catch (error) {
+    console.error('Vietnamese TTS error:', error.message);
+    return res.status(error.status || 502).json({
+      success: false,
+      message: error.status === 400 ? error.message : 'Không thể tạo giọng đọc tiếng Việt lúc này'
     });
   }
 });
