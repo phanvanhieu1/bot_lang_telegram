@@ -11,9 +11,7 @@ const getDisplaySummary = (c) => {
   ].filter(Boolean);
   
   const textSummary = parts.length > 0 ? parts.join('-') : '⚡ Siêu Tốc';
-  const voiceSummary = c.enableVoice ? '🔊 Đọc' : '🔇 Câm';
-  
-  return `${textSummary} | ${voiceSummary}`;
+  return textSummary;
 };
 
 const renderDashboard = (c) => ({
@@ -38,12 +36,11 @@ const renderMenu = (title, configObj, currentVal, prefix) => ({
 });
 
 const renderDisplayMenu = (c) => ({
-  text: `📋 *TÙY CHỈNH NỘI DUNG & ÂM THANH*`,
+  text: `📋 *TÙY CHỈNH NỘI DUNG*\n\n🔊 Tạo âm thanh bằng nút loa bên dưới mỗi bản dịch.`,
   keyboard: Markup.inlineKeyboard([
     [Markup.button.callback(c.showTranslation ? '🟢 Bản dịch: BẬT' : '🔴 Bản dịch: TẮT', 'toggle_trans')],
     [Markup.button.callback(c.showPronunciation ? '🟢 Phiên âm: BẬT' : '🔴 Phiên âm: TẮT', 'toggle_pron')],
     [Markup.button.callback(c.showVocabulary ? '🟢 Từ vựng: BẬT' : '🔴 Từ vựng: TẮT', 'toggle_vocab')],
-    [Markup.button.callback(c.enableVoice ? '🔊 Giọng đọc AI: BẬT' : '🔇 Giọng đọc AI: TẮT', 'toggle_voice')],
     [Markup.button.callback('🔙 Quay lại', 'menu_main')]
   ])
 });
