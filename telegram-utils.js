@@ -54,7 +54,7 @@ function copyButtonText(text) {
 function copyInlineButton(text) {
   const safe = copyButtonText(text);
   if (!safe) return null;
-  return { text: '📋 Copy bản dịch', copy_text: { text: safe } };
+  return { text: '📋', copy_text: { text: safe } };
 }
 
 module.exports = { splitLongText, buildStudyMessages, copyButtonText, copyInlineButton };
