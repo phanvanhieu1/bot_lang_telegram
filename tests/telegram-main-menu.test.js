@@ -130,6 +130,11 @@ test('settings actions do not change hidden legacy toggles or translate menu lab
     './telegram-media': {},
     './ai': { translateFull: async () => { translations++; } },
     './ai/services/speech.service': { resolveBotSpeech: () => ({ cacheVoice: 'test' }) },
+    './telegram-sync/cache': { ready: () => false, translateViaSharedCache: async () => ({}) },
+    './telegram-sync/link': { connectTelegram: async () => ({ ok: false }), findLinkedUser: async () => null },
+    './telegram-sync/vocabulary': { saveLinkedVocabulary: async () => ({}), exportLinkedVocabulary: async () => ({}) },
+    './telegram-sync/preferences': { syncTelegramPreferences: async (ctx, next) => next() },
+    './config/database': async () => {},
     './errorHandler': async () => {}
   };
   const fakeModule = { exports: {} };
@@ -230,5 +235,5 @@ test('settings actions do not change hidden legacy toggles or translate menu lab
 
 test('translation cache varies with vocabulary settings', () => {
   const bot = fs.readFileSync(path.join(__dirname, '..', 'bot.js'), 'utf8');
-  assert.match(bot, /telegram-compact-v2:vocab=/);
+  assert.match(bot, /translateViaSharedCache\(text, c\.targetLang, c\.showVocabulary\)/);
 });
