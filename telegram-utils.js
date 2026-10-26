@@ -21,9 +21,9 @@ function splitLongText(value, limit = MAX_MESSAGE_CHARS) {
     const search = remaining.slice(Math.floor(end * 0.6), end);
     const spaceAt = Math.max(search.lastIndexOf(' '), search.lastIndexOf(String.fromCharCode(10)));
     if (spaceAt >= 0) end = Math.floor(end * 0.6) + spaceAt + 1;
-    const piece = remaining.slice(0, end).trimEnd();
-    if (piece) chunks.push(piece);
-    remaining = remaining.slice(end).trimStart();
+    const piece = remaining.slice(0, end);
+    chunks.push(piece);
+    remaining = remaining.slice(end);
   }
   return chunks;
 }
