@@ -16,14 +16,14 @@ function splitLongText(value, limit = MAX_MESSAGE_CHARS) {
       break;
     }
     let end = limit;
-    // Never split a surrogate pair (e.g. an emoji).
-    if (end < remaining.length && /[\\uD800-\\uDBFF]/.test(remaining[end - 1])) end--;
+    const char = remaining.charCodeAt(end - 1);
+    if (end < remaining.length && char >= 0xD800 && char <= 0xDBFF) end--;
     const search = remaining.slice(Math.floor(end * 0.6), end);
-    const spaceAt = Math.max(search.lastIndexOf(' '), search.lastIndexOf('\\n'));
+    const spaceAt = Math.max(search.lastIndexOf(' '), search.lastIndexOf(String.fromCharCode(10)));
     if (spaceAt >= 0) end = Math.floor(end * 0.6) + spaceAt + 1;
     const piece = remaining.slice(0, end).trimEnd();
     if (piece) chunks.push(piece);
-    remaining = remaining.slice(end).replace(/^\\s+/, '');
+    remaining = remaining.slice(end).trimStart();
   }
   return chunks;
 }
