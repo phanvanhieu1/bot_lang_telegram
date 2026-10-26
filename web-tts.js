@@ -10,6 +10,7 @@ const VOICE_IDS = [
   'BqljjWyTnrioXPCNkCd4'
 ];
 const SPEEDS = [0.8, 0.9, 1, 1.1, 1.2];
+const VIETNAMESE_VOICE_ID = 'CQAD6iKxS73fEAGjSwt5';
 
 const audioSchema = new mongoose.Schema({
   key: { type: String, required: true, unique: true },
@@ -24,9 +25,10 @@ function hasChinese(text) {
   return /[\u3400-\u9FFF]/u.test(text);
 }
 
-async function getChineseAudio(text, requestedVoiceId, requestedSpeed) {
-  if (typeof text !== 'string' || !text.trim() || text.length > MAX_TEXT_LENGTH || !hasChinese(text)) {
-    const error = new Error('Chỉ hỗ trợ câu tiếng Trung tối đa 500 ký tự');
+async function getElevenLabsAudio(text, requestedVoiceId, requestedSpeed, language) {
+  const vietnamese = language === 'vi';
+  if (typeof text !== 'string' || !text.trim() || text.length > MAX_TEXT_LENGTH || (vietnamese ? (hasChinese(text) || !/[A-Za-zÀ-ỹ]/u.test(text)) : !hasChinese(text))) {
+    const error = new Error(vietnamese ? 'Chỉ hỗ trợ câu tiếng Việt tối đa 500 ký tự' : 'Chỉ hỗ trợ câu tiếng Trung tối đa 500 ký tự');
     error.status = 400;
     throw error;
   }
@@ -38,17 +40,15 @@ async function getChineseAudio(text, requestedVoiceId, requestedSpeed) {
   const normalized = text.trim();
   const model = process.env.ELEVENLABS_MODEL_ID || 'eleven_flash_v2_5';
   // Voice must be chosen for Mandarin in the ElevenLabs voice library.
-  const voiceId = requestedVoiceId === undefined
-    ? VOICE_IDS[0]
-    : requestedVoiceId;
+  const voiceId = vietnamese ? VIETNAMESE_VOICE_ID : (requestedVoiceId === undefined ? VOICE_IDS[0] : requestedVoiceId);
   const speed = requestedSpeed === undefined ? 1 : requestedSpeed;
-  if (!VOICE_IDS.includes(voiceId) || !SPEEDS.includes(speed)) {
+  if ((!vietnamese && !VOICE_IDS.includes(voiceId)) || !SPEEDS.includes(speed)) {
     const error = new Error('Giọng đọc hoặc tốc độ không hợp lệ');
     error.status = 400;
     throw error;
   }
   const key = crypto.createHash('sha256')
-    .update(JSON.stringify(['elevenlabs', model, voiceId, speed, normalized]))
+    .update(JSON.stringify(['elevenlabs', language, model, voiceId, speed, normalized]))
     .digest('hex');
   const cached = await AudioCache.findOne({ key, expiresAt: { $gt: new Date() } }).lean();
   if (cached) {
@@ -109,4 +109,12 @@ async function getChineseAudio(text, requestedVoiceId, requestedSpeed) {
   return { audio, cached: false };
 }
 
-module.exports = { getChineseAudio };
+async function getChineseAudio(text, requestedVoiceId, requestedSpeed) {
+  return getElevenLabsAudio(text, requestedVoiceId, requestedSpeed, 'zh');
+}
+
+async function getVietnameseAudio(text, requestedSpeed) {
+  return getElevenLabsAudio(text, VIETNAMESE_VOICE_ID, requestedSpeed, 'vi');
+}
+
+module.exports = { getChineseAudio, getVietnameseAudio, VIETNAMESE_VOICE_ID };
