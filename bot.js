@@ -1,14 +1,13 @@
 require('dotenv').config();
 const { Telegraf } = require('telegraf');
-const axios = require('axios');
-const fs = require('fs');
-const os = require('os');
-const path = require('path');
+const crypto = require('node:crypto');
+const { withDownloadedVoice } = require('./telegram-media');
+const { buildStudyMessages, copyButtonText, splitLongText } = require('./telegram-utils');
 
 // Import Modules
 const { Markup } = require('telegraf'); // Đảm bảo import Markup
 const { getUserConfig, saveDatabase, isAuthorized, addAuthorizedUser, removeAuthorizedUser, getWhitelist, saveVocabulary, getVocabulary, clearVocabulary } = require('./session');
-const { getCachedText, setCachedText, getCachedAudio, setCachedAudio } = require('./cache');
+const { getCachedText, setCachedText, getCachedAudio, setCachedAudio, clearAudioCache } = require('./cache');
 const { LANG_CONFIG, VOICES, SPEED_OPTIONS } = require('./config');
 const MASTER_ADMIN = process.env.MASTER_ADMIN;
 const { renderDashboard, renderMenu, renderDisplayMenu } = require('./ui');
@@ -19,13 +18,14 @@ const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 // ==========================================
 // CÀI ĐẶT MENU BUTTON TỰ ĐỘNG CHO TELEGRAM
 // ==========================================
-bot.telegram.setMyCommands([
+const BOT_COMMANDS = [
   { command: 'start', description: '🏠 Mở Bảng điều khiển Cài đặt' },
   { command: 'export', description: '💾 Xuất Sổ tay từ vựng ra file CSV' },
   { command: 'clearvocab', description: '🗑 Xóa sạch Sổ tay từ vựng' },
   { command: 'clearcache', description: '🧹 Dọn dẹp ổ cứng (Xóa bộ nhớ đệm audio)' },
-  { command: 'listusers', description: '📋 Xem danh sách người dùng (Chỉ Admin)' }
-]);
+  { command: 'listusers', description: '📋 Xem danh sách người dùng (Chỉ Admin)' },
+  { command: 'settings', description: '⚙️ Cài đặt dịch thuật' }
+];
 // ==========================================
 // 1. MIDDLEWARE: BẢO VỆ BOT (CHẶN NGƯỜI LẠ)
 // ==========================================
@@ -57,9 +57,8 @@ bot.command('adduser', async (ctx) => {
   if (ctx.from.id.toString() !== MASTER_ADMIN) return;
   
   const args = ctx.message.text.split(' ');
-  if (args.length < 2) return ctx.reply('⚠️ *Cú pháp:* `/adduser <Telegram_ID>`', { parse_mode: 'Markdown' });
-  
   const newId = args[1];
+  if (!/^\d{5,20}$/.test(newId || '')) return ctx.reply('⚠️ Cú pháp: /adduser <Telegram_ID dạng số>');
   addAuthorizedUser(newId);
   ctx.reply(`✅ Đã cấp quyền sử dụng Bot cho ID: \`${newId}\``, { parse_mode: 'Markdown' });
 });
@@ -68,9 +67,8 @@ bot.command('removeuser', async (ctx) => {
   if (ctx.from.id.toString() !== MASTER_ADMIN) return;
   
   const args = ctx.message.text.split(' ');
-  if (args.length < 2) return ctx.reply('⚠️ *Cú pháp:* `/removeuser <Telegram_ID>`', { parse_mode: 'Markdown' });
-  
   const targetId = args[1];
+  if (!/^\d{5,20}$/.test(targetId || '')) return ctx.reply('⚠️ Cú pháp: /removeuser <Telegram_ID dạng số>');
   if (targetId === MASTER_ADMIN) return ctx.reply('❌ Bạn không thể tự xóa quyền của chính mình!');
   
   removeAuthorizedUser(targetId);
@@ -96,7 +94,11 @@ bot.command('settings', async (ctx) => {
 });
 
 const editMenu = async (ctx, renderData) => {
-  try { await ctx.editMessageText(renderData.text, { parse_mode: 'Markdown', ...renderData.keyboard }); } catch (e) {}
+  try {
+    await ctx.editMessageText(renderData.text, { parse_mode: 'Markdown', ...renderData.keyboard });
+  } catch (error) {
+    if (!/message is not modified/i.test(error?.message || '')) throw error;
+  }
   await ctx.answerCbQuery();
 };
 
@@ -136,21 +138,30 @@ bot.action(/toggle_(trans|pron|vocab|voice)/, async (ctx) => {
   await editMenu(ctx, renderDisplayMenu(c));
 });
 
-// Bắt sự kiện bấm nút "Lưu từ vựng"
-bot.action('save_vocab', async (ctx) => {
+// Each Save button refers to the vocabulary of THAT translation, not the latest.
+bot.action(/^save_vocab_([a-f0-9]{12})$/, async (ctx) => {
   const c = getUserConfig(ctx.from.id);
-  if (!c.lastVocab) return ctx.answerCbQuery('Không tìm thấy từ vựng để lưu!');
-  
-  const savedCount = saveVocabulary(ctx.from.id, c.lastVocab);
-  c.lastVocab = ""; // Xóa tạm sau khi lưu
+  const key = ctx.match[1];
+  const vocabulary = c.pendingVocabs?.[key];
+  if (!vocabulary) return ctx.answerCbQuery('Mục này đã được lưu hoặc hết hạn.');
+  const saved = saveVocabulary(ctx.from.id, vocabulary);
+  delete c.pendingVocabs[key];
   saveDatabase();
-
-  await ctx.answerCbQuery(`✅ Đã lưu ${savedCount} từ vào Sổ tay!`);
-  // Đổi text của nút để báo thành công
-  try { await ctx.editMessageReplyMarkup({ inline_keyboard: [[Markup.button.callback('✅ Đã lưu vào sổ tay', 'noop')]] }); } catch(e){}
+  await ctx.answerCbQuery(saved ? `✅ Đã lưu ${saved} mục từ vựng!` : 'Các từ này đã có trong sổ tay.');
+  try {
+    await ctx.editMessageReplyMarkup({ inline_keyboard: [
+      [Markup.button.callback('✅ Đã lưu vào sổ tay', 'noop')]
+    ] });
+  } catch (error) {
+    if (!/message is not modified/i.test(error?.message || '')) {
+      console.warn('Telegram update save button:', error.message);
+    }
+  }
 });
 
-bot.action('noop', (ctx) => ctx.answerCbQuery());
+// Old buttons cannot be linked reliably to a particular translation.
+bot.action('save_vocab', ctx => ctx.answerCbQuery('Hãy dịch lại câu này để lưu đúng từ vựng.'));
+bot.action('noop', ctx => ctx.answerCbQuery());
 
 // Lệnh xuất sổ tay từ vựng ra file CSV
 bot.command('export', async (ctx) => {
@@ -167,86 +178,96 @@ bot.command('export', async (ctx) => {
 });
 
 // Lệnh xóa sạch sổ tay
-bot.command('clearvocab', (ctx) => {
+bot.command('clearvocab', async (ctx) => {
   clearVocabulary(ctx.from.id);
-  ctx.reply('🗑 Đã xóa sạch sổ tay từ vựng!');
+  await ctx.reply('🗑 Đã xóa sạch sổ tay từ vựng!');
+});
+
+bot.command('clearcache', async (ctx) => {
+  if (ctx.from.id.toString() !== MASTER_ADMIN) return ctx.reply('⛔ Chỉ admin được xóa cache âm thanh dùng chung.');
+  const removed = clearAudioCache();
+  await ctx.reply(`🧹 Đã xóa ${removed} file âm thanh trong cache. Cache dịch web và từ vựng được giữ nguyên.`);
 });
 
 // --- CORE PROCESSOR: XỬ LÝ CHUNG CHO VĂN BẢN, ẢNH, GIỌNG NÓI ---
 async function processStudyContent(ctx, text = '', imageUrl = null, statusMsgPrefix = '⏳ Đang phân tích') {
   const c = getUserConfig(ctx.from.id);
   const isFast = !c.showTranslation && !c.showPronunciation && !c.showVocabulary;
-  const statusMsg = await ctx.reply(`${statusMsgPrefix}...`);
-
+  let statusMsg = null;
   try {
-    let aiResult;
-    // 1. KIỂM TRA CACHE (CHỈ ÁP DỤNG CHO TEXT THUẦN, KHÔNG DÙNG CHO ẢNH/VOICE)
-    if (text && !imageUrl) {
-      aiResult = getCachedText(text, c.targetLang, isFast);
-    }
-    
-    // 2. NẾU KHÔNG CÓ TRONG CACHE -> GỌI GPT
+    statusMsg = await ctx.reply(`${statusMsgPrefix}...`);
+    let aiResult = null;
+    // Dialog context changes the answer; only reuse text cache for a fresh dialog.
+    const eligibleForCache = Boolean(text && !imageUrl && c.history.length === 0);
+    if (eligibleForCache) aiResult = getCachedText(text, c.targetLang, isFast);
     if (!aiResult) {
       aiResult = await translateFull(text, c.targetLang, isFast, imageUrl, c.history);
-      if (text && !imageUrl) setCachedText(text, c.targetLang, isFast, aiResult); // Lưu Cache
-      
-      // LƯU VÀO LỊCH SỬ NGỮ CẢNH (Tối đa 5 lượt)
-      c.history.push({ user: text || 'Image/Audio', bot: aiResult });
-      if (c.history.length > 5) c.history.shift();
-      saveDatabase();
+      if (eligibleForCache) setCachedText(text, c.targetLang, isFast, aiResult);
+    }
+    if (typeof aiResult !== 'string' || !aiResult.trim()) {
+      throw new Error('AI returned an empty translation');
     }
 
-    let cleanText = aiResult;
-    let parts = [];
-    let inlineKeyboard = [];
+    // Always keep the actual exchange in conversation history (including cached replies).
+    c.history.push({ user: text || 'Image/Audio', bot: aiResult });
+    if (c.history.length > 5) c.history.splice(0, c.history.length - 5);
+    saveDatabase();
 
-    if (!isFast) {
+    const sections = [];
+    let translatedText = aiResult.trim();
+    const buttons = [];
+    if (isFast) {
+      sections.push({ title: '⚡ Dịch nhanh:', body: translatedText });
+    } else {
       const trans = (aiResult.match(/TRANSLATION:\s*([\s\S]*?)(?=PRONUNCIATION:|VOCABULARY:|$)/i) || [])[1]?.trim();
       const pron = (aiResult.match(/PRONUNCIATION:\s*([\s\S]*?)(?=VOCABULARY:|$)/i) || [])[1]?.trim();
       const vocab = (aiResult.match(/VOCABULARY:\s*([\s\S]*)/i) || [])[1]?.trim();
-      
-      cleanText = trans || aiResult.split('\n')[0].trim();
-      if (c.showTranslation && trans) parts.push(`📖 *Bản dịch:*\n${trans}`);
-      if (c.showPronunciation && pron) parts.push(`🗣 *Phiên âm:*\n${pron}`);
-      
-      // XỬ LÝ TỪ VỰNG VÀ NÚT LƯU FLASHCARD
+      translatedText = trans || aiResult.split('\n')[0].trim();
+      if (c.showTranslation) sections.push({ title: '📖 Bản dịch:', body: translatedText });
+      if (c.showPronunciation && pron) sections.push({ title: '🗣 Phiên âm:', body: pron });
       if (c.showVocabulary && vocab) {
-        parts.push(`📝 *Từ vựng:*\n${vocab}`);
-        c.lastVocab = vocab; // Lưu tạm vào RAM để chờ bấm nút
+        sections.push({ title: '📝 Từ vựng:', body: vocab });
+        const nonce = crypto.randomBytes(6).toString('hex');
+        c.pendingVocabs[nonce] = vocab;
+        // Bound persisted pending data.
+        const keys = Object.keys(c.pendingVocabs);
+        for (const old of keys.slice(0, -20)) delete c.pendingVocabs[old];
         saveDatabase();
-        inlineKeyboard.push([Markup.button.callback('💾 Lưu cụm từ vựng này', 'save_vocab')]);
-      }
-    } else {
-      parts.push(`⚡ *Dịch nhanh:*\n${cleanText}`);
-    }
-
-    inlineKeyboard.unshift([
-  Markup.button.copyText('📋 Copy bản dịch', cleanText)
-]);
-
-    // 3. XỬ LÝ ÂM THANH (CÓ CACHE ELEVENLABS)
-    let audio = null;
-    if (c.enableVoice) {
-      audio = getCachedAudio(cleanText, c.voiceKey, c.speed); // Check Cache
-      if (!audio) {
-        audio = await generateSpeech(cleanText, c.voiceKey, c.speed); // Gọi API
-        setCachedAudio(cleanText, c.voiceKey, c.speed, audio); // Lưu ổ cứng
+        buttons.push([Markup.button.callback('💾 Lưu cụm từ vựng này', 'save_vocab_' + nonce)]);
       }
     }
+    if (!sections.length) sections.push({ title: '📖 Kết quả:', body: translatedText });
+    const copy = copyButtonText(translatedText);
+    if (copy) buttons.unshift([Markup.button.copyText('📋 Copy bản dịch', copy)]);
 
-    try { await ctx.deleteMessage(statusMsg.message_id); } catch(e){}
-    
-    // 4. TRẢ KẾT QUẢ KÈM NÚT BẤM
-    if (parts.length > 0) {
-      const extra = { parse_mode: 'Markdown' };
-      if (inlineKeyboard.length > 0) extra.reply_markup = { inline_keyboard: inlineKeyboard };
-      await ctx.reply(parts.join('\n\n'), extra);
+    const messages = buildStudyMessages(sections);
+    for (const [index, message] of messages.entries()) {
+      const extra = {};
+      // Buttons are attached once to the result, not repeated on every chunk.
+      if (index === 0 && buttons.length) extra.reply_markup = { inline_keyboard: buttons };
+      await ctx.reply(message, extra);
     }
-    
-    if (audio) await ctx.replyWithVoice({ source: audio });
 
+    if (c.enableVoice && translatedText) {
+      try {
+        let audio = getCachedAudio(translatedText, c.voiceKey, c.speed);
+        if (!audio) {
+          audio = await generateSpeech(translatedText, c.voiceKey, c.speed);
+          setCachedAudio(translatedText, c.voiceKey, c.speed, audio);
+        }
+        // ElevenLabs returns MP3. Telegram sendVoice supports MP3 uploads.
+        await ctx.replyWithVoice({ source: audio, filename: 'translation.mp3' });
+      } catch (error) {
+        console.error('Telegram TTS:', error?.status || error?.code || error?.message);
+        await ctx.reply('⚠️ Bản dịch đã gửi thành công, nhưng chưa thể tạo giọng đọc.');
+      }
+    }
   } catch (error) {
-    await handleError(error, ctx, statusMsg.message_id);
+    await handleError(error, ctx);
+  } finally {
+    if (statusMsg?.message_id) {
+      try { await ctx.deleteMessage(statusMsg.message_id); } catch {}
+    }
   }
 }
 
@@ -257,43 +278,50 @@ bot.on('text', async (ctx) => {
 });
 
 bot.on('photo', async (ctx) => {
-  const photo = ctx.message.photo.pop();
-  const fileLink = await ctx.telegram.getFileLink(photo.file_id);
-  const caption = ctx.message.caption ? ctx.message.caption.trim() : '';
-  await processStudyContent(ctx, caption, fileLink.href, '🖼 Đang phân tích hình ảnh');
-});
-
-bot.on('voice', async (ctx) => {
-  const statusMsg = await ctx.reply('🎙 Đang nghe và nhận diện giọng nói...');
   try {
-    const fileLink = await ctx.telegram.getFileLink(ctx.message.voice.file_id);
-    const filePath = path.join(os.tmpdir(), `${ctx.message.voice.file_id}.ogg`);
-    
-    // Tải file audio về thư mục tạm
-    const response = await axios({ url: fileLink.href, responseType: 'stream' });
-    const writer = fs.createWriteStream(filePath);
-    response.data.pipe(writer);
-    
-    await new Promise((resolve, reject) => {
-      writer.on('finish', resolve);
-      writer.on('error', reject);
-    });
-
-    // Gọi Whisper siêu gọn (đã tích hợp tự đổi key bên ai.js)
-    const spokenText = await transcribeVoice(filePath);
-    
-    fs.unlinkSync(filePath); // Xóa file tạm
-    try { await ctx.deleteMessage(statusMsg.message_id); } catch(e){}
-    
-    if (spokenText) {
-      await ctx.reply(`_"${spokenText}"_`, { parse_mode: 'Markdown' });
-      await processStudyContent(ctx, spokenText, null, '⏳ Đang phân tích câu nói');
-    }
+    const photo = ctx.message.photo[ctx.message.photo.length - 1];
+    const fileLink = await ctx.telegram.getFileLink(photo.file_id);
+    await processStudyContent(ctx, (ctx.message.caption || '').trim(), fileLink.href, '🖼 Đang phân tích hình ảnh');
   } catch (error) {
-    await handleError(error, ctx, statusMsg.message_id);
+    await handleError(error, ctx);
   }
 });
 
-bot.launch();
-console.log('🚀 Bot đã khởi chạy。。。');
-process.once('SIGINT', () => bot.stop());
+bot.on('voice', async (ctx) => {
+  let status = null;
+  try {
+    status = await ctx.reply('🎙 Đang nghe và nhận diện giọng nói...');
+    const fileLink = await ctx.telegram.getFileLink(ctx.message.voice.file_id);
+    const spokenText = await withDownloadedVoice(fileLink.href, transcribeVoice);
+    if (spokenText) {
+      // No Markdown parse mode: user speech may contain arbitrary punctuation.
+      for (const chunk of splitLongText('🎤 Nhận diện: ' + spokenText)) await ctx.reply(chunk);
+      await processStudyContent(ctx, spokenText, null, '⏳ Đang phân tích câu nói');
+    } else {
+      await ctx.reply('⚠️ Không nhận diện được nội dung ghi âm.');
+    }
+  } catch (error) {
+    await handleError(error, ctx);
+  } finally {
+    if (status?.message_id) {
+      try { await ctx.deleteMessage(status.message_id); } catch {}
+    }
+  }
+});
+
+bot.catch(async (error, ctx) => {
+  console.error('Telegram bot handler error:', error?.message || error);
+  try { await ctx.reply('❌ Có lỗi khi xử lý yêu cầu. Vui lòng thử lại.'); } catch {}
+});
+
+bot.launch().then(async () => {
+  console.log('🚀 Telegram bot đã khởi chạy');
+  try { await bot.telegram.setMyCommands(BOT_COMMANDS); } catch (error) {
+    console.warn('Không thể cập nhật menu Telegram:', error.message);
+  }
+}).catch(error => {
+  console.error('Không thể khởi chạy Telegram bot:', error.message);
+  process.exitCode = 1;
+});
+process.once('SIGINT', () => bot.stop('SIGINT'));
+process.once('SIGTERM', () => bot.stop('SIGTERM'));
