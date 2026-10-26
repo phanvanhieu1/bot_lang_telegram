@@ -2,6 +2,14 @@
 
 Branch: `feature/telegram-stabilization` (based on `feature/shared-api-monitoring`).
 
+## Copy button and web PRO voice parity
+
+- Replaced unavailable `Markup.button.copyText()` with the Telegram Bot API's raw `copy_text: { text }` inline button payload; results longer than 256 characters do not show a Copy button.
+- Telegram now offers the same four ElevenLabs voices as web PRO: female 1 (`ByhETIclHirOlWnWKhHc`), male 1 (`D9bZgM9Er0PhIxuW9Jqa`), male 2 (`2I36mEahS1u7ZnTKUoaB`), and female 2 (`BqljjWyTnrioXPCNkCd4`).
+- Older Telegram voice choices automatically migrate to female 1. Fresh sessions default to female 1.
+- Speech uses the same default ElevenLabs model `eleven_flash_v2_5` and MP3 output as the PRO web TTS. No web source changes.
+- The test bot still needs an explicitly configured `TELEGRAM_TEST_ELEVENLABS_API_KEY` to make live speech requests; selecting voices in `/settings` does not by itself consume credits.
+
 ## Fixed in this branch
 
 - Translation content is sent as plain text in bounded chunks, avoiding broken Markdown and 4096-character sendMessage failures.
@@ -25,7 +33,7 @@ Branch: `feature/telegram-stabilization` (based on `feature/shared-api-monitorin
 git fetch origin
 git switch -c feature/telegram-stabilization --track origin/feature/telegram-stabilization
 npm ci
-node --test tests/telegram-stability.test.js
+node --test tests/telegram-stability.test.js tests/telegram-voice.test.js
 node --test tests/*.test.js
 ```
 
