@@ -71,6 +71,7 @@ async function requestGroq(prompt) {
   };
 }
 
+const { observed } = require('../../api-monitoring/observe');
 module.exports = {
-  requestGroq
+  requestGroq: (...args) => observed('groq', 'translate', () => requestGroq(...args))
 };
