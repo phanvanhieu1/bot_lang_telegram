@@ -7,6 +7,7 @@ const { exportAnkiCsv } = require('./telegram-vocabulary');
 const { translateViaSharedCache, ready: sharedDbReady } = require('./telegram-sync/cache');
 const { connectTelegram, findLinkedUser } = require('./telegram-sync/link');
 const { saveLinkedVocabulary, exportLinkedVocabulary } = require('./telegram-sync/vocabulary');
+const { getChineseAudio, getVietnameseAudio } = require('./web-tts');
 const { syncTelegramPreferences } = require('./telegram-sync/preferences');
 const connectDatabase = require('./config/database');
 const { MAIN_MENU, replyMenuOptions } = require('./telegram-main-menu');
@@ -273,10 +274,22 @@ bot.action(/^speak_translation_([a-f0-9]{12})$/, async (ctx) => {
     // The cache key includes actual model, voice ID and forced language.
     // A legacy Vietnamese MP3 with incorrect accent must never be reused.
     const ttsRequest = resolveBotSpeech(record.text, voiceKey, speed);
-    let audio = getCachedAudio(record.text, ttsRequest.cacheVoice, speed);
-    if (!audio) {
-      audio = await generateSpeech(record.text, voiceKey, speed);
-      setCachedAudio(record.text, ttsRequest.cacheVoice, speed, audio);
+    let audio;
+    if (sharedDbReady() && ['zh','vi'].includes(record.language)) {
+      // Same web_audio_cache collection used by PRO on the website.
+      // Includes model + language + actual voice ID in MongoDB cache keys.
+      const result = record.language === 'vi'
+        ? await getVietnameseAudio(record.text, speed)
+        : await getChineseAudio(record.text, ttsRequest.voiceId, speed);
+      audio = result.audio;
+    } else {
+      // Offline/legacy fallback: the file cache is retained only when MongoDB
+      // is not configured (or language is outside the web's TTS contract).
+      audio = getCachedAudio(record.text, ttsRequest.cacheVoice, speed);
+      if (!audio) {
+        audio = await generateSpeech(record.text, voiceKey, speed);
+        setCachedAudio(record.text, ttsRequest.cacheVoice, speed, audio);
+      }
     }
     await ctx.replyWithVoice({ source: audio, filename: 'translation.mp3' });
   } catch (error) {
