@@ -60,7 +60,9 @@ async function translateFull(
       console.error('[Telegram translation] OpenAI attempt failed:', error?.status || error?.code || 'UNKNOWN');
     }
   }
-  throw new Error('Tất cả API key OpenAI đã thử đều không khả dụng', { cause: lastError });
+  const finalError = new Error('Tất cả API key OpenAI đã thử đều không khả dụng', { cause: lastError });
+  finalError.status = lastError?.status;
+  throw finalError;
 }
 
 module.exports = {
