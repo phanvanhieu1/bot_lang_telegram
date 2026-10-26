@@ -40,7 +40,7 @@ th,td{border-bottom:1px solid var(--edge);padding:14px 10px}th{font-size:12px;co
 </section>
 <section class="panel"><h2>Request theo giờ (UTC)</h2><div class="chart" id="chart" aria-label="Biểu đồ lưu lượng"></div><p class="small muted">Biểu đồ dựa trên sự kiện được thu thập; không bao gồm lịch sử trước khi bật monitoring.</p></section>
 <section class="panel"><h2>Độ ổn định theo provider</h2><div class="scroll"><table><thead><tr><th>Project</th><th>Provider</th><th>Request</th><th>Thành công</th><th>Độ trễ TB</th><th>Lần gần nhất</th></tr></thead><tbody id="providers"></tbody></table></div></section>
-<section class="panel"><h2>Hạn mức / số dư đã xác minh</h2><p class="small muted">“Chưa xác định” nghĩa là provider chưa cung cấp dữ liệu hoặc chưa cấu hình đồng bộ; không đồng nghĩa hết số dư. Mốc thời gian cho biết độ mới của dữ liệu.</p><div class="scroll"><table><thead><tr><th>Project</th><th>Provider</th><th>Loại hạn mức</th><th>Còn lại</th><th>Đã dùng</th><th>Tổng hạn mức</th><th>Cập nhật</th></tr></thead><tbody id="quotaRows"></tbody></table></div></section>
+<section class="panel"><h2>Hạn mức / số dư được báo cáo</h2><p class="small muted">“Chưa xác định” nghĩa là provider chưa cung cấp dữ liệu hoặc chưa cấu hình đồng bộ; không đồng nghĩa hết số dư. Mốc thời gian cho biết độ mới của dữ liệu.</p><div class="scroll"><table><thead><tr><th>Project</th><th>Provider</th><th>Loại hạn mức</th><th>Nguồn</th><th>Còn lại</th><th>Đã dùng</th><th>Tổng hạn mức</th><th>Cập nhật</th></tr></thead><tbody id="quotaRows"></tbody></table></div></section>
 <p class="small muted">Dữ liệu được lưu trên MongoDB của ứng dụng. Chỉ tài khoản admin truy cập được.</p>
 </main>
 <script>
@@ -78,9 +78,9 @@ function draw(data){
   const quotas=$('quotaRows');quotas.replaceChildren();
   for(const q of data.quotas){
     discovered.add(q.project);
-    row(quotas,[q.project,q.provider,q.metric+' ('+q.unit+')',val(q.remaining),val(q.used),val(q.limit),date(q.checkedAt)]);
+    row(quotas,[q.project,q.provider,q.metric+' ('+q.unit+')',q.source,val(q.remaining),val(q.used),val(q.limit),date(q.checkedAt)]);
   }
-  if(!data.quotas.length)empty(quotas,7,'Chưa có quota nào được nhà cung cấp xác nhận.');
+  if(!data.quotas.length)empty(quotas,8,'Chưa có dữ liệu quota nào được báo cáo.');
   const selected=$('project').value;
   $('project').replaceChildren(new Option('Tất cả project',''));
   for(const p of [...discovered].sort())$('project').add(new Option(p,p));
