@@ -45,6 +45,8 @@ npm run bot:test
 ```
 
 Mở bot mới trong Telegram, chọn Start và gửi `/settings` để kiểm tra menu.
+
+Sau khi dịch một câu mới, dưới kết quả sẽ xuất hiện các biểu tượng trên một hàng: **📋 Copy bản dịch chính**, **💾 lưu từ vựng** (nếu có), **🔊 tạo âm thanh khi bấm**. Nút Giọng đọc AI bật/tắt trong menu đã được bỏ. Muốn nghe thử, hãy cấu hình `TELEGRAM_TEST_ELEVENLABS_API_KEY`. Tin nhắn cũ sẽ không tự có nút mới.
 Cần test dịch thì điền `TELEGRAM_TEST_OPENAI_API_KEYS` ở trên rồi khởi động lại.
 
 Dừng bot local bằng `Ctrl+C`. Không cần stop/restart PM2 trên VPS.
