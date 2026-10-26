@@ -1,170 +1,49 @@
-const fs = require('fs');
-const path = require('path');
-const crypto = require('crypto');
+'use strict';
+const fs = require('node:fs');
+const path = require('node:path');
+const crypto = require('node:crypto');
 
-// Keep the production cache unchanged unless a separate data directory is requested.
+// Shared translations and speech use MongoDB. This module is only the offline
+// Telegram MP3 fallback. Legacy cache_index.json stays on disk untouched.
 const DATA_DIR = process.env.TELEGRAM_DATA_DIR || __dirname;
 const CACHE_DIR = path.join(DATA_DIR, 'cache_audio');
-const CACHE_DB = path.join(DATA_DIR, 'cache_index.json');
+fs.mkdirSync(CACHE_DIR, { recursive: true, mode: 0o700 });
 
-// Tạo thư mục lưu audio nếu chưa có
-if (!fs.existsSync(CACHE_DIR)) fs.mkdirSync(CACHE_DIR, { recursive: true, mode: 0o700 });
+const hashAudio = (text, voice, speed) =>
+  crypto.createHash('md5').update(`${text}_${voice}_${speed}`).digest('hex');
 
-let cacheIndex = {};
-if (fs.existsSync(CACHE_DB)) {
-  try { cacheIndex = JSON.parse(fs.readFileSync(CACHE_DB, 'utf8')); } catch (e) {}
-}
-
-const saveCacheIndex = () => fs.writeFileSync(CACHE_DB, JSON.stringify(cacheIndex), 'utf8');
-
-// Tạo mã băm duy nhất cho câu chat
-const getHash = (text, lang, isFast) => {
-  return crypto
-    .createHash('md5')
-    .update(`${text}_${lang}_${isFast}`)
-    .digest('hex');
-};
-const getAudioHash = (text, voice, speed) => crypto.createHash('md5').update(`${text}_${voice}_${speed}`).digest('hex');
-
-const getCachedText = (text, lang, isFast) => {
-  return cacheIndex[getHash(text, lang, isFast)] || null;
-};
-
-const setCachedText = (text, lang, isFast, data) => {
-  cacheIndex[getHash(text, lang, isFast)] = data;
-  saveCacheIndex();
-};
-
-const getWebHash = (text, lang, isFast, context = 'auto') => {
-  return crypto
-    .createHash('md5')
-    .update(`web_${text}_${lang}_${isFast}_${context}`)
-    .digest('hex');
-};
-
-const getWebCachedText = (
-  text,
-  lang,
-  isFast,
-  context = 'auto'
-) => {
-  const value = cacheIndex[
-    getWebHash(text, lang, isFast, context)
-  ];
-
-  if (
-    !value ||
-    typeof value !== 'object' ||
-    Array.isArray(value)
-  ) {
-    return null;
-  }
-
-  return value;
-};
-
-const setWebCachedText = (
-  text,
-  lang,
-  isFast,
-  context = 'auto',
-  data
-) => {
-  const hash = getWebHash(
-    text,
-    lang,
-    isFast,
-    context
-  );
-
-  const existing = cacheIndex[hash];
-
-  const current =
-    existing &&
-    typeof existing === 'object' &&
-    !Array.isArray(existing)
-      ? existing
-      : {};
-
-  cacheIndex[hash] = {
-    ...current,
-    ...data
-  };
-
-  saveCacheIndex();
-};
-
-const getFreeHash = (text) => {
-  const normalizedText = text
-    .trim()
-    .replace(/\s+/g, ' ');
-
-  return crypto
-    .createHash('md5')
-    .update(`free_${normalizedText}`)
-    .digest('hex');
-};
-
-const getFreeCachedText = (text) => {
-  const value =
-    cacheIndex[getFreeHash(text)];
-
-  if (
-    !value ||
-    typeof value !== 'object' ||
-    Array.isArray(value)
-  ) {
-    return null;
-  }
-
-  return value;
-};
-
-const setFreeCachedText = (
-  text,
-  data
-) => {
-  cacheIndex[getFreeHash(text)] = data;
-  saveCacheIndex();
-};
-
-const getCachedAudio = (text, voice, speed) => {
-  const hash = getAudioHash(text, voice, speed);
-  for (const ext of ['mp3', 'ogg']) {
-    const file = path.join(CACHE_DIR, `${hash}.${ext}`);
+function getCachedAudio(text, voice, speed) {
+  const hash = hashAudio(text, voice, speed);
+  for (const extension of ['mp3', 'ogg']) {
+    const file = path.join(CACHE_DIR, `${hash}.${extension}`);
     if (fs.existsSync(file)) return fs.readFileSync(file);
   }
   return null;
-};
+}
 
-const setCachedAudio = (text, voice, speed, buffer) => {
-  if (!Buffer.isBuffer(buffer) || buffer.length === 0) throw new TypeError('Empty audio buffer');
-  const file = path.join(CACHE_DIR, `${getAudioHash(text, voice, speed)}.mp3`);
-  fs.writeFileSync(file, buffer);
-};
+function setCachedAudio(text, voice, speed, buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
+    throw new TypeError('Empty audio buffer');
+  }
+  const destination = path.join(CACHE_DIR, `${hashAudio(text, voice, speed)}.mp3`);
+  // Write atomically so an interrupted synthesis never leaves partial audio.
+  const temp = destination + '.' + process.pid + '.tmp';
+  try {
+    fs.writeFileSync(temp, buffer, { mode: 0o600 });
+    fs.renameSync(temp, destination);
+  } finally {
+    if (fs.existsSync(temp)) fs.unlinkSync(temp);
+  }
+}
 
-const clearAudioCache = () => {
+function clearAudioCache() {
   let removed = 0;
   for (const name of fs.readdirSync(CACHE_DIR)) {
-    if (!name.endsWith('.ogg') && !name.endsWith('.mp3')) continue;
-    const hash = name.slice(0, -4);
-    if (hash.length !== 32 || Array.from(hash).some(c => !'abcdef0123456789'.includes(c))) continue;
+    if (!/^[a-f0-9]{32}\.(mp3|ogg)$/.test(name)) continue;
     fs.unlinkSync(path.join(CACHE_DIR, name));
     removed++;
   }
   return removed;
-};
+}
 
-module.exports = {
-  getCachedText,
-  setCachedText,
-  getWebCachedText,
-  setWebCachedText,
-
-  getFreeCachedText,
-  setFreeCachedText,
-
-  getCachedAudio,
-  setCachedAudio,
-  clearAudioCache
-};
+module.exports = { getCachedAudio, setCachedAudio, clearAudioCache };
