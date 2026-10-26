@@ -2,7 +2,7 @@ require('dotenv').config();
 const { Telegraf } = require('telegraf');
 const crypto = require('node:crypto');
 const { withDownloadedVoice } = require('./telegram-media');
-const { buildStudyMessages, copyInlineButton, splitLongText } = require('./telegram-utils');
+const { copyInlineButton, splitLongText } = require('./telegram-utils');
 const { exportAnkiCsv } = require('./telegram-vocabulary');
 const { parseTelegramTranslation, buildTranslationButtons, buildCompactTranslation, getChineseSentence, getSpeechLanguage } = require('./telegram-translation');
 
@@ -149,6 +149,7 @@ bot.action(/toggle_(trans|pron|vocab)/, async (ctx) => {
 
 // Legacy setting buttons are no longer used; speech is generated on demand.
 bot.action('toggle_voice', ctx => ctx.answerCbQuery('Hãy bấm 🔊 dưới bản dịch để tạo âm thanh.'));
+bot.action(/^toggle_(trans|pron)$/, ctx => ctx.answerCbQuery('Kết quả giờ luôn hiển thị bản dịch, Pinyin và dịch ngược.'));
 
 // Each Save button refers to the vocabulary of THAT translation, not the latest.
 bot.action(/^save_vocab_([a-f0-9]{12})$/, async (ctx) => {
