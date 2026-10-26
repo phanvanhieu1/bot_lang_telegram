@@ -127,13 +127,28 @@ const setFreeCachedText = (
 };
 
 const getCachedAudio = (text, voice, speed) => {
-  const audioPath = path.join(CACHE_DIR, `${getAudioHash(text, voice, speed)}.ogg`);
-  return fs.existsSync(audioPath) ? fs.readFileSync(audioPath) : null;
+  const hash = getAudioHash(text, voice, speed);
+  for (const ext of ['mp3', 'ogg']) {
+    const file = path.join(CACHE_DIR, `${hash}.${ext}`);
+    if (fs.existsSync(file)) return fs.readFileSync(file);
+  }
+  return null;
 };
 
 const setCachedAudio = (text, voice, speed, buffer) => {
-  const audioPath = path.join(CACHE_DIR, `${getAudioHash(text, voice, speed)}.ogg`);
-  fs.writeFileSync(audioPath, buffer);
+  if (!Buffer.isBuffer(buffer) || buffer.length === 0) throw new TypeError('Empty audio buffer');
+  const file = path.join(CACHE_DIR, `${getAudioHash(text, voice, speed)}.mp3`);
+  fs.writeFileSync(file, buffer);
+};
+
+const clearAudioCache = () => {
+  let removed = 0;
+  for (const name of fs.readdirSync(CACHE_DIR)) {
+    if (!/^[a-f0-9]{32}\\.(ogg|mp3)$/.test(name)) continue;
+    fs.unlinkSync(path.join(CACHE_DIR, name));
+    removed++;
+  }
+  return removed;
 };
 
 module.exports = {
@@ -146,5 +161,6 @@ module.exports = {
   setFreeCachedText,
 
   getCachedAudio,
-  setCachedAudio
+  setCachedAudio,
+  clearAudioCache
 };
