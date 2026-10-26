@@ -16,6 +16,7 @@ const MASTER_ADMIN = process.env.MASTER_ADMIN;
 const TEST_MODE = process.env.TELEGRAM_TEST_MODE === '1';
 const { renderDashboard, renderMenu, renderDisplayMenu, getSpeedKey } = require('./ui');
 const { translateFull, transcribeVoice, generateSpeech, generatePinyin } = require('./ai');
+const { resolveBotSpeech } = require('./ai/services/speech.service');
 const handleError = require('./errorHandler');
 
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
@@ -165,16 +166,17 @@ bot.action(/^set_(lang|voice|speed)_([a-zA-Z0-9.]+)$/, async (ctx) => {
 });
 
 // Only vocabulary analysis remains configurable in the compact interface.
-bot.action(/^toggle_vocab$/, async (ctx) => {
+bot.action(/^toggle_(pron|back|vocab)$/, async (ctx) => {
   const c = getUserConfig(ctx.from.id);
-  c.showVocabulary = !c.showVocabulary;
+  const field = { pron: 'showPronunciation', back: 'showBackTranslation', vocab: 'showVocabulary' }[ctx.match[1]];
+  c[field] = !c[field];
   saveDatabase();
   await editMenu(ctx, renderDisplayMenu(c));
 });
 
 // Legacy setting buttons are no longer used; speech is generated on demand.
 bot.action('toggle_voice', ctx => ctx.answerCbQuery('Hãy bấm 🔊 dưới bản dịch để tạo âm thanh.'));
-bot.action(/^toggle_(trans|pron)$/, ctx => ctx.answerCbQuery('Kết quả giờ luôn hiển thị bản dịch, Pinyin và dịch ngược.'));
+bot.action('toggle_trans', ctx => ctx.answerCbQuery('Bản dịch chính luôn hiển thị. Có thể bật/tắt Pinyin, dịch ngược và từ vựng.'));
 
 // Each Save button refers to the vocabulary of THAT translation, not the latest.
 bot.action(/^save_vocab_([a-f0-9]{12})$/, async (ctx) => {
@@ -226,10 +228,13 @@ bot.action(/^speak_translation_([a-f0-9]{12})$/, async (ctx) => {
     // Use current voice/speed settings, but preserve the original sentence.
     const voiceKey = record.language === 'vi' ? 'vi' : c.voiceKey;
     const speed = c.speed;
-    let audio = getCachedAudio(record.text, voiceKey, speed);
+    // The cache key includes actual model, voice ID and forced language.
+    // A legacy Vietnamese MP3 with incorrect accent must never be reused.
+    const ttsRequest = resolveBotSpeech(record.text, voiceKey, speed);
+    let audio = getCachedAudio(record.text, ttsRequest.cacheVoice, speed);
     if (!audio) {
       audio = await generateSpeech(record.text, voiceKey, speed);
-      setCachedAudio(record.text, voiceKey, speed, audio);
+      setCachedAudio(record.text, ttsRequest.cacheVoice, speed, audio);
     }
     await ctx.replyWithVoice({ source: audio, filename: 'translation.mp3' });
   } catch (error) {
@@ -309,11 +314,12 @@ async function processStudyContent(ctx, text = '', imageUrl = null, statusMsgPre
     const parsed = parseTelegramTranslation(aiResult);
     const translatedText = parsed.translation;
     const chineseText = getChineseSentence(text, translatedText, parsed.backTranslation);
-    const pinyin = chineseText && c.targetLang === 'zh' ? generatePinyin(chineseText) : '';
+    const pinyin = chineseText && c.targetLang === 'zh' && c.showPronunciation ? generatePinyin(chineseText) : '';
     const combinedText = buildCompactTranslation({
       translation: translatedText,
       pinyin,
-      backTranslation: parsed.backTranslation
+      backTranslation: c.showBackTranslation ? parsed.backTranslation : '',
+      vocabulary: c.showVocabulary ? parsed.vocabulary : ''
     });
 
     const nonce = crypto.randomBytes(6).toString('hex');
