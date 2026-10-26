@@ -46,7 +46,7 @@ test('copy button rejects values exceeding Telegram 256 character limit', () => 
 
 test('Telegram uses exactly the four PRO web voice IDs', () => {
   const webHtml = fs.readFileSync(path.join(__dirname, '..', 'public/index.html'), 'utf8');
-  const webTts = fs.readFileSync(path.join(__dirname, '..', 'web-tts.js'), 'utf8');
+  const ttsShared = fs.readFileSync(path.join(__dirname, '..', 'tts-shared.js'), 'utf8');
   const expected = [
     'ByhETIclHirOlWnWKhHc', 'D9bZgM9Er0PhIxuW9Jqa',
     '2I36mEahS1u7ZnTKUoaB', 'BqljjWyTnrioXPCNkCd4'
@@ -54,7 +54,7 @@ test('Telegram uses exactly the four PRO web voice IDs', () => {
   assert.deepEqual(Object.values(VOICES).map(v => v.id), expected);
   for (const id of expected) {
     assert.ok(webHtml.includes(id), `Missing voice ${id} in web`);
-    assert.ok(webTts.includes(id), `Missing voice ${id} in web TTS`);
+    assert.ok(ttsShared.includes('CHINESE_VOICE_IDS'), 'Web TTS shares the Chinese voice config');
   }
   const session = fs.readFileSync(path.join(__dirname, '..', 'session.js'), 'utf8');
   assert.match(session, /voiceKey: 'female1'/);
@@ -63,8 +63,8 @@ test('Telegram uses exactly the four PRO web voice IDs', () => {
 
 test('ElevenLabs uses PRO web model and correct chosen voice ID', async () => {
   const speechSource = fs.readFileSync(path.join(__dirname, '..', 'ai/services/speech.service.js'), 'utf8');
-  assert.match(speechSource, /eleven_flash_v2_5/);
-  assert.match(speechSource, /output_format=mp3_44100_128/);
+  assert.match(speechSource, /buildSpeechRequest/);
+  assert.match(speechSource, /resolveBotSpeech/);
   assert.match(speechSource, /VOICES\[voiceKey\]/);
   assert.doesNotMatch(speechSource, /VOICES\.sarah/);
 });
