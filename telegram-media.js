@@ -8,12 +8,12 @@ const { pipeline } = require('node:stream/promises');
 
 const MAX_BYTES = 20 * 1024 * 1024;
 
-async function withDownloadedVoice(url, callback) {
+async function withDownloadedVoice(url, callback, http = axios) {
   if (typeof callback !== 'function') throw new TypeError('Callback required');
   const folder = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'tg-voice-'));
   const audioPath = path.join(folder, 'recording.ogg');
   try {
-    const response = await axios.get(url, { responseType: 'stream',
+    const response = await http.get(url, { responseType: 'stream',
       timeout: 20000, maxRedirects: 2 });
     let received = 0;
     const limiter = new Transform({
