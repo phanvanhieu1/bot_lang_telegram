@@ -10,7 +10,8 @@ function buildProPrompt(
     backTranslation = true,
     vocabulary = true,
     existingTranslation = null,
-    context = 'auto'
+    context = 'auto',
+    telegramMode = false
   } = options;
 
 const isSupplement = Boolean(existingTranslation);
@@ -153,7 +154,17 @@ QUY TẮC DỊCH:
 ${contextInstruction}`;
 
   if (backTranslation) {
-    systemPrompt += `
+    if (telegramMode) {
+      systemPrompt += `
+
+DỊCH NGƯỢC CHO TELEGRAM:
+- Luôn tạo BACK_TRANSLATION bằng cách dịch NGƯỢC chính nội dung TRANSLATION về ngôn ngữ của câu đầu vào.
+- Nếu đầu vào là tiếng Việt: TRANSLATION bằng tiếng Trung, BACK_TRANSLATION bằng tiếng Việt.
+- Nếu đầu vào là tiếng Trung: TRANSLATION bằng tiếng Việt, BACK_TRANSLATION bằng tiếng Trung.
+- Không chép lại TRANSLATION hoặc trộn Pinyin vào BACK_TRANSLATION.
+- BACK_TRANSLATION chỉ chứa câu được dịch ngược, không kèm chú thích.`;
+    } else {
+      systemPrompt += `
 
 QUY TẮC DỊCH NGƯỢC:
 - Chỉ khi đầu vào là tiếng Việt VÀ ngôn ngữ đang học là tiếng Trung:
@@ -163,6 +174,7 @@ QUY TẮC DỊCH NGƯỢC:
 - BACK_TRANSLATION chỉ được chứa bản dịch tiếng Việt.
 - Không chứa phiên âm, từ vựng hoặc giải thích.
 - Các trường hợp khác, BACK_TRANSLATION để trống.`;
+    }
   }
 
   if (vocabulary) {
