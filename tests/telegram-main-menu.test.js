@@ -44,12 +44,15 @@ test('settings dashboard works with saved numeric speed and all 4 voices', () =>
     targetLang: 'zh',
     voiceKey: 'female1',
     speed: 1,
-    showVocabulary: true
+    showVocabulary: true,
+    showPronunciation: true,
+    showBackTranslation: true
   };
   assert.equal(ui.getSpeedKey(1), '1.0');
   assert.equal(ui.getSpeedKey(1.15), '1.15');
   const dashboard = ui.renderDashboard(config);
-  assert.match(dashboard.text, /Bản dịch · Pinyin · Dịch ngược/);
+  assert.match(dashboard.text, /Pinyin: BẬT/);
+  assert.match(dashboard.text, /Dịch ngược: BẬT/);
   assert.match(dashboard.text, /Giọng tiếng Trung/);
   assert.match(dashboard.text, /1\.0x/);
   assert.equal(dashboard.keyboard.reply_markup.inline_keyboard.length, 3);
@@ -65,7 +68,7 @@ test('settings dashboard works with saved numeric speed and all 4 voices', () =>
   assert.match(display.text, /Pinyin/);
   assert.deepEqual(display.keyboard.reply_markup.inline_keyboard.flat()
     .filter(button => button.callback_data.startsWith('toggle_'))
-    .map(button => button.callback_data), ['toggle_vocab']);
+    .map(button => button.callback_data), ['toggle_pron', 'toggle_back', 'toggle_vocab']);
 });
 
 test('settings actions do not change hidden legacy toggles or translate menu labels', async () => {
@@ -78,7 +81,8 @@ test('settings actions do not change hidden legacy toggles or translate menu lab
     speed: 1,
     showVocabulary: true,
     showTranslation: true,
-    showPronunciation: true
+    showPronunciation: true,
+    showBackTranslation: true
   };
   let saves = 0, translations = 0;
 
@@ -125,6 +129,7 @@ test('settings actions do not change hidden legacy toggles or translate menu lab
     './telegram-main-menu': { MAIN_MENU, replyMenuOptions },
     './telegram-media': {},
     './ai': { translateFull: async () => { translations++; } },
+    './ai/services/speech.service': { resolveBotSpeech: () => ({ cacheVoice: 'test' }) },
     './errorHandler': async () => {}
   };
   const fakeModule = { exports: {} };
@@ -192,11 +197,14 @@ test('settings actions do not change hidden legacy toggles or translate menu lab
   await runAction('toggle_vocab');
   assert.equal(state.showVocabulary, false);
   assert.equal(saves, 3);
-  await runAction('toggle_trans');
   await runAction('toggle_pron');
+  assert.equal(state.showPronunciation, false);
+  await runAction('toggle_back');
+  assert.equal(state.showBackTranslation, false);
+  assert.equal(saves, 5);
+  await runAction('toggle_trans');
   assert.equal(state.showTranslation, true);
-  assert.equal(state.showPronunciation, true);
-  assert.equal(saves, 3);
+  assert.equal(saves, 5);
 
   const oldInvalidEdit = context();
   oldInvalidEdit.editMessageText = async () => { throw new Error('message to edit not found'); };
