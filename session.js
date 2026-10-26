@@ -35,7 +35,7 @@ const getUserConfig = (userId) => {
       showTranslation: true, 
       showPronunciation: true, 
       showVocabulary: true, 
-      enableVoice: true,
+      enableVoice: process.env.TELEGRAM_TEST_MODE === '1' ? Boolean(process.env.ELEVENLABS_API_KEY) : true,
       history: [],  // Thuộc tính mới
       lastVocab: "", // Legacy pending vocab
       pendingVocabs: {} // Snapshot per translation message
