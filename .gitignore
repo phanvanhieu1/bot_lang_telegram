@@ -9,3 +9,6 @@ history.json
 sessions.sqlite
 sessions.sqlite-shm
 sessions.sqlite-wal
+# Isolated Telegram test bot token & state
+.env.telegram-test
+.telegram-test-data/
