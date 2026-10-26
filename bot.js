@@ -15,8 +15,8 @@ const { parseTelegramTranslation, buildTranslationButtons, buildCompactTranslati
 
 // Import Modules
 const { Markup } = require('telegraf'); // Đảm bảo import Markup
-const { getUserConfig, saveDatabase, isAuthorized, addAuthorizedUser, removeAuthorizedUser, getWhitelist, saveVocabulary, getVocabulary, clearVocabulary } = require('./session');
-const { getCachedText, setCachedText, getCachedAudio, setCachedAudio, clearAudioCache } = require('./cache');
+const { getUserConfig, saveDatabase, isAuthorized, addAuthorizedUser, removeAuthorizedUser, getWhitelist, getVocabulary } = require('./session');
+const { getCachedAudio, setCachedAudio, clearAudioCache } = require('./cache');
 const { LANG_CONFIG, VOICES, SPEED_OPTIONS } = require('./config');
 const MASTER_ADMIN = process.env.MASTER_ADMIN;
 const TEST_MODE = process.env.TELEGRAM_TEST_MODE === '1';
@@ -31,14 +31,13 @@ const activeSpeechRequests = new Set(); // prevent duplicate ElevenLabs calls on
 // CÀI ĐẶT MENU BUTTON TỰ ĐỘNG CHO TELEGRAM
 // ==========================================
 const BOT_COMMANDS = [
-  { command: 'start', description: '🏠 Mở Bảng điều khiển Cài đặt' },
+  { command: 'start', description: '🏠 Mở menu Telegram' },
   { command: 'export', description: '💾 Xuất Sổ tay từ vựng ra file CSV' },
-  { command: 'clearvocab', description: '🗑 Xóa sạch Sổ tay từ vựng' },
+  { command: 'clearvocab', description: '🔒 Hướng dẫn xóa từ vựng trên web' },
   { command: 'clearcache', description: '🧹 Xóa cache audio (chỉ Admin)' },
   { command: 'listusers', description: '📋 Xem danh sách người dùng (Chỉ Admin)' },
   { command: 'settings', description: '⚙️ Cài đặt dịch thuật' },
   { command: 'menu', description: '📱 Hiển thị menu chức năng' },
-  { command: 'newchat', description: '🆕 Xóa ngữ cảnh hội thoại hiện tại' },
   { command: 'link', description: '🔗 Liên kết với tài khoản web PRO' },
   { command: 'exportlocal', description: '📤 Xuất từ vựng Telegram đã lưu trước đây' }
 ];
@@ -259,6 +258,9 @@ bot.action(/^speak_translation_([a-f0-9]{12})$/, async (ctx) => {
   if (record.text.length > 500) {
     return ctx.answerCbQuery('Giọng đọc chỉ hỗ trợ câu tối đa 500 ký tự.', { show_alert: true });
   }
+  if (!['vi','zh'].includes(record.language)) {
+    return ctx.answerCbQuery('Giọng đọc hiện hỗ trợ tiếng Việt và tiếng Trung.', { show_alert: true });
+  }
   if (!process.env.ELEVENLABS_API_KEY) {
     return ctx.answerCbQuery('Chưa cấu hình ElevenLabs cho bot này.', { show_alert: true });
   }
@@ -307,6 +309,7 @@ bot.action('noop', ctx => ctx.answerCbQuery());
 
 // Lệnh xuất sổ tay từ vựng ra file CSV
 bot.command('export', async (ctx) => {
+  if (ctx.chat?.type !== 'private') return ctx.reply('🔒 Chỉ xuất từ vựng trong chat riêng với bot.');
   if (!sharedDbReady()) return ctx.reply('⚠️ Chưa kết nối MongoDB chung với web.');
   try {
     const data = await exportLinkedVocabulary(ctx.from.id);
@@ -324,6 +327,7 @@ bot.command('export', async (ctx) => {
 
 // Preserve access to older saved JSON vocabulary; never silently delete it.
 bot.command('exportlocal', async (ctx) => {
+  if (ctx.chat?.type !== 'private') return ctx.reply('🔒 Chỉ xuất từ vựng trong chat riêng với bot.');
   const previous = getVocabulary(ctx.from.id);
   if (!previous.length) return ctx.reply('📭 Không có từ vựng cũ trong file JSON của Telegram.');
   const csv = exportAnkiCsv(previous);
@@ -338,12 +342,9 @@ bot.command('clearvocab', async (ctx) => {
   await ctx.reply('🔒 Kho từ vựng MongoDB được dùng chung với web. Để xóa mục, hãy mở Kho học tập trên website. Lệnh này không xóa dữ liệu dùng chung.');
 });
 
-bot.command('newchat', async (ctx) => {
-  const c = getUserConfig(ctx.from.id);
-  c.history = [];
-  saveDatabase();
-  await ctx.reply('🆕 Đã xóa ngữ cảnh hội thoại. Bản dịch tiếp theo sẽ bắt đầu cuộc trò chuyện mới.');
-});
+// Backwards-compatible response for old Telegram command bookmarks.
+// Translations are stateless and no longer read the legacy history field.
+bot.command('newchat', ctx => ctx.reply('ℹ️ Bot hiện dịch độc lập từng câu; không cần xóa ngữ cảnh bằng /newchat.'));
 
 bot.command('clearcache', async (ctx) => {
   if (ctx.from.id.toString() !== MASTER_ADMIN) return ctx.reply('⛔ Chỉ admin được xóa cache âm thanh dùng chung.');
