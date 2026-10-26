@@ -18,6 +18,7 @@ const { translateFull, transcribeVoice, generateSpeech } = require('./ai');
 const handleError = require('./errorHandler');
 
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
+const activeSpeechRequests = new Set(); // prevent duplicate ElevenLabs calls on repeated taps
 // ==========================================
 // CÀI ĐẶT MENU BUTTON TỰ ĐỘNG CHO TELEGRAM
 // ==========================================
@@ -189,8 +190,13 @@ bot.action(/^speak_translation_([a-f0-9]{12})$/, async (ctx) => {
   if (!process.env.ELEVENLABS_API_KEY) {
     return ctx.answerCbQuery('Chưa cấu hình ElevenLabs cho bot này.', { show_alert: true });
   }
-  await ctx.answerCbQuery('🔊 Đang tạo âm thanh...');
+  const requestKey = ctx.from.id + ':' + ctx.match[1];
+  if (activeSpeechRequests.has(requestKey)) {
+    return ctx.answerCbQuery('Âm thanh cho câu này đang được tạo.');
+  }
+  activeSpeechRequests.add(requestKey);
   try {
+    await ctx.answerCbQuery('🔊 Đang tạo âm thanh...');
     // Use current voice/speed settings, but preserve the original sentence.
     const voiceKey = c.voiceKey;
     const speed = c.speed;
@@ -203,6 +209,8 @@ bot.action(/^speak_translation_([a-f0-9]{12})$/, async (ctx) => {
   } catch (error) {
     console.warn('Telegram on-demand TTS error:', error?.status || error?.code || error?.message);
     await ctx.reply('⚠️ Không thể tạo âm thanh lúc này. Bạn có thể thử lại bằng nút 🔊.');
+  } finally {
+    activeSpeechRequests.delete(requestKey);
   }
 });
 
