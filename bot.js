@@ -283,7 +283,7 @@ async function processStudyContent(ctx, text = '', imageUrl = null, statusMsgPre
 
     const parsed = parseTelegramTranslation(aiResult);
     const translatedText = parsed.translation;
-    const chineseText = getChineseSentence(text, translatedText);
+    const chineseText = getChineseSentence(text, translatedText, parsed.backTranslation);
     const pinyin = chineseText && c.targetLang === 'zh' ? generatePinyin(chineseText) : '';
     const combinedText = buildCompactTranslation({
       translation: translatedText,
