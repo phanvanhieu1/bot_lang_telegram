@@ -11,6 +11,7 @@ const { getUserConfig, saveDatabase, isAuthorized, addAuthorizedUser, removeAuth
 const { getCachedText, setCachedText, getCachedAudio, setCachedAudio, clearAudioCache } = require('./cache');
 const { LANG_CONFIG, VOICES, SPEED_OPTIONS } = require('./config');
 const MASTER_ADMIN = process.env.MASTER_ADMIN;
+const TEST_MODE = process.env.TELEGRAM_TEST_MODE === '1';
 const { renderDashboard, renderMenu, renderDisplayMenu, getSpeedKey } = require('./ui');
 const { translateFull, transcribeVoice, generateSpeech } = require('./ai');
 const handleError = require('./errorHandler');
@@ -86,7 +87,7 @@ bot.command('listusers', async (ctx) => {
 // --- CÁC LỆNH MENU TELEGRAM ---
 bot.start(async (ctx) => {
   const { text, keyboard } = renderDashboard(getUserConfig(ctx.from.id));
-  await ctx.reply(`👋 *Chào mừng bạn tới Bot AI (Modular Architecture)!*\nBạn có thể Gõ chữ, Gửi ảnh hoặc Ghi âm để bot dịch thuật.\n\n👉 Bấm /settings để mở cài đặt.`, { parse_mode: 'Markdown' });
+  await ctx.reply(`${TEST_MODE ? '🧪 *BOT THỬ NGHIỆM*\n\n' : ''}👋 *Chào mừng bạn tới Bot AI (Modular Architecture)!*\nBạn có thể Gõ chữ, Gửi ảnh hoặc Ghi âm để bot dịch thuật.\n\n👉 Bấm /settings để mở cài đặt.`, { parse_mode: 'Markdown' });
   await ctx.reply(text, { parse_mode: 'Markdown', ...keyboard });
 });
 
