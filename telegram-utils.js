@@ -28,22 +28,6 @@ function splitLongText(value, limit = MAX_MESSAGE_CHARS) {
   return chunks;
 }
 
-// Headings and AI content are sent as plain text so special characters do
-// not cause Telegram's "can't parse entities" response.
-function buildStudyMessages(sections) {
-  const messages = [];
-  for (const section of sections) {
-    if (!section || typeof section.title !== 'string' || !section.body) continue;
-    const prefix = section.title + '\n';
-    for (const piece of splitLongText(String(section.body), MAX_MESSAGE_CHARS - Array.from(prefix).length - 4)) {
-      const candidate = prefix + piece;
-      if (candidate.length > 4096) throw new Error('Telegram message too long');
-      messages.push(candidate);
-    }
-  }
-  return messages;
-}
-
 function copyButtonText(text) {
   if (typeof text !== 'string' || !text.trim()) return null;
   return text.length <= MAX_COPY_CHARS ? text : null;
@@ -57,4 +41,4 @@ function copyInlineButton(text) {
   return { text: '📋', copy_text: { text: safe } };
 }
 
-module.exports = { splitLongText, buildStudyMessages, copyButtonText, copyInlineButton };
+module.exports = { splitLongText, copyButtonText, copyInlineButton };
