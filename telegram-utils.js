@@ -8,22 +8,22 @@ function splitLongText(value, limit = MAX_MESSAGE_CHARS) {
   if (!Number.isSafeInteger(limit) || limit < 32 || limit > 4096) {
     throw new RangeError('Invalid Telegram chunk size');
   }
-  const chars = Array.from(String(value ?? ''));
-  if (!chars.length) return [];
+  let remaining = String(value ?? '');
   const chunks = [];
-  while (chars.length) {
-    if (chars.length <= limit) {
-      chunks.push(chars.join(''));
+  while (remaining) {
+    if (remaining.length <= limit) {
+      chunks.push(remaining);
       break;
     }
     let end = limit;
-    // Prefer splitting at whitespace, but never create very short fragments.
-    for (let i = limit; i > Math.floor(limit * 0.6); i--) {
-      if (/\s/.test(chars[i])) { end = i; break; }
-    }
-    const chunk = chars.splice(0, end).join('').trimEnd();
-    if (chunk) chunks.push(chunk);
-    while (chars[0] === ' ' || chars[0] === '\n') chars.shift();
+    // Never split a surrogate pair (e.g. an emoji).
+    if (end < remaining.length && /[\\uD800-\\uDBFF]/.test(remaining[end - 1])) end--;
+    const search = remaining.slice(Math.floor(end * 0.6), end);
+    const spaceAt = Math.max(search.lastIndexOf(' '), search.lastIndexOf('\\n'));
+    if (spaceAt >= 0) end = Math.floor(end * 0.6) + spaceAt + 1;
+    const piece = remaining.slice(0, end).trimEnd();
+    if (piece) chunks.push(piece);
+    remaining = remaining.slice(end).replace(/^\\s+/, '');
   }
   return chunks;
 }
