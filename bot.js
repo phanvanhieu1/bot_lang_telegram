@@ -289,7 +289,7 @@ async function processStudyContent(ctx, text = '', imageUrl = null, statusMsgPre
     // Dialog context changes the answer; only reuse text cache for a fresh dialog.
     const eligibleForCache = Boolean(text && !imageUrl && c.history.length === 0);
     // New cache namespace prevents older bot results missing reverse translations.
-    const cacheText = 'telegram-compact-v1:' + text;
+    const cacheText = 'telegram-compact-v2:vocab=' + Number(c.showVocabulary) + ':' + text;
     if (eligibleForCache) aiResult = getCachedText(cacheText, c.targetLang, isFast);
     if (!aiResult) {
       aiResult = await translateFull(text, c.targetLang, isFast, imageUrl, c.history, false, {
