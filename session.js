@@ -8,7 +8,14 @@ const VOCAB_PATH = path.join(__dirname, 'vocabulary.json'); // File lưu từ v�
 // --- 1. QUẢN LÝ CÀI ĐẶT & LỊCH SỬ CHAT ---
 let userSessions = {};
 if (fs.existsSync(DB_PATH)) {
-  try { userSessions = JSON.parse(fs.readFileSync(DB_PATH, 'utf8')); } catch (e) {}
+  try {
+    const loaded = JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
+    if (!loaded || typeof loaded !== 'object' || Array.isArray(loaded)) throw new TypeError('Invalid session object');
+    userSessions = loaded;
+  } catch (error) {
+    console.error('Cannot read Telegram sessions:', error.message);
+    throw error;
+  }
 }
 
 const saveDatabase = () => fs.writeFileSync(DB_PATH, JSON.stringify(userSessions, null, 2), 'utf8');
@@ -30,9 +37,24 @@ const getUserConfig = (userId) => {
     };
     saveDatabase();
   } 
-  // 2. NẾU LÀ NGƯỜI DÙNG CŨ (Fix lỗi undefined ở đây)
+  // Safely migrate older settings and avoid malformed persisted history.
   else {
     let isUpdated = false;
+    const defaults = {
+      targetLang: 'zh', voiceKey: 'sarah', speed: 1,
+      showTranslation: true, showPronunciation: true,
+      showVocabulary: true, enableVoice: true
+    };
+    for (const [key, value] of Object.entries(defaults)) {
+      if (userSessions[userId][key] === undefined) {
+        userSessions[userId][key] = value;
+        isUpdated = true;
+      }
+    }
+    if (!Array.isArray(userSessions[userId].history)) {
+      userSessions[userId].history = [];
+      isUpdated = true;
+    }
     
     // Nếu dữ liệu cũ chưa có mảng history -> Khởi tạo mảng rỗng
     if (!userSessions[userId].history) {
@@ -58,7 +80,18 @@ const getUserConfig = (userId) => {
 };
 
 // --- 2. QUẢN LÝ DANH SÁCH TRẮNG (WHITELIST) ---
-let whitelist = fs.existsSync(WL_PATH) ? JSON.parse(fs.readFileSync(WL_PATH, 'utf8')) : [];
+function readDataFile(file, fallback) {
+  if (!fs.existsSync(file)) return fallback;
+  try {
+    const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (Array.isArray(fallback)) return Array.isArray(parsed) ? parsed.map(String) : fallback;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : fallback;
+  } catch (error) {
+    console.error('Telegram data file is invalid:', path.basename(file), error.message);
+    throw new Error('Cannot read Telegram user data: ' + path.basename(file));
+  }
+}
+let whitelist = readDataFile(WL_PATH, []);
 const saveWhitelist = () => fs.writeFileSync(WL_PATH, JSON.stringify(whitelist, null, 2), 'utf8');
 const isAuthorized = (userId) => whitelist.includes(userId.toString());
 const addAuthorizedUser = (userId) => { if (!whitelist.includes(userId.toString())) { whitelist.push(userId.toString()); saveWhitelist(); } };
@@ -66,7 +99,7 @@ const removeAuthorizedUser = (userId) => { whitelist = whitelist.filter(id => id
 const getWhitelist = () => whitelist;
 
 // --- 3. QUẢN LÝ TỪ VỰNG (FLASHCARD) ---
-let userVocabs = fs.existsSync(VOCAB_PATH) ? JSON.parse(fs.readFileSync(VOCAB_PATH, 'utf8')) : {};
+let userVocabs = readDataFile(VOCAB_PATH, {});
 const saveVocabDB = () => fs.writeFileSync(VOCAB_PATH, JSON.stringify(userVocabs, null, 2), 'utf8');
 
 const saveVocabulary = (userId, vocabText) => {
