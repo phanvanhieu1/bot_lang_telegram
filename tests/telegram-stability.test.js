@@ -115,7 +115,7 @@ test('error handler does not mention unused Gemini APIs', () => {
 
 test('Telegram handlers scope vocab saves to unique callback ids', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'bot.js'), 'utf8');
-  assert.match(source, /pendingVocabs\[vocabId\] = parsed\.vocabulary/);
+  assert.match(source, /pendingVocabs\[vocabId\] = \{ vocabulary: parsed\.vocabulary, chineseText \}/);
   assert.match(source, /buildTranslationButtons\(/);
   assert.match(source, /bot\.command\('clearcache'/);
   assert.match(source, /getShuffledOpenAIClients|withDownloadedVoice/);
