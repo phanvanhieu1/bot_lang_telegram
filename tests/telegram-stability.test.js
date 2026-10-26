@@ -65,7 +65,7 @@ test('voice helper rejects oversized downloads', async () => {
 
 test('CSV export has two quoted Anki columns and handles commas and quotes', () => {
   const csv = exportAnkiCsv(['- 你好 (nǐ hǎo): Xin chào, bạn', '- \"书\": quyển sách']);
-  assert.ok(csv.startsWith('\\uFEFF'));
+  assert.ok(csv.startsWith(String.fromCharCode(0xFEFF)));
   assert.ok(csv.includes('\"Front\",\"Back\"'));
   assert.ok(csv.includes('\"你好 (nǐ hǎo)\",\"Xin chào, bạn\"'));
   assert.ok(csv.includes('\"\"书\"\"'));
