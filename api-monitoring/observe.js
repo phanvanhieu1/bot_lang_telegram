@@ -15,8 +15,7 @@ async function observed(provider, operation, work, options = {}) {
     const result = await work();
     ignoreWrite(recordEvent(project, { provider, operation, status: 200,
       latencyMs: Date.now() - started,
-      tokens: result?.usage?.total_tokens || 0,
-      costUsd: 0 }));
+      tokens: result?.usage?.total_tokens || 0 }));
     const limits = result?.rateLimit?.requests;
     if (limits && Number.isFinite(limits.limit) && limits.limit > 0 &&
         Number.isFinite(limits.remaining) && limits.remaining >= 0) {
