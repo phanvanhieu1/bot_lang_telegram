@@ -92,7 +92,7 @@ test('bot no longer calls speech automatically and keeps on-demand text per mess
   assert.match(bot, /await ctx\.replyWithVoice/);
   assert.match(bot, /if \(index === 0\) extra\.reply_markup = actions/);
   assert.doesNotMatch(bot, /if \(c\.enableVoice && translatedText\)/);
-  assert.match(bot, /if \(isFast \|\| c\.showTranslation\)/);
+  assert.match(bot, /const isFast = false/);
   assert.match(bot, /activeSpeechRequests\.has\(requestKey\)/);
   assert.doesNotMatch(settings, /Giọng đọc AI: BẬT|Giọng đọc AI: TẮT/);
   assert.match(sessions, /pendingSpeech: \{\}/);
