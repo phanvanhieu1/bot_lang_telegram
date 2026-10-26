@@ -176,7 +176,7 @@ bot.action(/^set_(lang|voice|speed)_([a-zA-Z0-9.]+)$/, async (ctx) => {
   await editMenu(ctx, renderFunc);
 });
 
-// Only vocabulary analysis remains configurable in the compact interface.
+// Pinyin, reverse translation and vocabulary visibility are independently configurable.
 bot.action(/^toggle_(pron|back|vocab)$/, async (ctx) => {
   const c = getUserConfig(ctx.from.id);
   const field = { pron: 'showPronunciation', back: 'showBackTranslation', vocab: 'showVocabulary' }[ctx.match[1]];
