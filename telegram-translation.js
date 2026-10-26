@@ -46,7 +46,7 @@ function buildTranslationButtons({ translation, speechId, vocabId, copyInlineBut
 }
 
 // The three learner-facing fields are rendered together in ONE Telegram message.
-// Vocabulary is available via the Save action, never appended as a separate bubble.
+// Vocabulary is sent separately by the bot; Copy and TTS use this compact message only.
 function buildCompactTranslation({ translation, pinyin, backTranslation }) {
   if (typeof translation !== 'string' || !translation.trim()) {
     throw new TypeError('Missing primary translation');
