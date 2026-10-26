@@ -60,7 +60,7 @@ bot.command('adduser', async (ctx) => {
   const newId = args[1];
   if (!/^\d{5,20}$/.test(newId || '')) return ctx.reply('⚠️ Cú pháp: /adduser <Telegram_ID dạng số>');
   addAuthorizedUser(newId);
-  ctx.reply(`✅ Đã cấp quyền sử dụng Bot cho ID: \`${newId}\``, { parse_mode: 'Markdown' });
+  await ctx.reply(`✅ Đã cấp quyền sử dụng Bot cho ID: \`${newId}\``, { parse_mode: 'Markdown' });
 });
 
 bot.command('removeuser', async (ctx) => {
@@ -72,13 +72,13 @@ bot.command('removeuser', async (ctx) => {
   if (targetId === MASTER_ADMIN) return ctx.reply('❌ Bạn không thể tự xóa quyền của chính mình!');
   
   removeAuthorizedUser(targetId);
-  ctx.reply(`🗑 Đã thu hồi quyền sử dụng Bot của ID: \`${targetId}\``, { parse_mode: 'Markdown' });
+  await ctx.reply(`🗑 Đã thu hồi quyền sử dụng Bot của ID: \`${targetId}\``, { parse_mode: 'Markdown' });
 });
 
 bot.command('listusers', async (ctx) => {
   if (ctx.from.id.toString() !== MASTER_ADMIN) return;
   const wl = getWhitelist();
-  ctx.reply(`📋 *DANH SÁCH ĐƯỢC CẤP QUYỀN:*\n\n${wl.map((id, i) => `${i+1}. \`${id}\``).join('\n')}`, { parse_mode: 'Markdown' });
+  for (const chunk of splitLongText('📋 DANH SÁCH ĐƯỢC CẤP QUYỀN:\n\n' + wl.map((id, i) => `${i+1}. ${id}`).join('\n'))) await ctx.reply(chunk);
 });
 
 // --- CÁC LỆNH MENU TELEGRAM ---
@@ -209,7 +209,7 @@ async function processStudyContent(ctx, text = '', imageUrl = null, statusMsgPre
     }
 
     // Always keep the actual exchange in conversation history (including cached replies).
-    c.history.push({ user: text || 'Image/Audio', bot: aiResult });
+    c.history.push({ user: (text || 'Image/Audio').slice(0, 3000), bot: aiResult.slice(0, 4000) });
     if (c.history.length > 5) c.history.splice(0, c.history.length - 5);
     saveDatabase();
 
