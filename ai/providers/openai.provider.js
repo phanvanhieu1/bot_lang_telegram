@@ -9,6 +9,36 @@ function getOpenAIKeys() {
     .filter(Boolean);
 }
 
+function createOpenAIClient(key) {
+  return new OpenAI({
+    apiKey: key,
+    // Monitoring never records prompts, responses or credentials.
+    fetch: async (url, options) => {
+      const started = Date.now();
+      let status = 502;
+      try {
+        const response = await fetch(url, options);
+        status = response.status;
+        return response;
+      } finally {
+        void recordEvent('translator', {
+          provider: 'openai', operation: 'api',
+          status, latencyMs: Date.now() - started
+        }).catch(error => console.warn('OpenAI monitoring:', error.message));
+      }
+    }
+  });
+}
+
+function getShuffledOpenAIClients() {
+  const keys = [...new Set(getOpenAIKeys())];
+  for (let i = keys.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [keys[i], keys[j]] = [keys[j], keys[i]];
+  }
+  return keys.map(createOpenAIClient);
+}
+
 function getRandomOpenAIClient() {
   const keys = getOpenAIKeys();
 
@@ -21,25 +51,7 @@ function getRandomOpenAIClient() {
   const randomIndex =
     Math.floor(Math.random() * keys.length);
 
-  return new OpenAI({
-    apiKey: keys[randomIndex],
-    // Keep the SDK's retry/error handling; record transport results, not prompt text.
-    fetch: async (url, options) => {
-      const started = Date.now();
-      let status = 502;
-      try {
-        const response = await fetch(url, options);
-        status = response.status;
-        return response;
-      } finally {
-        // Do not await metrics writes: monitoring must not delay or fail OpenAI calls.
-        void recordEvent('translator', {
-          provider: 'openai', operation: 'api',
-          status, latencyMs: Date.now() - started
-        }).catch(error => console.warn('OpenAI monitoring:', error.message));
-      }
-    }
-  });
+  return createOpenAIClient(keys[randomIndex]);
 }
 
 function getOpenAIKeyCount() {
@@ -48,5 +60,6 @@ function getOpenAIKeyCount() {
 
 module.exports = {
   getRandomOpenAIClient,
-  getOpenAIKeyCount
+  getOpenAIKeyCount,
+  getShuffledOpenAIClients
 };
