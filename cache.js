@@ -144,7 +144,9 @@ const setCachedAudio = (text, voice, speed, buffer) => {
 const clearAudioCache = () => {
   let removed = 0;
   for (const name of fs.readdirSync(CACHE_DIR)) {
-    if (!/^[a-f0-9]{32}\\.(ogg|mp3)$/.test(name)) continue;
+    if (!name.endsWith('.ogg') && !name.endsWith('.mp3')) continue;
+    const hash = name.slice(0, -4);
+    if (hash.length !== 32 || Array.from(hash).some(c => !'abcdef0123456789'.includes(c))) continue;
     fs.unlinkSync(path.join(CACHE_DIR, name));
     removed++;
   }
