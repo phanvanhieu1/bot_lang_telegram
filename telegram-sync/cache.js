@@ -32,7 +32,7 @@ async function translateViaSharedCache(text, language, showVocabulary) {
   // The web intentionally doesn't show reverse translation for Chinese input.
   // Keep Telegram's Chinese-source reverse text in a dedicated field so the
   // website's existing semantics cannot change when sharing a cache entry.
-  const reverseField = /[\\u3400-\\u9FFF]/u.test(text)
+  const reverseField = /[\u3400-\u9FFF]/u.test(text)
     ? 'telegramBackTranslation' : 'backTranslation';
   const missingBack = !Object.hasOwn(cache || {}, reverseField);
   const missingVocab = Boolean(showVocabulary) &&
