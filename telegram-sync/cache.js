@@ -29,16 +29,18 @@ async function translateViaSharedCache(text, language, showVocabulary) {
   const context = 'auto', fast = false;
   const cache = await getWebCachedText(text, language, fast, context);
   const missingTranslation = !cache?.translation;
-  // Website intentionally skips reverse translations for Chinese input.
-  // Telegram supplements this in the same shared cache without replacing
-  // its existing canonical translation.
-  const missingBack = !cache?.backTranslation;
+  // The web intentionally doesn't show reverse translation for Chinese input.
+  // Keep Telegram's Chinese-source reverse text in a dedicated field so the
+  // website's existing semantics cannot change when sharing a cache entry.
+  const reverseField = /[\\u3400-\\u9FFF]/u.test(text)
+    ? 'telegramBackTranslation' : 'backTranslation';
+  const missingBack = !Object.hasOwn(cache || {}, reverseField);
   const missingVocab = Boolean(showVocabulary) &&
     (!Object.hasOwn(cache || {}, 'vocabulary') || cache.vocabularyVersion !== 2);
 
   if (!missingTranslation && !missingBack && !missingVocab) {
     return { translation: cache.translation,
-      backTranslation: cache.backTranslation || '',
+      backTranslation: cache[reverseField] || '',
       vocabulary: showVocabulary ? cache.vocabulary || '' : '',
       cached: true };
   }
@@ -55,7 +57,7 @@ async function translateViaSharedCache(text, language, showVocabulary) {
   if (!isSupplement && !parsed.translation) throw new Error('AI chưa trả về bản dịch');
   const update = {};
   if (missingTranslation) update.translation = parsed.translation;
-  if (missingBack) update.backTranslation = parsed.backTranslation || '';
+  if (missingBack) update[reverseField] = parsed.backTranslation || '';
   if (missingVocab) {
     update.vocabulary = parsed.vocabulary || '';
     update.vocabularyVersion = 2;
@@ -64,7 +66,7 @@ async function translateViaSharedCache(text, language, showVocabulary) {
   const merged = { ...cache, ...update };
   return {
     translation: merged.translation,
-    backTranslation: merged.backTranslation || '',
+    backTranslation: merged[reverseField] || '',
     vocabulary: showVocabulary ? merged.vocabulary || '' : '',
     cached: false
   };
