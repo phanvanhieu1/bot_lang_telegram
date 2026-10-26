@@ -3,10 +3,11 @@ const axios = require('axios');
 const { VOICES } = require('../../config');
 
 const DEFAULT_MODEL = 'eleven_flash_v2_5'; // Same as PRO web.
+const VIETNAMESE_VOICE_ID = 'CQAD6iKxS73fEAGjSwt5';
 const MAX_SPEECH_CHARS = 500; // Same as web Chinese TTS endpoint.
 
 async function generateSpeech(text, voiceKey, speed = 1) {
-  const voice = VOICES[voiceKey];
+  const voice = voiceKey === 'vi' ? { id: VIETNAMESE_VOICE_ID } : VOICES[voiceKey];
   if (!voice) {
     const error = new Error('Giọng đọc không hợp lệ');
     error.status = 400;
@@ -48,4 +49,4 @@ async function generateSpeech(text, voiceKey, speed = 1) {
   return audio;
 }
 
-module.exports = { generateSpeech };
+module.exports = { generateSpeech, VIETNAMESE_VOICE_ID };
