@@ -2,9 +2,13 @@ const fs = require('fs');
 const path = require('path');
 const { LANG_CONFIG, VOICES, SPEED_OPTIONS } = require('./config');
 
-const DB_PATH = path.join(__dirname, 'database.json');
-const WL_PATH = path.join(__dirname, 'whitelist.json');
-const VOCAB_PATH = path.join(__dirname, 'vocabulary.json'); // File lưu từ vựng
+// The production bot uses the repository's legacy data files.
+ // The test entry point sets TELEGRAM_DATA_DIR before this module is loaded.
+const DATA_DIR = process.env.TELEGRAM_DATA_DIR || __dirname;
+if (process.env.TELEGRAM_DATA_DIR) fs.mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 });
+const DB_PATH = path.join(DATA_DIR, 'database.json');
+const WL_PATH = path.join(DATA_DIR, 'whitelist.json');
+const VOCAB_PATH = path.join(DATA_DIR, 'vocabulary.json');
 
 // --- 1. QUẢN LÝ CÀI ĐẶT & LỊCH SỬ CHAT ---
 let userSessions = {};
