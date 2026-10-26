@@ -25,7 +25,8 @@ const getUserConfig = (userId) => {
       showVocabulary: true, 
       enableVoice: true,
       history: [],  // Thuộc tính mới
-      lastVocab: "" // Thuộc tính mới
+      lastVocab: "", // Legacy pending vocab
+      pendingVocabs: {} // Snapshot per translation message
     };
     saveDatabase();
   } 
@@ -45,6 +46,10 @@ const getUserConfig = (userId) => {
       isUpdated = true;
     }
     
+    if (!userSessions[userId].pendingVocabs || typeof userSessions[userId].pendingVocabs !== 'object' || Array.isArray(userSessions[userId].pendingVocabs)) {
+      userSessions[userId].pendingVocabs = {};
+      isUpdated = true;
+    }
     // Lưu lại ổ cứng nếu có vá thêm dữ liệu mới
     if (isUpdated) saveDatabase();
   }
@@ -68,9 +73,16 @@ const saveVocabulary = (userId, vocabText) => {
   if (!userVocabs[userId]) userVocabs[userId] = [];
   // Tách từng dòng từ vựng và đẩy vào mảng
   const lines = vocabText.split('\n').filter(l => l.trim().startsWith('-'));
-  userVocabs[userId].push(...lines);
-  saveVocabDB();
-  return lines.length;
+  const existing = new Set(userVocabs[userId]);
+  const unique = lines.filter(line => {
+    const item = line.trim();
+    if (existing.has(item)) return false;
+    existing.add(item);
+    return true;
+  }).map(line => line.trim());
+  userVocabs[userId].push(...unique);
+  if (unique.length) saveVocabDB();
+  return unique.length;
 };
 
 const getVocabulary = (userId) => userVocabs[userId] || [];
