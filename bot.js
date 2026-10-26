@@ -10,7 +10,7 @@ const { getUserConfig, saveDatabase, isAuthorized, addAuthorizedUser, removeAuth
 const { getCachedText, setCachedText, getCachedAudio, setCachedAudio, clearAudioCache } = require('./cache');
 const { LANG_CONFIG, VOICES, SPEED_OPTIONS } = require('./config');
 const MASTER_ADMIN = process.env.MASTER_ADMIN;
-const { renderDashboard, renderMenu, renderDisplayMenu } = require('./ui');
+const { renderDashboard, renderMenu, renderDisplayMenu, getSpeedKey } = require('./ui');
 const { translateFull, transcribeVoice, generateSpeech } = require('./ai');
 const handleError = require('./errorHandler');
 
@@ -24,7 +24,8 @@ const BOT_COMMANDS = [
   { command: 'clearvocab', description: '🗑 Xóa sạch Sổ tay từ vựng' },
   { command: 'clearcache', description: '🧹 Xóa cache audio (chỉ Admin)' },
   { command: 'listusers', description: '📋 Xem danh sách người dùng (Chỉ Admin)' },
-  { command: 'settings', description: '⚙️ Cài đặt dịch thuật' }
+  { command: 'settings', description: '⚙️ Cài đặt dịch thuật' },
+  { command: 'newchat', description: '🆕 Xóa ngữ cảnh hội thoại hiện tại' }
 ];
 // ==========================================
 // 1. MIDDLEWARE: BẢO VỆ BOT (CHẶN NGƯỜI LẠ)
@@ -105,7 +106,7 @@ const editMenu = async (ctx, renderData) => {
 bot.action('menu_main', (ctx) => editMenu(ctx, renderDashboard(getUserConfig(ctx.from.id))));
 bot.action('menu_lang', (ctx) => editMenu(ctx, renderMenu('🌐 *CHỌN NGÔN NGỮ*', LANG_CONFIG, getUserConfig(ctx.from.id).targetLang, 'set_lang')));
 bot.action('menu_voice', (ctx) => editMenu(ctx, renderMenu('🎙 *CHỌN GIỌNG ĐỌC*', VOICES, getUserConfig(ctx.from.id).voiceKey, 'set_voice')));
-bot.action('menu_speed', (ctx) => editMenu(ctx, renderMenu('⏩ *CHỌN TỐC ĐỘ*', SPEED_OPTIONS, getUserConfig(ctx.from.id).speed, 'set_speed')));
+bot.action('menu_speed', (ctx) => editMenu(ctx, renderMenu('⏩ *CHỌN TỐC ĐỘ*', SPEED_OPTIONS, getSpeedKey(getUserConfig(ctx.from.id).speed), 'set_speed')));
 bot.action('menu_display', (ctx) => editMenu(ctx, renderDisplayMenu(getUserConfig(ctx.from.id))));
 bot.action('menu_close', async (ctx) => { try { await ctx.deleteMessage(); } catch(e){} await ctx.answerCbQuery('Đã đóng'); });
 
@@ -127,7 +128,7 @@ bot.action(/set_(lang|voice|speed)_(.+)/, async (ctx) => {
   
   const renderFunc = type === 'lang' ? renderMenu('🌐 *CHỌN NGÔN NGỮ*', LANG_CONFIG, c.targetLang, 'set_lang') : 
                      type === 'voice' ? renderMenu('🎙 *CHỌN GIỌNG ĐỌC*', VOICES, c.voiceKey, 'set_voice') : 
-                     renderMenu('⏩ *CHỌN TỐC ĐỘ*', SPEED_OPTIONS, c.speed, 'set_speed');
+                     renderMenu('⏩ *CHỌN TỐC ĐỘ*', SPEED_OPTIONS, getSpeedKey(c.speed), 'set_speed');
   await editMenu(ctx, renderFunc);
 });
 
@@ -185,6 +186,13 @@ bot.command('export', async (ctx) => {
 bot.command('clearvocab', async (ctx) => {
   clearVocabulary(ctx.from.id);
   await ctx.reply('🗑 Đã xóa sạch sổ tay từ vựng!');
+});
+
+bot.command('newchat', async (ctx) => {
+  const c = getUserConfig(ctx.from.id);
+  c.history = [];
+  saveDatabase();
+  await ctx.reply('🆕 Đã xóa ngữ cảnh hội thoại. Bản dịch tiếp theo sẽ bắt đầu cuộc trò chuyện mới.');
 });
 
 bot.command('clearcache', async (ctx) => {
