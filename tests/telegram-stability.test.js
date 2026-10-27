@@ -39,7 +39,9 @@ test('copy button rejects values exceeding Telegram 256 character limit', () => 
   assert.equal(copyInlineButton('x'.repeat(257)), null);
   const source = fs.readFileSync(path.join(__dirname, '..', 'bot.js'), 'utf8');
   assert.doesNotMatch(source, /Markup\.button\.copyText/);
-  assert.match(source, /copyInlineButton\(translatedText\)/);
+  assert.match(source, /buildTranslationButtons\(/);
+  const translate = fs.readFileSync(path.join(__dirname, '..', 'telegram-translation.js'), 'utf8');
+  assert.match(translate, /copyInlineButton\(translation\)/);
 });
 
 test('Telegram uses exactly the four PRO web voice IDs', () => {
