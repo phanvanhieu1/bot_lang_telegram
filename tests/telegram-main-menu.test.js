@@ -66,9 +66,11 @@ test('settings dashboard works with saved numeric speed and all 4 voices', () =>
   ));
   const display = ui.renderDisplayMenu(config);
   assert.match(display.text, /Pinyin/);
-  assert.deepEqual(display.keyboard.reply_markup.inline_keyboard.flat()
+  // Menu rows come from a vm context, so convert them to a local array
+  // before deepStrictEqual (cross-realm prototypes are otherwise different).
+  assert.deepEqual(Array.from(display.keyboard.reply_markup.inline_keyboard.flat()
     .filter(button => button.callback_data.startsWith('toggle_'))
-    .map(button => button.callback_data), ['toggle_pron', 'toggle_back', 'toggle_vocab']);
+    .map(button => button.callback_data)), ['toggle_pron', 'toggle_back', 'toggle_vocab']);
 });
 
 test('settings actions do not change hidden legacy toggles or translate menu labels', async () => {
