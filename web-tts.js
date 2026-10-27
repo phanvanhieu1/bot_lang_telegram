@@ -1,15 +1,11 @@
 const crypto = require('crypto');
 const mongoose = require('mongoose');
+const { buildSpeechRequest, CHINESE_VOICE_IDS, VIETNAMESE_VOICE_ID } = require('./tts-shared');
 
 const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_TEXT_LENGTH = 500;
-const VOICE_IDS = [
-  'ByhETIclHirOlWnWKhHc',
-  'D9bZgM9Er0PhIxuW9Jqa',
-  '2I36mEahS1u7ZnTKUoaB',
-  'BqljjWyTnrioXPCNkCd4'
-];
-const SPEEDS = [0.8, 0.9, 1, 1.1, 1.2];
+const VOICE_IDS = CHINESE_VOICE_IDS;
+const SPEEDS = [0.8, 0.9, 1, 1.1, 1.15, 1.2];
 
 const audioSchema = new mongoose.Schema({
   key: { type: String, required: true, unique: true },
@@ -24,9 +20,10 @@ function hasChinese(text) {
   return /[\u3400-\u9FFF]/u.test(text);
 }
 
-async function getChineseAudio(text, requestedVoiceId, requestedSpeed) {
-  if (typeof text !== 'string' || !text.trim() || text.length > MAX_TEXT_LENGTH || !hasChinese(text)) {
-    const error = new Error('Chỉ hỗ trợ câu tiếng Trung tối đa 500 ký tự');
+async function getElevenLabsAudio(text, requestedVoiceId, requestedSpeed, language) {
+  const vietnamese = language === 'vi';
+  if (typeof text !== 'string' || !text.trim() || text.length > MAX_TEXT_LENGTH || (vietnamese ? (hasChinese(text) || !/[A-Za-zÀ-ỹ]/u.test(text)) : !hasChinese(text))) {
+    const error = new Error(vietnamese ? 'Chỉ hỗ trợ câu tiếng Việt tối đa 500 ký tự' : 'Chỉ hỗ trợ câu tiếng Trung tối đa 500 ký tự');
     error.status = 400;
     throw error;
   }
@@ -36,19 +33,21 @@ async function getChineseAudio(text, requestedVoiceId, requestedSpeed) {
     throw error;
   }
   const normalized = text.trim();
-  const model = process.env.ELEVENLABS_MODEL_ID || 'eleven_flash_v2_5';
-  // Voice must be chosen for Mandarin in the ElevenLabs voice library.
-  const voiceId = requestedVoiceId === undefined
-    ? VOICE_IDS[0]
-    : requestedVoiceId;
   const speed = requestedSpeed === undefined ? 1 : requestedSpeed;
-  if (!VOICE_IDS.includes(voiceId) || !SPEEDS.includes(speed)) {
+  if (!SPEEDS.includes(speed) ||
+      (!vietnamese && requestedVoiceId !== undefined && !VOICE_IDS.includes(requestedVoiceId))) {
     const error = new Error('Giọng đọc hoặc tốc độ không hợp lệ');
     error.status = 400;
     throw error;
   }
+  const request = buildSpeechRequest({
+    text: normalized, language, speed,
+    voiceId: vietnamese ? VIETNAMESE_VOICE_ID : (requestedVoiceId || VOICE_IDS[0]),
+    modelId: process.env.ELEVENLABS_MODEL_ID
+  });
+  const { voiceId } = request;
   const key = crypto.createHash('sha256')
-    .update(JSON.stringify(['elevenlabs', model, voiceId, speed, normalized]))
+    .update(JSON.stringify(['elevenlabs', request.cacheVoice, speed, normalized]))
     .digest('hex');
   const cached = await AudioCache.findOne({ key, expiresAt: { $gt: new Date() } }).lean();
   if (cached) {
@@ -71,7 +70,7 @@ async function getChineseAudio(text, requestedVoiceId, requestedSpeed) {
   let response;
   try {
     response = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=mp3_44100_128`,
+      request.url,
       {
         method: 'POST',
         headers: {
@@ -79,7 +78,7 @@ async function getChineseAudio(text, requestedVoiceId, requestedSpeed) {
           'Content-Type': 'application/json',
           Accept: 'audio/mpeg'
         },
-        body: JSON.stringify({ text: normalized, model_id: model, voice_settings: { speed } }),
+        body: JSON.stringify(request.body),
         signal: controller.signal
       }
     );
@@ -109,4 +108,12 @@ async function getChineseAudio(text, requestedVoiceId, requestedSpeed) {
   return { audio, cached: false };
 }
 
-module.exports = { getChineseAudio };
+async function getChineseAudio(text, requestedVoiceId, requestedSpeed) {
+  return getElevenLabsAudio(text, requestedVoiceId, requestedSpeed, 'zh');
+}
+
+async function getVietnameseAudio(text, requestedSpeed) {
+  return getElevenLabsAudio(text, VIETNAMESE_VOICE_ID, requestedSpeed, 'vi');
+}
+
+module.exports = { getChineseAudio, getVietnameseAudio, VIETNAMESE_VOICE_ID };

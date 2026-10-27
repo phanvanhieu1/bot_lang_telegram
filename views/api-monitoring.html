@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>API Monitoring · Admin</title>
+<style>
+:root{color-scheme:dark;--bg:#0c1420;--panel:#142131;--edge:#2b3a4e;--text:#edf4ff;--muted:#91a4b9;--good:#66dab0;--warn:#edbb6d}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font:14px system-ui,-apple-system,sans-serif;color:var(--text)}
+a{color:#a4d8ff;text-decoration:none}a:hover{text-decoration:underline}header,main{max-width:1150px;margin:auto;padding:22px}header{display:flex;gap:20px;justify-content:space-between;align-items:center;border-bottom:1px solid var(--edge)}
+h1{font-size:28px;margin:16px 0 6px}p,.hint{color:var(--muted)}.tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:25px 0}
+select,button{background:#1c3044;border:1px solid #38526e;color:var(--text);border-radius:10px;padding:10px 14px;font:inherit}
+button{cursor:pointer}button:disabled{opacity:.6;cursor:wait}.cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.card,.panel{border:1px solid var(--edge);border-radius:14px;background:var(--panel);padding:20px}.card .label{color:var(--muted)}.value{font-size:28px;font-weight:700;margin-top:12px;overflow-wrap:anywhere}
+.panel{margin-top:20px}h2{font-size:18px;margin:0 0 16px}.scroll{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:680px;text-align:left}
+th,td{border-bottom:1px solid var(--edge);padding:14px 10px}th{font-size:12px;color:var(--muted)}tr:last-child td{border:0}
+.good{color:var(--good)}.warn{color:var(--warn)}.chart{display:flex;align-items:end;gap:3px;height:135px;border-bottom:1px solid var(--edge);overflow:hidden}
+.bar{background:#579fc9;min-width:5px;flex:1;border-radius:3px 3px 0 0;opacity:.9}.bar:hover{background:#85c7e9}
+.muted{color:var(--muted)}.message{min-height:20px;font-size:13px}.small{font-size:12px}.right{text-align:right}
+@media(max-width:760px){.cards{grid-template-columns:repeat(2,1fr)}.card{padding:15px}.value{font-size:23px}header,main{padding:16px}}
+</style>
+</head>
+<body>
+<header><strong>API Monitoring <span class="muted small">· Admin console</span></strong><nav><a href="/admin">Quản lý tài khoản</a> · <a href="/">Trang dịch</a></nav></header>
+<main>
+<h1>Tổng quan hệ thống API</h1>
+<p>Theo dõi nhiều project. Số liệu chi phí trong sự kiện có thể là ước tính; quota chỉ lấy từ nguồn thực tế đã khai báo.</p>
+<div class="tools">
+<label>Project <select id="project"><option value="">Tất cả project</option></select></label>
+<label>Khoảng thời gian <select id="hours"><option value="1">1 giờ</option><option value="6">6 giờ</option><option selected value="24">24 giờ</option><option value="168">7 ngày</option><option value="720">30 ngày</option></select></label>
+<button id="reload" type="button">Làm mới</button><button id="quotas" type="button">Đồng bộ quota</button>
+<span class="message" id="message" role="status" aria-live="polite"></span>
+</div>
+<section class="cards" aria-label="Chỉ số tổng">
+<div class="card"><div class="label">Tổng request</div><div class="value" id="requests">—</div></div>
+<div class="card"><div class="label">Tỷ lệ thành công</div><div class="value" id="success">—</div></div>
+<div class="card"><div class="label">Token ghi nhận</div><div class="value" id="tokens">—</div></div>
+<div class="card"><div class="label">Chi phí ghi nhận · USD</div><div class="value" id="cost">—</div></div>
+</section>
+<section class="panel"><h2>Request theo giờ (UTC)</h2><div class="chart" id="chart" aria-label="Biểu đồ lưu lượng"></div><p class="small muted">Biểu đồ dựa trên sự kiện được thu thập; không bao gồm lịch sử trước khi bật monitoring.</p></section>
+<section class="panel"><h2>Độ ổn định theo provider</h2><div class="scroll"><table><thead><tr><th>Project</th><th>Provider</th><th>Request</th><th>Thành công</th><th>Độ trễ TB</th><th>Lần gần nhất</th></tr></thead><tbody id="providers"></tbody></table></div></section>
+<section class="panel"><h2>Hạn mức / số dư được báo cáo</h2><p class="small muted">“Chưa xác định” nghĩa là provider chưa cung cấp dữ liệu hoặc chưa cấu hình đồng bộ; không đồng nghĩa hết số dư. Mốc thời gian cho biết độ mới của dữ liệu.</p><div class="scroll"><table><thead><tr><th>Project</th><th>Provider</th><th>Loại hạn mức</th><th>Nguồn</th><th>Còn lại</th><th>Đã dùng</th><th>Tổng hạn mức</th><th>Cập nhật</th></tr></thead><tbody id="quotaRows"></tbody></table></div></section>
+<p class="small muted">Dữ liệu được lưu trên MongoDB của ứng dụng. Chỉ tài khoản admin truy cập được.</p>
+</main>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const count=new Intl.NumberFormat('vi-VN');
+const decimal=new Intl.NumberFormat('en-US',{maximumFractionDigits:4});
+const percent=(n,total)=>total>0?(100*n/total).toFixed(1)+'%':'—';
+const val=n=>Number.isFinite(n)?count.format(n):'Chưa xác định';
+const date=s=>s?new Date(s).toLocaleString('vi-VN',{timeZone:'Asia/Kuala_Lumpur'}):'—';
+const message=(text,isError=false)=>{ $('message').textContent=text; $('message').className=isError?'message warn':'message';};
+const discovered=new Set();
+function row(parent,values,classes=[]) {
+  const tr=document.createElement('tr');
+  values.forEach((value,i)=>{const td=document.createElement('td');td.textContent=String(value);if(classes[i])td.className=classes[i];tr.appendChild(td);});
+  parent.appendChild(tr);
+}
+function empty(parent,length,text) {
+  const tr=document.createElement('tr'),td=document.createElement('td');
+  td.colSpan=length;td.textContent=text;td.className='muted';tr.appendChild(td);parent.appendChild(tr);
+}
+function draw(data){
+  const total=data.total;
+  $('requests').textContent=val(total.requests);
+  $('success').textContent=percent(total.succeeded,total.requests);
+  $('tokens').textContent=val(total.tokens);
+  $('cost').textContent=total.pricedRequests>0?'$'+decimal.format(total.costUsd):'Chưa xác định';
+  const table=$('providers');table.replaceChildren();
+  for(const p of data.providers){
+    discovered.add(p.project);
+    const pct=percent(p.succeeded,p.requests);
+    row(table,[p.project,p.provider,val(p.requests),pct,Math.round(p.avgLatencyMs||0)+' ms',date(p.lastSeen)],[null,null,null,((p.succeeded/p.requests)<.95?'warn':'good')]);
+  }
+  if(!data.providers.length)empty(table,6,'Chưa ghi nhận request trong khoảng thời gian này.');
+  const quotas=$('quotaRows');quotas.replaceChildren();
+  for(const q of data.quotas){
+    discovered.add(q.project);
+    row(quotas,[q.project,q.provider,q.metric+' ('+q.unit+')',q.source,val(q.remaining),val(q.used),val(q.limit),date(q.checkedAt)]);
+  }
+  if(!data.quotas.length)empty(quotas,8,'Chưa có dữ liệu quota nào được báo cáo.');
+  const selected=$('project').value;
+  $('project').replaceChildren(new Option('Tất cả project',''));
+  for(const p of [...discovered].sort())$('project').add(new Option(p,p));
+  $('project').value=selected;
+  const chart=$('chart');chart.replaceChildren();
+  const peak=Math.max(1,...data.trend.map(t=>t.requests));
+  for(const hour of data.trend){
+    const bar=document.createElement('div');
+    bar.className='bar';bar.style.height=Math.max(2,(hour.requests/peak)*100)+'%';
+    bar.title=hour.hour+': '+hour.requests+' request, '+percent(hour.succeeded,hour.requests)+' thành công';
+    chart.appendChild(bar);
+  }
+  if(!data.trend.length)chart.textContent='Chưa có dữ liệu biểu đồ.';
+}
+async function load(){
+  $('reload').disabled=true;message('Đang tải...');
+  try{
+    const params=new URLSearchParams({hours:$('hours').value});
+    if($('project').value)params.set('project',$('project').value);
+    const response=await fetch('/api/monitoring/admin/summary?'+params,{credentials:'same-origin',cache:'no-store'});
+    if(response.status===401||response.status===403)throw new Error('Không có quyền admin hoặc phiên đã hết hạn.');
+    if(!response.ok)throw new Error('Không thể tải dữ liệu ('+response.status+')');
+    draw(await response.json());message('Cập nhật lúc '+new Date().toLocaleTimeString('vi-VN'));
+  }catch(error){message(error.message,true);}
+  finally{$('reload').disabled=false;}
+}
+$('reload').addEventListener('click',load);
+$('project').addEventListener('change',load);
+$('hours').addEventListener('change',load);
+$('quotas').addEventListener('click',async()=>{
+  $('quotas').disabled=true;message('Đang đồng bộ quota...');
+  try{
+    const response=await fetch('/api/monitoring/admin/refresh-quotas',{method:'POST',credentials:'same-origin'});
+    if(!response.ok)throw new Error('Không thể đồng bộ ('+response.status+')');
+    await load();
+  }catch(error){message(error.message,true);}
+  finally{$('quotas').disabled=false;}
+});
+load();
+</script>
+</body>
+</html>

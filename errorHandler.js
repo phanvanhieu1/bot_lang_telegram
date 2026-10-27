@@ -1,51 +1,39 @@
-// errorHandler.js
+'use strict';
+
+function classifyError(error) {
+  const status = Number(error?.status || error?.response?.status || error?.cause?.status) || null;
+  const code = String(error?.code || error?.cause?.code || '').toUpperCase();
+  const url = String(error?.config?.url || error?.cause?.config?.url || '');
+  if (status === 429) {
+    return '⚠️ API đang bị giới hạn lượt gọi (429) hoặc đã hết quota. Vui lòng thử lại sau.';
+  }
+  if (/api\.elevenlabs\.io/i.test(url)) {
+    return '⚠️ Dịch thuật vẫn hoạt động, nhưng dịch vụ giọng đọc ElevenLabs đang gặp lỗi.';
+  }
+  if (status === 401 || status === 403) {
+    return '⚠️ API chưa được cấp quyền hoặc khóa API không hợp lệ. Vui lòng liên hệ quản trị viên.';
+  }
+  if (code === 'ECONNABORTED' || code === 'ETIMEDOUT' || code === 'UND_ERR_CONNECT_TIMEOUT') {
+    return '⚠️ Kết nối API quá thời gian chờ. Vui lòng thử lại.';
+  }
+  return '❌ Có lỗi khi xử lý yêu cầu. Vui lòng thử lại sau.';
+}
 
 async function handleError(error, ctx, statusMsgId = null) {
-  // 1. Ghi log chi tiết ra Terminal để dev theo dõi
-  const errData = error.response?.data || error.message || error;
-  console.error('\n[LỖI HỆ THỐNG]:', JSON.stringify(errData, null, 2));
-
-  // 2. Xóa tin nhắn trạng thái (ví dụ: "⏳ Đang phân tích...") nếu có
+  // Never dump upstream response bodies, prompts, or credential-bearing URLs.
+  console.error('[TELEGRAM ERROR]', {
+    message: error?.message || 'Unknown error',
+    code: error?.code || error?.cause?.code || null,
+    status: error?.status || error?.response?.status || error?.cause?.status || null
+  });
   if (statusMsgId) {
-    try {
-      await ctx.deleteMessage(statusMsgId);
-    } catch (e) {
-      // Bỏ qua nếu tin nhắn đã bị xóa từ trước
-    }
+    try { await ctx.deleteMessage(statusMsgId); } catch {}
   }
-
-  // 3. Phân tích chuỗi lỗi để phản hồi đúng thông điệp
-  const errorString = JSON.stringify(errData).toLowerCase();
-
-  try {
-    if (errorString.includes('429') || errorString.includes('resource_exhausted') || errorString.includes('quota exceeded')) {
-      await ctx.reply(
-        '⚠️ *Lỗi Hết Hạn Mức (429)*\n\n' +
-        'Bạn đã dùng hết số lượt gọi Gemini API miễn phí. Vui lòng đợi vài phút rồi thử lại, hoặc kiểm tra lại thiết lập model.', 
-        { parse_mode: 'Markdown' }
-      );
-    } 
-    else if (errorString.includes('elevenlabs') || errorString.includes('insufficient') || errorString.includes('quota_exceeded')) {
-      await ctx.reply(
-        '⚠️ *Lỗi Giọng Đọc AI*\n\n' +
-        'Tài khoản ElevenLabs của bạn đã hết số lượng ký tự miễn phí hoặc API Key không hợp lệ.', 
-        { parse_mode: 'Markdown' }
-      );
-    } 
-    else if (errorString.includes('message is not modified')) {
-      // Lỗi do bấm trùng nút trên Telegram
-      await ctx.answerCbQuery('Tùy chọn này đang được áp dụng rồi!');
-    }
-    else {
-      await ctx.reply(
-        '❌ *Lỗi Hệ Thống*\n\n' +
-        'Đã xảy ra sự cố không mong muốn trong quá trình xử lý, vui lòng thử lại sau!', 
-        { parse_mode: 'Markdown' }
-      );
-    }
-  } catch (replyError) {
-    console.error('[CRITICAL] Không thể gửi tin nhắn báo lỗi tới Telegram:', replyError.message);
+  try { await ctx.reply(classifyError(error)); }
+  catch (replyError) {
+    console.error('[TELEGRAM] Cannot send error response:', replyError.message);
   }
 }
 
 module.exports = handleError;
+module.exports.classifyError = classifyError;

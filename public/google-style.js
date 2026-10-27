@@ -176,27 +176,38 @@
     }
     stopSpeech();
     const id = playbackId;
+    let speechLanguage;
     if (window.languageUI.get() === 'en') {
       const source = lastSourceLanguage || window.languageUI.guessSource(input.value);
-      const speaking = button === outputSpeaker ? (source === 'en' ? 'vi' : 'en') : source;
-      browserSpeak(text, button, speaking === 'en' ? 'en-US' : 'vi-VN');
-      return;
+      speechLanguage = button === outputSpeaker ? (source === 'en' ? 'vi' : 'en') : source;
+    } else {
+      speechLanguage = /[\u3400-\u9FFF]/u.test(text) ? 'zh' : 'vi';
     }
-    if (!/[\u3400-\u9FFF]/u.test(text)) {
-      browserSpeak(text, button, 'vi-VN');
+    if (speechLanguage === 'en') {
+      browserSpeak(text, button, 'en-US');
       return;
     }
     button.classList.add('is-speaking');
     activeSpeechButton = button;
     requestController = new AbortController();
     try {
-      const response = await fetch('/api/tts/chinese', {
+      const endpoint = speechLanguage === 'vi' ? '/api/tts/vietnamese' : '/api/tts/chinese';
+      const payload = { text, speed: Number(speedSelect.value) };
+      if (speechLanguage === 'zh') payload.voiceId = voiceSelect.value;
+      const response = await fetch(endpoint, {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, voiceId: voiceSelect.value, speed: Number(speedSelect.value) }),
+        body: JSON.stringify(payload),
         signal: requestController.signal
       });
+      // FREE web users retain device TTS; the fixed Vietnamese ElevenLabs
+      // voice is reserved for logged-in PRO accounts.
+      if (response.status === 403 && speechLanguage === 'vi') {
+        stopSpeech();
+        browserSpeak(text, button, 'vi-VN');
+        return;
+      }
       if (!response.ok) {
         let message = 'Không thể tạo âm thanh ElevenLabs';
         try {
@@ -221,7 +232,7 @@
       if (id !== playbackId || error.name === 'AbortError') return;
       console.error('ElevenLabs TTS error:', error);
       stopSpeech();
-      showSpeechError(error.message || 'Không thể đọc tiếng Trung lúc này.');
+      showSpeechError(error.message || 'Không thể tạo giọng đọc lúc này.');
     }
   }
 
@@ -274,6 +285,7 @@
     byId('backTranslationWrapper').classList.add('hidden');
     byId('pronunciationWrapper').classList.add('hidden');
     byId('vocabularyWrapper').classList.add('hidden');
+    window.renderTranslationVocabulary?.([], '', window.languageUI?.get?.() || 'zh');
     byId('verificationWrapper').classList.add('hidden');
     byId('status').textContent = '';
   });

@@ -1,37 +1,31 @@
 const fs = require('fs');
 
 const {
-  getRandomOpenAIClient,
-  getOpenAIKeyCount
+  getShuffledOpenAIClients
 } = require('../providers/openai.provider');
 
 // 4. CORE 2: Nhận diện giọng nói (Whisper) có FAILOVER (Chống sập)
 async function transcribeVoice(filePath) {
-  let attempts = 0;
-  const maxAttempts = getOpenAIKeyCount();
-
-  while (attempts < maxAttempts) {
+  const clients = getShuffledOpenAIClients();
+  if (!clients.length) throw new Error('Chưa cấu hình OPENAI_API_KEYS cho Whisper');
+  let lastError = null;
+  for (const [index, openai] of clients.entries()) {
     try {
-      const openai = getRandomOpenAIClient();
-      console.log(`[Whisper] Thử (Lần ${attempts + 1}/${maxAttempts}) bằng Key: ${openai.apiKey.substring(0, 12)}...`);
-
       const transcription = await openai.audio.transcriptions.create({
         file: fs.createReadStream(filePath),
-        model: 'whisper-1',
+        model: 'whisper-1'
       });
-
-      return transcription.text.trim(); // Thành công trả về text
-
+      return (transcription.text || '').trim();
     } catch (error) {
-      attempts++;
-      console.error(`[LỖI WHISPER] Key bị lỗi/hết tiền: ${error.message}`);
-
-      if (attempts >= maxAttempts) {
-        throw new Error('❌ Đã thử hết toàn bộ API Keys nhưng Whisper đều thất bại.');
-      }
-      console.log(`⏳ Tự động đổi sang Key khác cho Whisper...`);
+      lastError = error;
+      if ([400, 413, 422].includes(error?.status)) throw error;
+      // Never log API keys, including prefixes.
+      console.error(`[Whisper] Lần ${index + 1}/${clients.length} thất bại:`, error?.status || error?.code || 'UNKNOWN');
     }
   }
+  const finalError = new Error('Tất cả API key OpenAI đã thử đều không khả dụng cho Whisper', { cause: lastError });
+  finalError.status = lastError?.status;
+  throw finalError;
 }
 
 module.exports = {

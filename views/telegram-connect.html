@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Liên kết Telegram | Web PRO</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,sans-serif;background:#0c1728;color:#eaf3ff}
+*{box-sizing:border-box}body{margin:0;padding:24px}
+main{max-width:580px;margin:52px auto;background:#18263b;border:1px solid #344962;border-radius:20px;padding:28px}
+h1{font-size:24px;margin:0 0 10px}p{color:#b4c8e0;line-height:1.65}
+button{font:inherit;color:white;background:#226eae;padding:12px 16px;border:0;border-radius:10px;cursor:pointer;margin-right:8px;margin-bottom:12px}
+button:disabled{opacity:.5;cursor:wait}.secondary{background:#44546a}
+pre{white-space:pre-wrap;word-break:break-all;background:#101f33;padding:16px;border-radius:12px;user-select:all}
+code{color:#83d9f3}.err{color:#ff9fae}a{color:#8ed6ff}
+small{color:#a8b9cf}
+</style>
+</head>
+<body>
+<main>
+<a href="/">← Trở về trang dịch</a>
+<h1>🔗 Liên kết Telegram với web PRO</h1>
+<p>Liên kết một lần để nút 💾 trên Telegram lưu từ vựng vào đúng kho học tập MongoDB của tài khoản này. Bot Telegram và website sẽ đọc cùng dữ liệu.</p>
+<p id="status">Đang kiểm tra liên kết...</p>
+<div id="unlinked" hidden>
+  <button id="create">Tạo mã liên kết (10 phút)</button>
+  <pre id="code" hidden></pre>
+  <p id="instructions" hidden>Trong <strong>tin nhắn riêng</strong> với bot Telegram của bạn, gửi lệnh ở trên. Mã dùng được một lần và sẽ tự hết hạn sau 10 phút. Không chia sẻ mã này.</p>
+</div>
+<div id="linked" hidden>
+  <button id="unlink" class="secondary">Ngắt liên kết Telegram</button>
+  <p><small>Ngắt liên kết không xóa từ vựng đã lưu trên web.</small></p>
+</div>
+<p id="message" aria-live="polite"></p>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+async function request(url, options={}) {
+  const r=await fetch(url,{credentials:'same-origin',cache:'no-store',...options});
+  let data={};try{data=await r.json();}catch{}
+  if(!r.ok)throw new Error(data.message||'HTTP '+r.status);
+  return data;
+}
+async function refresh() {
+  const data=await request('/api/telegram/status');
+  $('unlinked').hidden=data.connected;
+  $('linked').hidden=!data.connected;
+  $('status').textContent=data.connected
+    ? '✅ Đang liên kết với Telegram ID '+data.telegramId
+    : 'Chưa liên kết. Tạo mã dưới đây để kết nối.';
+  if(data.connected){$('code').hidden=true;$('instructions').hidden=true;}
+}
+$('create').addEventListener('click', async()=>{
+  $('create').disabled=true;$('message').textContent='';
+  try {
+    const r=await request('/api/telegram/link-code',{method:'POST'});
+    $('code').textContent='/link '+r.code;
+    $('code').hidden=false;$('instructions').hidden=false;
+    $('message').textContent='Mã chỉ hiển thị tại đây. Không gửi mã cho người khác.';
+  } catch(e){$('message').textContent=e.message;$('message').className='err';}
+  finally{$('create').disabled=false;}
+});
+$('unlink').addEventListener('click', async()=>{
+  if(!confirm('Ngắt liên kết Telegram? Dữ liệu từ vựng trên web sẽ được giữ nguyên.'))return;
+  $('unlink').disabled=true;
+  try{await request('/api/telegram/unlink',{method:'POST'});await refresh();}
+  catch(e){$('message').textContent=e.message;$('message').className='err';}
+  finally{$('unlink').disabled=false;}
+});
+refresh().catch(e=>{$('status').textContent=e.message;$('status').className='err';});
+</script>
+</body></html>

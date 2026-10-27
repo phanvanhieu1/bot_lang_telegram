@@ -1,8 +1,10 @@
+// Match the 4 Mandarin PRO voices configured in public/index.html and web-tts.js.
+// Use stable voice keys in Telegram settings, not provider-specific IDs as callback data.
 const VOICES = {
-  'sarah': { id: 'JZLpE3AGwpKYZI2X65hN', name: 'Mingyao ye' },
-  'rachel': { id: '21m00Tcm4TlvDq8ikWAM', name: '👩 Rachel (Nữ - Truyền cảm)' },
-  'adam': { id: 'hZTuv9Zqrq4yHYrEmF1r', name: 'Adam li' },
-  'george': { id: 'JBFqnCBsd6RMkjVDRZzb', name: '👨 George (Nam - Dứt khoát)' },
+  female1: { id: 'ByhETIclHirOlWnWKhHc', name: '👩 Giọng nữ 1' },
+  male1:   { id: 'D9bZgM9Er0PhIxuW9Jqa', name: '👨 Giọng nam 1' },
+  male2:   { id: '2I36mEahS1u7ZnTKUoaB', name: '👨 Giọng nam 2' },
+  female2: { id: 'BqljjWyTnrioXPCNkCd4', name: '👩 Giọng nữ 2' }
 };
 
 const LANG_CONFIG = {

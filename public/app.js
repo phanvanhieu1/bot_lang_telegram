@@ -533,6 +533,7 @@ async function translate() {
   document.getElementById('outputSpeakBtn').hidden = true;
   pronunciation.textContent = '';
 vocabulary.textContent = '';
+  window.renderTranslationVocabulary?.([], '', selectedLang);
 
   try {
     const translateEndpoint =
@@ -601,6 +602,17 @@ const response = await fetch(translateEndpoint, {
   );
 } else {
   parseResult(data.result);
+  // The cards are database-backed; the raw AI1 list is never rendered
+  // when the V1.1 server sends structured vocabularyItems.
+  if(vocabularyToggle.checked) {
+    window.renderTranslationVocabulary?.(
+      data.vocabularyItems,
+      data.vocabularyError || '',
+      selectedLang
+    );
+  } else {
+    window.renderTranslationVocabulary?.([], '', selectedLang);
+  }
 }
 
     if (selectedLang === 'en') {
@@ -1135,6 +1147,7 @@ window.addEventListener('learning-language-change', () => {
   backTranslationWrapper.classList.add('hidden');
   pronunciationWrapper.classList.add('hidden');
   vocabularyWrapper.classList.add('hidden');
+  window.renderTranslationVocabulary?.([], '', window.languageUI?.get?.() || 'zh');
   verificationWrapper.classList.add('hidden');
   const practiceResultBox = document.getElementById('practiceModalResult');
   practiceResultBox.classList.add('hidden');
