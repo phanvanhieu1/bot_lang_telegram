@@ -806,7 +806,7 @@ translateV2Btn.addEventListener('click', async () => {
       status.textContent = '⚠ Bản dịch V2 còn điểm cần kiểm tra: ' + (data.issues || []).slice(0,2).join('; ');
       status.className = 'status error';
     } else {
-      status.textContent = '✓ Dịch chuyên sâu V2 hoàn thành (AI kiểm định, không bảo đảm tuyệt đối)';
+      status.textContent = '✓ Dịch V2 hoàn tất · đã kiểm tra thuật ngữ và mã/số liệu (chưa kiểm định toàn bộ ngữ nghĩa)';
       status.className = 'status success';
     }
     loadUsage();
