@@ -9,13 +9,14 @@ function normalizeDomain(value) {
     ['daily','friend','personal','life'].includes(value)?'daily':'unknown';
 }
 function contextDomain(context, analyzed) {
-  if(context==='friend') return 'daily';
   const domain=normalizeDomain(analyzed);
-  // Context describes the addressee, not always the topic: an IT message can
-  // be to a colleague. Trust Claude's IT/domain analysis when explicit.
-  if(domain!=='unknown')return domain;
-  if(context==='colleague'||context==='superior')return 'work';
-  return 'unknown';
+  // The explicit user-selected conversational context takes precedence over
+  // a speculative Claude "daily" guess for personalized domain terms.
+  // Technical text remains IT, including when addressing a colleague.
+  if(context==='friend') return 'daily';
+  if(context==='colleague'||context==='superior')
+    return domain==='it'?'it':'work';
+  return domain; // "auto": do not force work or daily without evidence
 }
 function matchingTerm(text,term) {
   const source=String(term||'').trim();
