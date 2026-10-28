@@ -124,6 +124,19 @@
     const result=byId('translation');
     if(result)highlight(result,entries);
   };
+  // Surface exactly which confirmed meanings were used, for direct visual review.
+  window.displayAppliedTerms=(entries)=>{
+    const note=byId('termAppliedSummary');
+    if(!note)return;
+    const matches=Array.isArray(entries)?entries.filter(item=>
+      item && typeof item.source==='string' && typeof item.translation==='string'):[];
+    note.hidden=!matches.length;
+    note.textContent=matches.length
+      ?'✓ Thuật ngữ đã áp dụng ('+matches.length+'): '+
+        matches.slice(0,5).map(t=>t.source+' → '+t.translation).join(' · ')+
+        (matches.length>5?' · và '+(matches.length-5)+' thuật ngữ khác':'')
+      :'';
+  };
   window.displayTermWarning=(warnings)=>{
     const note=byId('termTranslationWarning');
     if(!note)return;
