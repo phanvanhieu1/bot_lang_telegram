@@ -99,6 +99,21 @@ test('Preserves API codes and numbers; flags omissions for review',async()=>{
   assert.ok(r.issues.some(x=>x.includes('500')));
   assert.deepEqual(missingProtected('API 500 X7','API X7'),['500']);
 });
+test('Protected numeric tokens match exact values, not substrings',()=>{
+  assert.deepEqual(missingProtected('API 返回 500','API trả về 1500'),['500']);
+  assert.deepEqual(missingProtected('50%','50'),['50%']);
+  assert.deepEqual(missingProtected('50％','50'),['50％']);
+  assert.deepEqual(missingProtected('API 403, API 403','API 403'),['API','403']);
+  assert.deepEqual(missingProtected('API 403 50%','API trả về 403, giảm 50%'),[]);
+  assert.deepEqual(missingProtected('X7','X70'),['X7']);
+});
+test('An expanded numeric value cannot receive PASS merely because it contains the original digits',async()=>{
+  const m=mocked({translation:'API trả về 1500'});
+  const result=await deepTranslate({text:'API 返回 500',context:'colleague'},m.providers);
+  assert.equal(result.status,'REVIEW');
+  assert.ok(result.issues.some(issue=>issue.includes('500')));
+});
+
 test('Claude failure and unavailable database never quietly become valid translation',async()=>{
   await assert.rejects(deepTranslate({text:'刷子'},mocked({failClaude:true}).providers));
   await assert.rejects(deepTranslate({text:'刷子',loadGlossary:async()=>{throw Error('db down')}},
