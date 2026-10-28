@@ -127,7 +127,7 @@ test('prompt cache keys are versioned without dropping old MongoDB documents', (
   const source = fs.readFileSync(path.join(__dirname, '..', 'web-cache.js'), 'utf8');
   assert.match(source, /CACHE_KEY_VERSION = 2/);
   assert.match(source, /JSON\.stringify\(\[CACHE_KEY_VERSION, \.\.\.parts\]\)/);
-  assert.match(source, /hashKey\(\['pro'/);
+  assert.match(source, /return hashKey\(\[\s*'pro'/m);
 });
 
 test('vocabulary category prompt understands game work and software work', () => {
