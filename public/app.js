@@ -553,6 +553,7 @@ async function translate() {
   window.displayTermWarning?.([]);
   window.renderRequestUsage?.(null);
   window.renderV2ClaudeTerms?.([]);
+  renderV2AnalysisDetails();
   pronunciation.textContent = '';
 vocabulary.textContent = '';
   window.renderTranslationVocabulary?.([], '', selectedLang);
@@ -786,6 +787,26 @@ textInput.addEventListener('keydown', (event) => {
 
 translateBtn.addEventListener('click', translate);
 
+function renderV2AnalysisDetails(data=null){
+  const box=document.getElementById('v2AnalysisDetails');
+  if(!box)return;
+  box.hidden=!data;
+  if(!data)return;
+  const analysis=data.analysis||{};
+  const domainNames={work:'Công việc',it:'IT',daily:'Đời sống',
+    mixed:'Nhiều lĩnh vực',unknown:'Chưa xác định'};
+  document.getElementById('v2AnalysisDomain').textContent=
+    'Ngữ cảnh: '+(domainNames[analysis.resolvedDomain||analysis.domain]||'Chưa xác định');
+  document.getElementById('v2AnalysisIntent').textContent=
+    'Ý định: '+(analysis.intent||'Chưa có phân tích ngắn');
+  const notes=[...(Array.isArray(analysis.ambiguities)?analysis.ambiguities:[]),
+    ...(Array.isArray(data.translationNotes)?data.translationNotes:[])]
+    .filter(value=>typeof value==='string'&&value.trim()).slice(0,3);
+  const note=document.getElementById('v2AnalysisNotes');
+  note.hidden=!notes.length;
+  note.textContent=notes.length?'Lưu ý: '+notes.join(' · '):'';
+}
+
 translateV2Btn.addEventListener('click', async () => {
   if (!v2EnabledForUser || v2Busy || translateBtn.disabled || targetLang.value !== 'zh' || translatorMode !== 'pro') return;
   const text = textInput.value.trim();
@@ -800,6 +821,7 @@ translateV2Btn.addEventListener('click', async () => {
   window.displayTermWarning?.([]);
   window.renderRequestUsage?.(null);
   window.renderV2ClaudeTerms?.([]);
+  renderV2AnalysisDetails();
   window.renderTranslationVocabulary?.([], '', 'zh');
   try {
     const response = await fetch('/api/translate/v2', {
@@ -828,6 +850,7 @@ translateV2Btn.addEventListener('click', async () => {
     window.renderV2ClaudeTerms?.(
       vocabularyToggle.checked?(data.analysisTerms||[]):[],
       data.sourceLanguage||'zh',cards.length>0);
+    renderV2AnalysisDetails(data);
     const direction = data.sourceLanguage === 'vi' && data.targetLanguage === 'zh'
       ? 'Việt → Trung' : data.sourceLanguage === 'zh' && data.targetLanguage === 'vi'
         ? 'Trung → Việt' : 'Trung ↔ Việt';
@@ -1242,6 +1265,7 @@ window.addEventListener('learning-language-change', () => {
   window.displayAppliedTerms?.([]);
   window.renderRequestUsage?.(null);
   window.renderV2ClaudeTerms?.([]);
+  renderV2AnalysisDetails();
   translation.innerHTML = '<div class="translation-placeholder"><span class="translation-placeholder-icon">文</span><p>Bản dịch sẽ xuất hiện tại đây</p></div>';
   copyBtn.hidden = true;
   document.getElementById('outputSpeakBtn').hidden = true;
