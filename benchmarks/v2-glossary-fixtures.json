@@ -1,0 +1,168 @@
+{
+  "version": 1,
+  "note": "Synthetic fixtures only; never import into production MongoDB or the model prompt. These evaluate plumbing, NOT real AI translation quality.",
+  "cases": [
+    {
+      "id": "G01",
+      "domain": "work",
+      "context": "colleague",
+      "source": "帮忙看下，这是刷子吗？",
+      "claudeDomain": "work",
+      "claudeGuess": "bàn chải",
+      "dictionary": [
+        {
+          "source": "刷子",
+          "translation": "đường dây bào khuyến mãi",
+          "domain": "work"
+        }
+      ],
+      "plainTranslation": "Xem giúp, đây có phải là bàn chải không?",
+      "verifiedTranslation": "Xem giúp, đây có phải là đường dây bào khuyến mãi không?",
+      "expectTerms": [
+        "刷子"
+      ],
+      "expectStatus": "PASS"
+    },
+    {
+      "id": "G02",
+      "domain": "daily",
+      "context": "friend",
+      "source": "我想去超市买个刷子",
+      "claudeDomain": "daily",
+      "claudeGuess": "bàn chải",
+      "dictionary": [
+        {
+          "source": "刷子",
+          "translation": "đường dây bào khuyến mãi",
+          "domain": "work"
+        }
+      ],
+      "plainTranslation": "Mình muốn ra siêu thị mua một cái bàn chải.",
+      "expectTerms": [],
+      "expectStatus": "PASS"
+    },
+    {
+      "id": "G03",
+      "domain": "work",
+      "context": "auto",
+      "source": "这几个会员是不是刷子？先核对活动记录",
+      "claudeDomain": "work",
+      "claudeGuess": "người dùng thông thường",
+      "dictionary": [
+        {
+          "source": "刷子",
+          "translation": "đường dây bào khuyến mãi",
+          "domain": "work"
+        }
+      ],
+      "plainTranslation": "Có phải các hội viên này là người dùng thông thường không? Kiểm tra lịch sử hoạt động trước.",
+      "verifiedTranslation": "Có phải những hội viên này thuộc đường dây bào khuyến mãi không? Kiểm tra lịch sử hoạt động trước.",
+      "expectTerms": [
+        "刷子"
+      ],
+      "expectStatus": "PASS"
+    },
+    {
+      "id": "G04",
+      "domain": "unknown",
+      "context": "auto",
+      "source": "这是刷子吗？",
+      "claudeDomain": "unknown",
+      "claudeGuess": "bàn chải",
+      "dictionary": [
+        {
+          "source": "刷子",
+          "translation": "đường dây bào khuyến mãi",
+          "domain": "work"
+        }
+      ],
+      "plainTranslation": "Đây có phải là bàn chải không?",
+      "expectTerms": [],
+      "expectStatus": "PASS"
+    },
+    {
+      "id": "G05",
+      "domain": "it",
+      "context": "colleague",
+      "source": "API 返回 403，不是 401",
+      "claudeDomain": "it",
+      "claudeGuess": "API errors",
+      "dictionary": [],
+      "plainTranslation": "API trả về 403 chứ không phải 401.",
+      "expectTerms": [],
+      "expectStatus": "PASS"
+    },
+    {
+      "id": "G06",
+      "domain": "work",
+      "context": "colleague",
+      "source": "这笔出款先不要处理",
+      "claudeDomain": "work",
+      "claudeGuess": "khoản tiền",
+      "dictionary": [
+        {
+          "source": "出款",
+          "translation": "xuất tiền",
+          "domain": "work"
+        },
+        {
+          "source": "这笔出款",
+          "translation": "khoản chi tiền này",
+          "domain": "work"
+        }
+      ],
+      "plainTranslation": "Đừng xử lý khoản tiền đó vội.",
+      "verifiedTranslation": "Tạm thời đừng xử lý khoản chi tiền này.",
+      "expectTerms": [
+        "这笔出款"
+      ],
+      "expectStatus": "PASS"
+    },
+    {
+      "id": "G07",
+      "domain": "it",
+      "context": "colleague",
+      "source": "把刷子模块的 log 发我",
+      "claudeDomain": "it",
+      "claudeGuess": "module",
+      "dictionary": [
+        {
+          "source": "刷子",
+          "translation": "đường dây bào khuyến mãi",
+          "domain": "work"
+        },
+        {
+          "source": "刷子",
+          "translation": "module Brush",
+          "domain": "it"
+        }
+      ],
+      "plainTranslation": "Gửi mình log của module Brush.",
+      "verifiedTranslation": "Gửi mình log của module Brush.",
+      "expectTerms": [
+        "刷子"
+      ],
+      "expectStatus": "PASS"
+    },
+    {
+      "id": "G08",
+      "domain": "work",
+      "context": "colleague",
+      "source": "这是刷子吗？",
+      "claudeDomain": "work",
+      "claudeGuess": "bàn chải",
+      "dictionary": [
+        {
+          "source": "刷子",
+          "translation": "đường dây bào khuyến mãi",
+          "domain": "work"
+        }
+      ],
+      "plainTranslation": "Đây là bàn chải à?",
+      "forceWrong": true,
+      "repairWrong": true,
+      "expectTerms": [],
+      "expectStatus": "REVIEW"
+    }
+  ]
+}
