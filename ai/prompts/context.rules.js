@@ -6,8 +6,8 @@ const DOMAIN_CONTEXT_RULES = "NGỮ CẢNH: Tự xác định từ câu; KHÔNG 
 
 const AUDIENCE_GUIDANCE = {
   "auto": "Tự xác định quan hệ người nói/nghe từ câu, thiếu căn cứ thì trung tính.",
-  "friend": "Bạn bè: tự nhiên, thân mật, giữ hài hước; không tự tăng độ trang trọng.",
-  "colleague": "Đồng nghiệp: ngắn gọn, rõ ràng, lịch sự; giữ mức bắt buộc/khẩn của yêu cầu.",
+  "friend": "Bạn bè: giữ khẩu ngữ mềm, đùa vui và xưng hô thân mật khi hợp cảnh; tránh máy móc dùng 'tôi/bạn' làm câu cứng.",
+  "colleague": "Đồng nghiệp: rõ, lịch sự vừa phải; giữ độ khẩn và sắc thái nhờ vả của gốc, không tự thêm tiểu từ thúc giục làm mạnh câu.",
   "superior": "Cấp trên: khi viết gửi thì lịch sự; khi đọc chỉ đạo thì không làm nhẹ hoặc bỏ yêu cầu; không thêm lời xin lỗi hay kính ngữ làm đổi ý."
 };
 function audienceGuidance(context = 'auto') {
