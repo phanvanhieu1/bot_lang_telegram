@@ -196,20 +196,44 @@ node scripts/smoke-translation-v2.js --mode=live --accept-paid=true --glossary=f
 node scripts/smoke-translation-v2.js --mode=live --accept-paid=true --glossary=fixture --limit=8
 ```
 
-### Verified live G01/G02 (2026-10-28)
+### Verified live glossary fixtures G01-G08 (2026-10-28)
 
-Owner-provided paid API report confirms G01 and G02 both returned
-`termMatchOK:true`, `status:PASS`, and zero issues. G01 applied the
-approved work meaning of `刷子`; G02 used the everyday brush meaning.
-Latency was 11.26 seconds for G01 and 7.66 seconds for G02. These two
-specific executions are verified; the broader holdout, staging DB, and
-human semantic review remain outstanding.
+The owner supplied full paid-provider reports for both batches: G01/G02
+and G03-G08. All **8/8** returned `termMatchOK:true`, `status:PASS`, and
+zero reported issues. The six new paid outputs are now replayed by
+`tests/translation-v2-live-regression.test.js` without API calls. This
+replay prevents regression but is **not** an independent semantic audit.
+
+| Cases | Verified behavior |
+| --- | --- |
+| G01 / G08 | Approved `刷子` work terminology applied |
+| G02 / G04 | Ordinary brush translation, no work override |
+| G03 | Automatic work recognition, approved term and instruction preserved |
+| G05 | `403` and `401` preserved with negation |
+| G06 | Long phrase `这笔出款` wins over `出款` |
+| G07 | IT `刷子` / `module Brush` wins over work meaning |
+
+Measured sequential total latency was **70.684 s** (8.836 s per request
+on average). Claude analyzer stages consumed **48.175 s**; OpenAI
+translator stages consumed **22.497 s**. Total tokens reported were
+**8,542 input** and **5,157 output**, including **4,727 Claude output**
+tokens. Do not tighten the Claude output cap solely based on latency:
+the earlier 480-token cap caused suspected truncation.
+
+Two linguistic nuances remain for manual review: G03's 'có phải là đường
+dây' is less natural than 'có phải thuộc đường dây'; G04's context-free
+`刷子` can refer to several kinds of brush. Neither is a glossary-matching
+failure. Automatic PASS is **not** certification of semantic accuracy.
 
 **G08 expectation differs between mock and paid live mode.** Mock G08
-deliberately forces OpenAI to refuse the glossary even after repair and
-expects `REVIEW` with no applied terms. Real live G08 does not inject that
-failure and **must apply `刷子`**, so it expects the approved term just
-like G01. Do not interpret a correct G08 live translation as a test failure.
+deliberately forces an incorrect translation after repair and expects
+`REVIEW`. Real live G08 does not inject that failure and expects the
+approved `刷子` terminology. The owner-supplied run confirms the latter.
+
+The remaining release gates are a production-like **staging MongoDB**
+glossary integration test and human review of the **35-case unseen**
+semantic holdout, with costs/latency recorded. No merge/deployment
+is authorized by these smoke results.
 
 No mock or synthetic fixture is automatically stored in production MongoDB.
 
@@ -247,7 +271,7 @@ Paid runs refuse to start unless both API keys are configured and
 - Never merge or deploy V2 until the synthetic paid smoke and production-like
   staging tests pass.
 
-**Real provider calls and translation quality are not yet verified.**
+**Real provider integration is verified for eight synthetic glossary cases; semantic quality and staging integration are not yet independently verified.**
 On a staging VPS with your keys, first run the limited synthetic holdout:
 
 ```bash
