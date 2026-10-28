@@ -99,3 +99,20 @@ test('PRO benchmark prompts do not request Chinese back translation on web', () 
   const vietnamese=JSON.parse(promptFor('baseline','pro',fixture.cases.at(-1),old));
   assert.equal(vietnamese.backTranslation,true);
 });
+
+test('offline dry-run can filter selected failing or style-sensitive case IDs', () => {
+  const result=spawnSync(process.execPath,[
+    'scripts/benchmark-translation.js','--mode=pro','--baseline=HEAD','--ids=W05,F01,F02','--dry-run'
+  ],{cwd:path.join(__dirname,'..'),encoding:'utf8',timeout:15000});
+  assert.equal(result.status,0,result.stderr);
+  const data=JSON.parse(result.stdout);
+  assert.deepEqual(data.cases.map(x=>x.id),['W05','F01','F02']);
+});
+
+test('benchmark rejects unknown case IDs before sending any API request', () => {
+  const result=spawnSync(process.execPath,[
+    'scripts/benchmark-translation.js','--mode=pro','--baseline=HEAD','--ids=UNKNOWN','--dry-run'
+  ],{cwd:path.join(__dirname,'..'),encoding:'utf8',timeout:15000});
+  assert.notEqual(result.status,0);
+  assert.match(result.stderr,/Unknown case id/);
+});
