@@ -124,7 +124,7 @@ async function audit(client, item, result) {
 async function main() {
   const mode = flag('mode','pro');
   const provider = flag('provider','groq');
-  const baseline = flag('baseline','main');
+  const baseline = flag('baseline','origin/main');
   const limit = Number(flag('limit',String(suite.cases.length)));
   const dryRun = process.argv.includes('--dry-run');
   const withAudit = process.argv.includes('--audit');
