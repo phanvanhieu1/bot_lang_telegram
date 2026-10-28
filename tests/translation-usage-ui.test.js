@@ -40,6 +40,9 @@ test('V2 first call displays detailed token/USD and summary next to buttons',()=
       stage('claude','claude-sonnet-5-5',300,400,0.0046),
       stage('openai','gpt-6.1-sol',300,100,0.0036)
     ]};
+  one.elapsedMs=1450;
+  one.stages[0].ms=590;
+  one.stages[1].ms=810;
   render(one,'v2');
   assert.equal(refs.requestUsagePanel.hidden,false);
   assert.equal(refs.translationCostSnapshot.hidden,false);
@@ -47,6 +50,9 @@ test('V2 first call displays detailed token/USD and summary next to buttons',()=
   assert.match(refs.translationCostSnapshot.textContent,/\$0\.0082/);
   assert.equal(refs.cacheOriginPanel.hidden,true);
   assert.equal(refs.requestUsageRows.children.length,3);
+  assert.equal(refs.requestUsageRows.children[0].children[4].textContent,'590 ms');
+  assert.equal(refs.requestUsageRows.children[1].children[4].textContent,'810 ms');
+  assert.equal(refs.requestUsageRows.children[2].children[4].textContent,'1.45 s');
   assert.equal(refs.requestUsageRows.children[0].children[0].textContent,
     'claude · claude-sonnet-5-5 (translator)');
   assert.equal(refs.requestUsageRows.children[1].children[0].textContent,
@@ -59,10 +65,11 @@ test('V2 cache hit shows zero new spend and historical creation cost separately'
     stages:[stage('claude','sonnet',200,220,0.004),
       stage('openai','sol',420,120,0.0035)]};
   render({cached:true,inputTokens:0,outputTokens:0,totalTokens:0,
-    estimatedCostUsd:0,originalUsage:original},'v2');
+    elapsedMs:15,estimatedCostUsd:0,originalUsage:original},'v2');
   assert.match(refs.translationCostSnapshot.textContent,
     /Dịch V2 · CACHE HIT · 0 token mới · Lượt này \$0 · Lần tạo cache \$0\.0075/);
   assert.equal(refs.requestUsageRows.children.length,2);
+  assert.equal(refs.requestUsageRows.children[1].children[4].textContent,'15 ms');
   assert.equal(refs.requestUsageRows.children[1].children[3].textContent,'$0');
   assert.equal(refs.cacheOriginPanel.hidden,false);
   assert.equal(refs.cacheOriginRows.children.length,3);
