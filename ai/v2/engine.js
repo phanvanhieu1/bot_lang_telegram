@@ -5,7 +5,7 @@
 const {createProviders,safeError}=require('./providers');
 const {glossaryInstructions,termHighlights,validateAppliedTerms,contextDomain}=require('../terminology/resolver');
 const {sanitizeClaudeTerms}=require('./vocabulary');
-const ENGINE_VERSION='v2.2.0';
+const ENGINE_VERSION='v2.3.0';
 
 function parseObject(raw) {
   const s=String(raw||'').replace(/<think>[\s\S]*?<\/think>/g,'')
@@ -56,6 +56,9 @@ function safeFrame(obj) {
       .filter(x=>x&&typeof x.source==='string').map(x=>({
         source:x.source.slice(0,80),meaning:String(x.meaning||'').slice(0,120)
       })):[],
+    patterns:Array.isArray(obj.patterns)?obj.patterns.slice(0,4)
+      .filter(x=>x&&typeof x.source==='string'&&typeof x.meaning==='string')
+      .map(x=>({source:x.source.slice(0,80),meaning:x.meaning.slice(0,160)})):[],
     ambiguities:Array.isArray(obj.ambiguities)?
       obj.ambiguities.slice(0,5).map(x=>String(x).slice(0,180)):[]
   };
@@ -65,6 +68,10 @@ function cleanTranslation(raw) {
   if(typeof value.translation!=='string'||!value.translation.trim()||
     value.translation.length>9000)throw safeError('V2_INVALID_TRANSLATION');
   return {translation:value.translation.trim(),
+    backTranslation:typeof value.backTranslation==='string'
+      ?value.backTranslation.trim().slice(0,5000):'',
+    vocabulary:typeof value.vocabulary==='string'
+      ?value.vocabulary.trim().slice(0,3500):'',
     // Optional natural-language notes are not themselves evidence of an error.
     // A model must explicitly identify a MATERIAL unresolved semantic choice
     // before that warning can affect the translation's review status.
@@ -72,7 +79,8 @@ function cleanTranslation(raw) {
     uncertainties:Array.isArray(value.uncertainties)?
       value.uncertainties.filter(x=>typeof x==='string').slice(0,3).map(x=>x.slice(0,180)):[]};
 }
-async function deepTranslate({text,context='auto',loadGlossary=async()=>[]},
+async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
+  backTranslation=true,vocabulary=true},
   providers=createProviders()) {
   if(typeof text!=='string'||!text.trim()||text.length>2000||
     !['auto','friend','colleague','superior'].includes(context))
@@ -100,11 +108,12 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[]},
     }
   }
   const analyzing='Bạn là chuyên gia phân tích ngữ nghĩa Trung-Việt; KHÔNG dịch. '+coreRules+
-    ' Trả JSON NGẮN, không Markdown: {"domain":"work|it|daily|mixed|unknown","intent":"...","tone":"...","facts":["..."],"terms":[{"source":"...","meaning":"..."}],"ambiguities":["..."]}. '+
+    ' Trả JSON NGẮN, không Markdown: {"domain":"work|it|daily|mixed|unknown","intent":"...","tone":"...","facts":["..."],"terms":[{"source":"...","meaning":"..."}],"patterns":[{"source":"...","meaning":"..."}],"ambiguities":["..."]}. '+
     'Intent tối đa 20 từ, tone tối đa 5 từ, facts tối đa 3 ý ngắn. '+ 
     'terms tối đa 8 từ hoặc cụm từ hữu ích để học, chỉ chọn mục xuất hiện nguyên văn trong câu. '+
     'source chép đúng từ/cụm từ ở nguyên văn, meaning là nghĩa tiếng Việt ngắn gọn theo ngữ cảnh (với câu gốc tiếng Việt thì giải thích ngắn bằng tiếng Việt). '+
     'Ưu tiên từ tiếng Trung ít nhất hai chữ Hán; không chọn họ tên, mã tài khoản, số, URL hoặc từ không xuất hiện trong câu. '+
+    'patterns tối đa 4 mẫu câu tiếng Trung thực sự có trong câu, dùng ký hiệu A/B nếu cần; không bịa mẫu. '+ 
     'Nghĩa Claude chỉ là đề xuất học tập, không phải thuật ngữ đã được xác nhận. '+
     'Ambiguities tối đa 2, CHỈ ghi khi có ít nhất hai cách hiểu làm đổi ý hành động/chủ thể/phủ định mà không thể chọn trung tính. '+
     'Phân loại theo HOẠT ĐỘNG và vai trò của câu, không theo từng từ khóa: work khi là quy trình vận hành của tổ chức (duyệt giao dịch, chi trả, hạn mức hệ thống, kiểm soát rủi ro, phối hợp các bộ phận); daily khi là sinh hoạt/giao dịch cá nhân; it khi chủ yếu xử lý phần mềm, API, hạ tầng; mixed khi có nhiều lĩnh vực mà không có lĩnh vực chính; unknown nếu thiếu căn cứ. '+
@@ -182,14 +191,22 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[]},
     'uncertainties chỉ ghi nếu có sự không rõ ràng ẢNH HƯỞNG ĐẾN NGHĨA CỐT LÕI, không ghi chi tiết còn thiếu vốn bình thường. '+
     'semanticReviewRequired=true CHỈ nếu không thể dịch đúng mà không chọn một trong nhiều ý nghĩa xung đột về chủ thể/hành động/phủ định. '+
     'Đã có nghĩa DB được xác nhận thì không nêu mơ hồ về nghĩa của thuật ngữ đó. '+
-    'JSON duy nhất: {"translation":"...","semanticReviewRequired":false,"uncertainties":[]}.';
+    'Dịch ngược CHỈ khi đầu vào tiếng Việt và đã yêu cầu: dịch chính câu tiếng Trung vừa tạo trở lại tiếng Việt, không chép nguyên văn. '+
+    'Nếu không yêu cầu hoặc đầu vào tiếng Trung, backTranslation phải là chuỗi rỗng. '+
+    'Nếu yêu cầu từ vựng và bản dịch đích bằng tiếng Trung, trích từ/cụm/mẫu thật có trong BẢN DỊCH tiếng Trung, với nghĩa tiếng Việt. '+
+    'Định dạng từng dòng trong vocabulary: [WORD] 中文词 : nghĩa; [PHRASE] 中文短语 : nghĩa; [PATTERN] A + cấu trúc + B : giải thích. '+
+    'Nếu nguồn đã tiếng Trung hoặc tắt từ vựng, vocabulary phải là chuỗi rỗng. '+
+    'JSON duy nhất: {"translation":"...","backTranslation":"","vocabulary":"","semanticReviewRequired":false,"uncertainties":[]}.';
   const jsonSchema={type:'object',additionalProperties:false,
-    properties:{translation:{type:'string'},semanticReviewRequired:{type:'boolean'},
+    properties:{translation:{type:'string'},backTranslation:{type:'string'},
+      vocabulary:{type:'string'},semanticReviewRequired:{type:'boolean'},
       uncertainties:{type:'array',items:{type:'string'}}},
-    required:['translation','semanticReviewRequired','uncertainties']};
+    required:['translation','backTranslation','vocabulary','semanticReviewRequired','uncertainties']};
   const userPayload=JSON.stringify({original:sourceText,context,
     sourceLanguage:direction.source,targetLanguage:direction.target,
     analysis:translationAnalysis,
+    includeBackTranslation:backTranslation&&direction.source==='vi',
+    includeChineseVocabulary:vocabulary&&direction.source==='vi',
     approvedTerminology:glossary.map(t=>({source:t.source,meaning:t.translation,domain:t.domain}))});
   const modelTranslation=await stage('translator','openai',()=>
     providers.openai(translating,userPayload,{maxOutputTokens:1500,jsonSchema}));
@@ -218,7 +235,9 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[]},
       translated=cleanTranslation((await stage('repair','openai',()=>
         providers.openai(translating+'\nCHỈ sửa các lỗi đã được đối chiếu trong danh sách.',
           JSON.stringify({original:sourceText,current:translated.translation,
-            errors:issues,approvedTerminology:glossary}),
+            errors:issues,includeBackTranslation:backTranslation&&direction.source==='vi',
+            includeChineseVocabulary:vocabulary&&direction.source==='vi',
+            approvedTerminology:glossary}),
           {maxOutputTokens:1200,jsonSchema}))).text);
     }catch(_){/* keep original, mark review below */}
     issues=[
@@ -243,6 +262,11 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[]},
     });
   return {
     analysisTerms,
+    analysisPatterns:direction.source==='zh'?frame.patterns:[],
+    // Back-translation is generated by the same GPT-4o response as translation.
+    backTranslation:backTranslation&&direction.source==='vi'?translated.backTranslation:'',
+    // Chinese target vocabulary follows V1's [WORD]/[PHRASE]/[PATTERN] contract.
+    studyVocabulary:vocabulary&&direction.source==='vi'?translated.vocabulary:'',
     engine:ENGINE_VERSION,sourceLanguage:direction.source,
     targetLanguage:direction.target,translation:translated.translation,
     status:issues.length?'REVIEW':'PASS',needsReview:Boolean(issues.length),
