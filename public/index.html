@@ -288,8 +288,16 @@
 <section id="termEditor" class="term-editor" hidden aria-label="Quản lý thuật ngữ cá nhân">
   <h3 id="termEditorTitle">Thêm thuật ngữ chuyên ngành</h3>
   <form id="termForm">
-    <label for="termSource">Từ/cụm từ tiếng Trung</label><input id="termSource" required maxlength="100" autocomplete="off"/>
-    <label for="termMeaning">Nghĩa chuyên ngành bằng tiếng Việt</label><input id="termMeaning" required maxlength="240" autocomplete="off"/>
+    <label for="termSourceLang">Chiều thuật ngữ</label>
+    <select id="termSourceLang" aria-label="Chọn chiều thuật ngữ">
+      <option value="zh">Tiếng Trung → Tiếng Việt</option>
+      <option value="vi">Tiếng Việt → Tiếng Trung</option>
+    </select>
+    <label id="termSourceLabel" for="termSource">Từ/cụm từ tiếng Trung</label><input id="termSource" required maxlength="100" autocomplete="off"/>
+    <label id="termMeaningLabel" for="termMeaning">Nghĩa chuyên ngành bằng tiếng Việt</label><input id="termMeaning" required maxlength="240" autocomplete="off"/>
+    <label class="term-two-way"><input id="termBidirectional" type="checkbox"/>
+      <span>Áp dụng cho cả hai chiều dịch (tôi xác nhận cặp nghĩa này đúng khi dịch ngược).</span>
+    </label>
     <label for="termDomain">Lĩnh vực</label>
     <select id="termDomain"><option value="work">Công việc</option><option value="it">IT</option><option value="daily">Đời sống</option><option value="any">Mọi ngữ cảnh</option></select>
     <label for="termNotes">Ghi chú (tùy chọn)</label><input id="termNotes" maxlength="350" autocomplete="off"/>
