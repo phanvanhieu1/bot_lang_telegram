@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const path=require('node:path');
 const {spawnSync}=require('node:child_process');
 const cases=require('../benchmarks/v2-glossary-fixtures.json').cases;
-const {select,makeFixtures,runOne}=require('../scripts/smoke-translation-v2');
+const {select,makeFixtures,fakeProviders,runOne}=require('../scripts/smoke-translation-v2');
 const root=path.join(__dirname,'..');
 test('eight synthetic cases cover work, daily, IT, no context, longest phrase, wrong repair',()=>{
   assert.equal(cases.length,8);
@@ -60,5 +60,23 @@ test('CLI mock smoke executes whole synthetic path without any paid API keys',()
   }});
   assert.equal(run.status,0,run.stderr);
   assert.match(run.stdout,/fixture:OK/);
-  assert.match(run.stdout,/"plumbingPassed": 2/);
+  assert.match(run.stdout,/"mockPlumbingPassed": 2/);
+});
+
+test('live-mode report cannot falsely claim plumbing success on missing approved term',async()=>{
+  const sample={...cases.find(x=>x.id==='G01'),forceWrong:true,repairWrong:true};
+  const providers=fakeProviders(sample);
+  const result=await runOne(sample,{mode:'live',glossary:'fixture',providersOverride:providers});
+  assert.equal(result.status,'REVIEW');
+  assert.equal(result.termMatchOK,false);
+  assert.equal(result.plumbingOK,null);
+  assert.equal(result.humanQualityReviewed,false);
+});
+test('live-mode glossary match is not the same as a human translation quality PASS',async()=>{
+  const sample=cases.find(x=>x.id==='G01');
+  const result=await runOne(sample,{mode:'live',glossary:'fixture',
+    providersOverride:fakeProviders(sample)});
+  assert.equal(result.termMatchOK,true);
+  assert.equal(result.plumbingOK,null);
+  assert.equal(result.humanQualityReviewed,false);
 });
