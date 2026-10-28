@@ -15,13 +15,23 @@ async function main(){
   const limit=Number(flag('limit','5'));
   const domain=flag('domain','all');
   const repeat=Number(flag('repeat','1'));
+  const requestedIds=flag('ids','').split(',').map(x=>x.trim()).filter(Boolean);
   const dryRun=args.includes('--dry-run');
   if(!Number.isInteger(limit)||limit<1||limit>35||
      !Number.isInteger(repeat)||repeat<1||repeat>3 ||
      !['all','work','friend','it','mixed'].includes(domain)) {
     throw new Error('Invalid flags: limit 1..35, repeat 1..3, domain work/friend/it/mixed/all');
   }
-  const selected=fixture.cases.filter(item=>domain==='all'||item.domain===domain).slice(0,limit);
+  // Explicit IDs let reviewers run only the next holdout cases without
+  // paying again for cases already covered by earlier API benchmarks.
+  if(new Set(requestedIds).size!==requestedIds.length ||
+    requestedIds.some(id=>!fixture.cases.some(c=>c.id===id)))
+    throw new Error('Invalid or duplicate holdout IDs');
+  const filtered=fixture.cases.filter(item=>domain==='all'||item.domain===domain);
+  const selected=requestedIds.length
+    ? requestedIds.map(id=>filtered.find(c=>c.id===id))
+    : filtered.slice(0,limit);
+  if(selected.some(x=>!x))throw new Error('Requested ID does not match domain filter');
   if(dryRun) {
     console.log(JSON.stringify({count:selected.length,repeat,ids:selected.map(x=>x.id)},null,2));
     return;
