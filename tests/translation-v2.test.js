@@ -10,6 +10,7 @@ const frame={domain:'work',intent:'yêu cầu báo lại khi phát hiện',tone:
 function mockProviders(options={}) {
   const calls=[];
   let openaiCount=0;
+  let claudeAuditCount=0;
   const provider = {
     groq:async(sys,input)=>{
       calls.push({provider:'groq',sys,input});
@@ -41,6 +42,18 @@ function mockProviders(options={}) {
     claude:async(sys,input)=>{
       calls.push({provider:'claude',sys,input});
       if(options.failClaude)throw new Error('failed');
+      if(/giám khảo dịch thuật/.test(sys)) {
+        claudeAuditCount++;
+        if(options.failClaudeAudit) throw new Error('Audit failed');
+        const verdict=options.auditDisagree
+          ? {status:'PASS',preferred:'openai',issues:[],reason:'Prefer OpenAI'}
+          : options.repair && claudeAuditCount===1
+            ? {status:'REPAIR',preferred:'openai',issues:['Cần sửa ngữ khí'],reason:'sửa'}
+            : options.auditReview
+              ? {status:'REVIEW',preferred:'none',issues:['Thiếu ngữ cảnh'],reason:'mơ hồ'}
+              : {status:'PASS',preferred:options.preferred||'claude',issues:[],reason:'đủ ý'};
+        return {text:JSON.stringify(verdict),model:'claude-sonnet-5-5'};
+      }
       return /hiệu đính/.test(sys)
         ? {text:'Nếu kiểm tra còn hội viên cược thể thao được thì báo một tiếng',model:'claude-sonnet-5-5'}
         : {text:options.claudeText||'Lúc kiểm tra nếu hội viên còn cược thể thao được thì báo lại',
@@ -88,7 +101,8 @@ test('V2 repairs at most once, then independently rechecks',async()=>{
   const result=await deepTranslate({text:'有异常的说下'},mocks.provider);
   assert.equal(result.status,'PASS');
   assert.ok(mocks.calls.filter(c=>c.provider==='claude' && /hiệu đính/.test(c.sys)).length===1);
-  assert.ok(mocks.calls.filter(c=>c.provider==='openai' && /giám khảo/.test(c.sys)).length===2);
+  assert.equal(mocks.calls.filter(c=>c.provider==='openai' && /giám khảo/.test(c.sys)).length,2);
+  assert.equal(mocks.calls.filter(c=>c.provider==='claude' && /giám khảo/.test(c.sys)).length,2);
 });
 
 test('V2 refuses to claim multi-AI verification if paid translator is absent',async()=>{
@@ -140,4 +154,18 @@ test('V2 provider output parser supports Responses API typed text',()=>{
   assert.equal(outputText({output:[{content:[{type:'output_text',text:'你好'}]}]}),'你好');
   assert.equal(outputText({output_text:'  Xin chào '}),'Xin chào');
   assert.deepEqual(Object.keys(createProviders({})).sort(),['claude','deepl','groq','openai','openrouter']);
+});
+
+test('V2 dual auditors must agree on preferred candidate; disagreement triggers human review',async()=>{
+  const result=await deepTranslate({text:'有异常的说下'},
+    mockProviders({auditDisagree:true}).provider);
+  assert.equal(result.status,'REVIEW');
+  assert.equal(result.needsReview,true);
+  assert.ok(result.issues.some(x=>x.includes('chưa thống nhất')));
+});
+
+test('V2 never asserts PASS when one strong auditor is unavailable',async()=>{
+  await assert.rejects(deepTranslate({text:'有异常的说下'},
+    mockProviders({failClaudeAudit:true}).provider),
+    {code:'V2_AUDIT_UNAVAILABLE'});
 });
