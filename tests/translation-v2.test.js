@@ -5,7 +5,7 @@ const {deepTranslate,parseObject,missingProtected,detectDirection}=require('../a
 const {createProviders,outputText}=require('../ai/v2/providers');
 const {resolveTerms,glossaryInstructions,termHighlights,validateAppliedTerms}=require('../ai/terminology/resolver');
 function mocked({domain='work',translation='Xem giúp, đây có phải đường dây bào khuyến mãi không?',
-  failClaude=false,failOpenAI=false,repair=null,ambiguities=[]}={}){
+  failClaude=false,failOpenAI=false,repair=null,ambiguities=[],semanticReviewRequired=false,translationNotes=[]}={}){
   const calls=[];
   const providers={
     claude:async(sys,input)=>{
@@ -20,7 +20,7 @@ function mocked({domain='work',translation='Xem giúp, đây có phải đườn
       if(failOpenAI)throw new Error('failed');
       const repairing=input.includes('"errors"');
       return {text:JSON.stringify({translation:repairing&&repair!==null?repair:translation,
-        uncertainties:[]}),model:'gpt-test',usage:{input:70,output:50}};
+        semanticReviewRequired,uncertainties:translationNotes}),model:'gpt-test',usage:{input:70,output:50}};
     }
   };
   return {providers,calls};
@@ -102,10 +102,27 @@ test('Claude failure and unavailable database never quietly become valid transla
   await assert.rejects(deepTranslate({text:'刷子',loadGlossary:async()=>{throw Error('db down')}},
     mocked().providers),{code:'V2_GLOSSARY_UNAVAILABLE'});
 });
-test('Claude ambiguity causes explicit review instead of unsupported PASS',async()=>{
-  const m=mocked({ambiguities:['cần biết người nói đang nói về cái gì']});
+test('Unspecified details and Claude guesses are advisory, not automatic translation failures',async()=>{
+  const m=mocked({ambiguities:['Không biết đây là vật nào'],
+    translationNotes:['Câu không nói rõ loại bàn chải']});
   const r=await deepTranslate({text:'这是刷子吗'},m.providers);
+  assert.equal(r.status,'PASS');
+  assert.equal(r.needsReview,false);
+  assert.deepEqual(r.analysis.ambiguities,['Không biết đây là vật nào']);
+  assert.deepEqual(r.translationNotes,['Câu không nói rõ loại bàn chải']);
+});
+test('Important unresolved semantic ambiguity explicitly marked by translator triggers REVIEW',async()=>{
+  const m=mocked({semanticReviewRequired:true,translationNotes:['Có hai chủ thể khác nhau']});
+  const r=await deepTranslate({text:'他说让他先走'},m.providers);
   assert.equal(r.status,'REVIEW');
+  assert.match(r.issues.join(' '),/mơ hồ quan trọng/);
+});
+test('Claude analysis output is bounded for short inputs',async()=>{
+  const m=mocked();
+  const r=await deepTranslate({text:'这是刷子吗'},m.providers);
+  assert.equal(r.status,'PASS');
+  assert.match(m.calls[0].sys,/Ambiguities tối đa 2/);
+  assert.match(m.calls[0].sys,/Không liệt kê chi tiết/);
 });
 test('Input and provider schema failures are bounded',async()=>{
   await assert.rejects(deepTranslate({text:'a'.repeat(2001)},mocked().providers),{code:'V2_INVALID_INPUT'});
