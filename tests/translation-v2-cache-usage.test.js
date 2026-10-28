@@ -95,6 +95,7 @@ test('V2 endpoint cache HIT skips paid providers and history billing, isolates u
   let version='initial';
   const stored=new Map();
   const costRows=[];
+  const vocabularyCalls=[];
   let translations=0;
   const cache={
     signatureForOwner:async()=>version,
@@ -110,6 +111,7 @@ test('V2 endpoint cache HIT skips paid providers and history billing, isolates u
       translation:'Đây là đường dây bào khuyến mãi.',
       status:'PASS',needsReview:false,issues:[],analysis:{domain:'work'},
       translationNotes:[],appliedTerms:[],
+      analysisTerms:[{source:'刷子',meaning:'bàn chải'}],
       sourceLanguage:'zh',targetLanguage:'vi',
       usage:{stages:[
         {role:'analyzer',provider:'claude',model:'claude-sonnet-5-5',
@@ -127,7 +129,13 @@ test('V2 endpoint cache HIT skips paid providers and history billing, isolates u
     next();
   });
   app.use('/api/translate/v2',createV2Router({
-    translate,cache,recordUsage:async x=>{costRows.push(x);},
+    translate,cache,
+    resolveVocabulary:async args=>{
+      vocabularyCalls.push(args);
+      return [{type:'word',key:'刷子',text:'刷子',meaning:'nghĩa từ MongoDB',
+        pinyin:'shuā zi',encounterCount:2,isNew:false,category:'work'}];
+    },
+    recordUsage:async x=>{costRows.push(x);},
     env:{V2_ENABLED:'true',OPENAI_API_KEY:'mock-key',CLAUDE_API_KEY:'mock-key'}
   }));
   const listener=app.listen(0,'127.0.0.1');
@@ -137,10 +145,10 @@ test('V2 endpoint cache HIT skips paid providers and history billing, isolates u
       listener.once('listening',resolve);listener.once('error',reject);
     });
     const url='http://127.0.0.1:'+listener.address().port+'/api/translate/v2';
-    async function send(context='colleague',owner=OWNER1){
+    async function send(context='colleague',owner=OWNER1,vocabulary=true){
       const response=await fetch(url,{method:'POST',headers:{
         'content-type':'application/json','x-test-user':owner},
-        body:JSON.stringify({text:'这是刷子吗？',targetLang:'zh',context})});
+        body:JSON.stringify({text:'这是刷子吗？',targetLang:'zh',context,vocabulary})});
       assert.equal(response.status,200);
       return response.json();
     }
@@ -149,6 +157,11 @@ test('V2 endpoint cache HIT skips paid providers and history billing, isolates u
     assert.equal(one.requestUsage.totalTokens,700);
     assert.ok(one.requestUsage.estimatedCostUsd>0);
     assert.equal(one.requestUsage.stages.length,2);
+    assert.deepEqual(one.analysisTerms,[{source:'刷子',meaning:'bàn chải'}]);
+    assert.equal(one.vocabularyItems[0].pinyin,'shuā zi');
+    assert.equal(one.vocabularyItems[0].meaning,'nghĩa từ MongoDB');
+    assert.equal(vocabularyCalls.length,1);
+    assert.ok(vocabularyCalls[0].vocabulary.includes('[WORD] 刷子 : bàn chải'));
     assert.ok(one.requestUsage.stages[0].estimatedKnownPaidUsd>0);
     assert.ok(one.requestUsage.stages[1].estimatedKnownPaidUsd>0);
     let repeat=await send();
@@ -158,6 +171,14 @@ test('V2 endpoint cache HIT skips paid providers and history billing, isolates u
     assert.deepEqual(repeat.requestUsage.originalUsage,one.requestUsage);
     assert.equal(repeat.requestUsage.originalUsage.stages.length,2);
     assert.equal(repeat.translation,one.translation);
+    assert.deepEqual(repeat.analysisTerms,one.analysisTerms);
+    assert.equal(repeat.vocabularyItems[0].pinyin,'shuā zi');
+    assert.equal(vocabularyCalls.length,2);
+    // Turning off vocabulary must not cause new AI calls or dictionary writes.
+    const off=await send('colleague',OWNER1,false);
+    assert.equal(off.cached,true);
+    assert.deepEqual(off.vocabularyItems,[]);
+    assert.equal(vocabularyCalls.length,2);
     assert.equal(translations,1);
     assert.equal(costRows.length,1);
     await send('friend');
