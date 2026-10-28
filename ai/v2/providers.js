@@ -77,6 +77,8 @@ function createProviders(env = process.env) {
     if (!text) throw safeError('V2_OPENAI_EMPTY');
     return {
       text, provider:'openai', model:data.model || openaiModel,
+      responseStatus:String(data.status||'unknown').slice(0,40),
+      incompleteReason:String(data.incomplete_details?.reason||'').slice(0,60),
       usage:{ input:Number(data.usage?.input_tokens||0),
         output:Number(data.usage?.output_tokens||0) }
     };
