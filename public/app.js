@@ -633,13 +633,18 @@ const response = await fetch(translateEndpoint, {
   }
 }
 
+    window.renderTermHighlights?.(data.appliedTerms || []);
+    window.displayTermWarning?.(data.terminologyWarnings || []);
     if (selectedLang === 'en') {
       window.dispatchEvent(new CustomEvent('translation-finished', {
         detail: { sourceLanguage: data.sourceLanguage }
       }));
     }
-    status.textContent = '✓ Dịch thành công';
-    status.className = 'status success';
+    const glossaryMissing=Array.isArray(data.terminologyWarnings) && data.terminologyWarnings.length;
+    status.textContent = glossaryMissing
+      ? '⚠ Bản dịch có thuật ngữ chưa khớp từ điển đã lưu'
+      : '✓ Dịch thành công';
+    status.className = glossaryMissing ? 'status error' : 'status success';
 
     // Cập nhật thống kê sau khi dịch
     loadUsage();
@@ -793,6 +798,8 @@ translateV2Btn.addEventListener('click', async () => {
     if (version !== languageRequestVersion || textInput.value.trim() !== text) return;
     if (!response.ok || !data.success) throw new Error(data.message || 'Dịch chuyên sâu thất bại');
     parseResult(data.result);
+    window.renderTermHighlights?.(data.appliedTerms || []);
+    window.displayTermWarning?.((data.issues||[]).filter(x=>x.includes('Thuật ngữ')));
     window.renderTranslationVocabulary?.([], '', 'zh');
     if (data.needsReview) {
       status.textContent = '⚠ Bản dịch V2 còn điểm cần kiểm tra: ' + (data.issues || []).slice(0,2).join('; ');
@@ -1199,6 +1206,7 @@ window.addEventListener('learning-language-change', () => {
   translateBtn.classList.remove('loading');
   status.textContent = '';
   status.className = 'status';
+  window.displayTermWarning?.([]);
   translation.innerHTML = '<div class="translation-placeholder"><span class="translation-placeholder-icon">文</span><p>Bản dịch sẽ xuất hiện tại đây</p></div>';
   copyBtn.hidden = true;
   document.getElementById('outputSpeakBtn').hidden = true;
