@@ -5,7 +5,14 @@
     form=byId('termForm'), list=byId('termList'), feedback=byId('termFeedback');
   if(!launch||!panel||!form)return;
   const source=byId('termSource'),meaning=byId('termMeaning'),
-    domain=byId('termDomain'),notes=byId('termNotes');
+    domain=byId('termDomain'),notes=byId('termNotes'),
+    sourceLang=byId('termSourceLang'),twoWay=byId('termBidirectional'),
+    sourceLabel=byId('termSourceLabel'),meaningLabel=byId('termMeaningLabel');
+  function updateLabels(){
+    sourceLabel.textContent=sourceLang.value==='vi'?'Từ/cụm từ tiếng Việt':'Từ/cụm từ tiếng Trung';
+    meaningLabel.textContent=sourceLang.value==='vi'?'Nghĩa chuyên ngành bằng tiếng Trung':'Nghĩa chuyên ngành bằng tiếng Việt';
+  }
+  sourceLang.addEventListener('change',updateLabels);
   const cancel=byId('termCancel'),title=byId('termEditorTitle');
   let editingId=null,records=[];
   function status(value,error=false) {
@@ -29,11 +36,14 @@
     return node;
   }
   function reset() {
-    editingId=null;form.reset();domain.value='work';
+    editingId=null;form.reset();domain.value='work';sourceLang.value='zh';
+    twoWay.checked=false;updateLabels();
     title.textContent='Thêm thuật ngữ chuyên ngành';
   }
-  function open(term='',translation='',category='work',id=null) {
+  function open(term='',translation='',category='work',id=null,language='zh',bidirectional=false) {
     reset();panel.hidden=false;
+    sourceLang.value=language==='vi'?'vi':'zh';
+    twoWay.checked=bidirectional===true;updateLabels();
     source.value=term;meaning.value=translation;
     domain.value=['work','it','daily','any'].includes(category)?category:'work';
     editingId=id;
@@ -53,10 +63,12 @@
         const item=make('div',undefined,'term-list-item',list);
         const info=make('div',undefined,'term-list-info',item);
         make('strong',entry.source+' → '+entry.translation,undefined,info);
-        make('small',entry.domain+' · đã xác nhận',undefined,info);
+        make('small',entry.domain+' · '+(entry.sourceLang==='vi'?'Việt → Trung':'Trung → Việt')+
+          (entry.bidirectional?' · hai chiều':' · một chiều'),undefined,info);
         const edit=make('button','Sửa','term-small',item);edit.type='button';
         edit.addEventListener('click',()=>{
-          open(entry.source,entry.translation,entry.domain,entry.id);
+          open(entry.source,entry.translation,entry.domain,entry.id,
+            entry.sourceLang,entry.bidirectional);
           notes.value=entry.notes||'';
         });
         const remove=make('button','Xóa','term-small',item);remove.type='button';
@@ -74,7 +86,9 @@
   form.addEventListener('submit',async event=>{
     event.preventDefault();
     const data={source:source.value.trim(),translation:meaning.value.trim(),
-      domain:domain.value,notes:notes.value.trim(),sourceLang:'zh',targetLang:'vi'};
+      domain:domain.value,notes:notes.value.trim(),
+      sourceLang:sourceLang.value,targetLang:sourceLang.value==='vi'?'zh':'vi',
+      bidirectional:twoWay.checked};
     const submit=byId('termSave');submit.disabled=true;
     try {
       await request(editingId?'/'+encodeURIComponent(editingId):'/',{
