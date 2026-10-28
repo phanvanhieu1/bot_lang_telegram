@@ -1,0 +1,206 @@
+{
+  "schemaVersion": 1,
+  "description": "Synthetic translation benchmark; expected checks are semantic, not exact wording. No internal transaction identifiers.",
+  "cases": [
+    {
+      "id": "W01",
+      "category": "work_action",
+      "source": "审核的时候发现还有会员能投注体育的说下",
+      "context": "colleague",
+      "required": [
+        "Lúc duyệt/kiểm tra",
+        "Nếu phát hiện vẫn còn hội viên đặt cược thể thao được",
+        "Người phát hiện phải báo lại một tiếng"
+      ],
+      "critical": [
+        "Không bỏ yêu cầu 说下",
+        "Không biến yêu cầu thành một thông báo đã xảy ra"
+      ]
+    },
+    {
+      "id": "W02",
+      "category": "work_action",
+      "source": "有异常的说下",
+      "context": "colleague",
+      "required": [
+        "Ai thấy điều bất thường thì báo lại"
+      ],
+      "critical": [
+        "Phải giữ yêu cầu báo lại"
+      ]
+    },
+    {
+      "id": "W03",
+      "category": "work_action",
+      "source": "这笔提现还没审核，先不要出款",
+      "context": "superior",
+      "required": [
+        "Khoản rút tiền chưa được duyệt",
+        "Tạm thời không chi/xuất tiền"
+      ],
+      "critical": [
+        "Không được đảo ngược phủ định hoặc thứ tự hành động"
+      ]
+    },
+    {
+      "id": "W04",
+      "category": "work_negation",
+      "source": "会员不能投注体育",
+      "context": "auto",
+      "required": [
+        "Hội viên không thể đặt cược thể thao"
+      ],
+      "critical": [
+        "不能 không phải 能"
+      ]
+    },
+    {
+      "id": "W05",
+      "category": "work_action",
+      "source": "这笔出款先别处理，等风控确认",
+      "context": "colleague",
+      "required": [
+        "Tạm ngừng xử lý khoản chi/xuất tiền",
+        "Đợi xác nhận kiểm soát rủi ro"
+      ],
+      "critical": [
+        "Không dịch thành đã từ chối hoặc đã hoàn tất giao dịch"
+      ]
+    },
+    {
+      "id": "W06",
+      "category": "work_question",
+      "source": "中奖之后多久到账？",
+      "context": "auto",
+      "required": [
+        "Hỏi bao lâu tiền trúng thưởng mới về tài khoản"
+      ],
+      "critical": [
+        "Giữ dạng câu hỏi"
+      ]
+    },
+    {
+      "id": "W07",
+      "category": "work_action",
+      "source": "先停一下活动，有问题及时反馈",
+      "context": "superior",
+      "required": [
+        "Tạm dừng chương trình/hoạt động",
+        "Có vấn đề thì phản hồi kịp thời"
+      ],
+      "critical": [
+        "Không được mất một trong hai hành động"
+      ]
+    },
+    {
+      "id": "W08",
+      "category": "work_condition",
+      "source": "金额确认了再通知我",
+      "context": "colleague",
+      "required": [
+        "Xác nhận số tiền xong mới báo cho tôi"
+      ],
+      "critical": [
+        "Thứ tự trước-sau là bắt buộc"
+      ]
+    },
+    {
+      "id": "F01",
+      "category": "friend",
+      "source": "我先去吃饭，回来再说",
+      "context": "friend",
+      "required": [
+        "Tôi đi ăn trước",
+        "Quay lại rồi nói tiếp"
+      ],
+      "critical": [
+        "Không suy diễn sang nội dung công việc"
+      ]
+    },
+    {
+      "id": "F02",
+      "category": "friend",
+      "source": "你这人也太会开玩笑了",
+      "context": "friend",
+      "required": [
+        "Cách nói thân mật hoặc trêu đùa về người rất biết đùa"
+      ],
+      "critical": [
+        "Không biến thành chỉ trích trang trọng"
+      ]
+    },
+    {
+      "id": "F03",
+      "category": "friend",
+      "source": "明天一起去看电影吗？",
+      "context": "friend",
+      "required": [
+        "Mời/hỏi có đi xem phim cùng vào ngày mai không"
+      ],
+      "critical": [
+        "Không biến thành câu khẳng định"
+      ]
+    },
+    {
+      "id": "T01",
+      "category": "it",
+      "source": "这个 bug 只在 staging 复现",
+      "context": "colleague",
+      "required": [
+        "Bug chỉ tái hiện ở môi trường staging"
+      ],
+      "critical": [
+        "Giữ staging và tính chất chỉ xảy ra ở đó"
+      ]
+    },
+    {
+      "id": "T02",
+      "category": "it",
+      "source": "API 返回 500，先看看日志",
+      "context": "colleague",
+      "required": [
+        "API trả lỗi 500",
+        "Xem log trước"
+      ],
+      "critical": [
+        "Không bỏ yêu cầu cuối"
+      ]
+    },
+    {
+      "id": "T03",
+      "category": "it",
+      "source": "确认一下 callback 有没有重复触发",
+      "context": "colleague",
+      "required": [
+        "Kiểm tra callback có bị kích hoạt lặp hay không"
+      ],
+      "critical": [
+        "Không đổi dạng yêu cầu kiểm tra thành khẳng định lỗi tồn tại"
+      ]
+    },
+    {
+      "id": "V01",
+      "category": "vi_to_zh",
+      "source": "Chắc lỗi này do cache.",
+      "context": "colleague",
+      "required": [
+        "Bản tiếng Trung mang nghĩa lỗi có thể do cache"
+      ],
+      "critical": [
+        "Giữ tính phỏng đoán, không khẳng định chắc chắn"
+      ]
+    },
+    {
+      "id": "V02",
+      "category": "vi_to_zh",
+      "source": "Anh xem giúp em lỗi API này được không?",
+      "context": "colleague",
+      "required": [
+        "Câu Trung lịch sự nhờ xem giúp lỗi API"
+      ],
+      "critical": [
+        "Giữ ý nhờ giúp và dạng câu hỏi"
+      ]
+    }
+  ]
+}
