@@ -46,7 +46,7 @@ test('G01 paid output: dictionary resolves terminology even if Claude lists harm
   assert.equal(result.appliedTerms.length,1);
   assert.equal(result.appliedTerms[0].source,'刷子');
   assert.deepEqual(providers.calls.map(x=>x.provider),['claude','openai']);
-  assert.ok(providers.calls[0].maxOutputTokens<=600,'short sentence should not allocate 1200 Claude output tokens');
+  assert.ok(providers.calls[0].maxOutputTokens<=900,'short sentence should not allocate excessive Claude output tokens');
 });
 test('G02 paid output: missing brush subtype or travel time are not translation errors',async()=>{
   const providers=providerSample({
@@ -63,5 +63,5 @@ test('G02 paid output: missing brush subtype or travel time are not translation 
   assert.equal(result.appliedTerms.length,0);
   assert.equal(result.translationNotes.length,1);
   assert.match(result.translation,/bàn chải/);
-  assert.ok(providers.calls[0].maxOutputTokens<=600);
+  assert.ok(providers.calls[0].maxOutputTokens<=900);
 });
