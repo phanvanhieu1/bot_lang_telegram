@@ -30,13 +30,19 @@ function sanitizeClaudeTerms(raw,sourceText,sourceLanguage){
   return result;
 }
 
-function toStudyVocabulary(terms,sourceText,sourceLanguage){
+function toStudyVocabulary(terms,sourceText,sourceLanguage,patterns=[]){
   if(sourceLanguage!=='zh')return '';
   const lines=(terms||[]).map(row=>{
     const kind=row.source.length>4?'PHRASE':'WORD';
     return '['+kind+'] '+row.source+' : '+row.meaning;
   });
-  // Reuse V1's source validation before ever writing to MongoDB.
+  for(const row of (patterns||[]).slice(0,4)){
+    if(!row||typeof row.source!=='string'||typeof row.meaning!=='string')continue;
+    const key=row.source.trim().slice(0,80),meaning=row.meaning.trim().slice(0,160);
+    if(!key||!meaning||/[\r\n<>]/u.test(key)||/[\r\n<>]/u.test(meaning))continue;
+    lines.push('[PATTERN] '+key+' : '+meaning);
+  }
+  // Reuse V1's lexical grounding before any MongoDB write, including grammar.
   const parsed=parseAi1Items(lines.join('\n'),sourceText,'zh');
   return parsed.map(row=>'['+row.type.toUpperCase()+'] '+row.text+' : '+row.meaning).join('\n');
 }
