@@ -2,7 +2,7 @@
 
 // Provider adapters for opt-in V2. Existing V1 providers and credentials unchanged.
 const DEFAULTS = Object.freeze({
-  openai: 'gpt-6.1-terra',
+  openai: 'gpt-4o',
   claude: 'claude-haiku-5-5',
   groq: 'qwen/qwen3.8-27b',
   openrouter: 'google/gemma-4-31b-it:free'
@@ -12,11 +12,19 @@ const DEFAULTS = Object.freeze({
 function getV2ModelSettings(env = process.env) {
   const openaiModel = env.V2_OPENAI_MODEL || DEFAULTS.openai;
   const claudeModel = env.V2_CLAUDE_MODEL || DEFAULTS.claude;
-  const openaiEffort = env.V2_OPENAI_REASONING_EFFORT ||
-    (openaiModel === 'gpt-6.1-terra' ? 'none' : 'medium');
+  const supportsOpenAIReasoning = /^(gpt-[56]|o[1-9])/.test(openaiModel);
+  // GPT-4o (also used in V1 PRO) has no reasoning.effort parameter.
+  const openaiEffort = supportsOpenAIReasoning
+    ? (env.V2_OPENAI_REASONING_EFFORT ||
+      (openaiModel === 'gpt-6.1-terra' ? 'none' : 'medium'))
+    : null;
   const claudeEffort = env.V2_CLAUDE_EFFORT ||
     (claudeModel === 'claude-haiku-5-5' ? 'low' : null);
-  return { openaiModel, claudeModel, openaiEffort, claudeEffort };
+  // Haiku 5.5 allows disabling adaptive thinking for short classification.
+  // Keep an explicit override for experiments that value deeper reasoning.
+  const claudeThinking = env.V2_CLAUDE_THINKING ||
+    (claudeModel === 'claude-haiku-5-5' ? 'disabled' : 'default');
+  return { openaiModel, claudeModel, openaiEffort, claudeEffort, claudeThinking };
 }
 
 function safeError(code, status) {
@@ -55,7 +63,7 @@ async function postJson(url, headers, body, timeoutMs = 60000) {
 }
 
 function createProviders(env = process.env) {
-  const { openaiModel, claudeModel, openaiEffort, claudeEffort } = getV2ModelSettings(env);
+  const { openaiModel, claudeModel, openaiEffort, claudeEffort, claudeThinking } = getV2ModelSettings(env);
   const groqModel = env.V2_GROQ_MODEL || DEFAULTS.groq;
   const routerModel = env.V2_OPENROUTER_MODEL || DEFAULTS.openrouter;
   const allowFree = env.V2_ALLOW_FREE_PROVIDERS !== 'false';
@@ -104,6 +112,8 @@ function createProviders(env = process.env) {
     // continue using their original request shape.
     if(claudeEffort && /claude-(?:haiku|sonnet|opus)-5-5/.test(claudeModel))
       body.output_config={effort:claudeEffort};
+    if(claudeModel === 'claude-haiku-5-5' && claudeThinking === 'disabled')
+      body.thinking={type:'disabled'};
     const data = await postJson('https://api.anthropic.com/v1/messages', {
       'x-api-key': claudeKey,
       'anthropic-version': '2023-06-01'
