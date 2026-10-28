@@ -1,4 +1,5 @@
 const { LANG_CONFIG } = require('../../config');
+const { DOMAIN_CONTEXT_RULES, audienceGuidance } = require('./context.rules');
 
 function buildProPrompt(
   text,
@@ -15,41 +16,7 @@ function buildProPrompt(
   } = options;
 
 const isSupplement = Boolean(existingTranslation);
-const contextInstructions = {
-  auto: `
-NGỮ CẢNH GIAO TIẾP:
-- Tự xác định cách diễn đạt phù hợp dựa trên nội dung.
-- Nếu không có đủ thông tin để xác định quan hệ giữa người nói và người nghe, dùng cách diễn đạt tự nhiên, trung tính.
-- Không tự thêm mức độ thân mật hoặc trang trọng nếu nội dung không thể hiện điều đó.`,
-
-  friend: `
-NGỮ CẢNH GIAO TIẾP: NGƯỜI NGHE LÀ BẠN BÈ
-- Dịch như cách một người bản xứ thực sự nhắn tin hoặc nói chuyện với bạn bè.
-- Ưu tiên khẩu ngữ tự nhiên, gần gũi.
-- Tránh văn phong công việc hoặc cách nói trang trọng nếu không cần thiết.
-- Giữ nguyên hoàn toàn ý nghĩa, chủ thể, hành động, phủ định, thời gian, số lượng và mức độ chắc chắn của câu gốc.`,
-
-colleague: `
-NGỮ CẢNH GIAO TIẾP: NGƯỜI NGHE LÀ ĐỒNG NGHIỆP
-- Dịch như cách một người bản xứ giao tiếp với đồng nghiệp trong công việc.
-- Cách nói phải tự nhiên, rõ ràng và lịch sự vừa phải.
-- Không quá thân mật và cũng không quá trang trọng.
-- Có thể điều chỉnh cách xưng hô và cấu trúc câu cho phù hợp môi trường làm việc.
-- Giữ nguyên hoàn toàn ý nghĩa, chủ thể, hành động, phủ định, thời gian, số lượng và mức độ chắc chắn của câu gốc.`,
-
-superior: `
-NGỮ CẢNH GIAO TIẾP: NGƯỜI NGHE LÀ CẤP TRÊN
-- Dịch như cách một người bản xứ giao tiếp lịch sự và chuyên nghiệp với cấp trên.
-- Điều chỉnh cách xưng hô, từ ngữ và cấu trúc câu để thể hiện sự tôn trọng phù hợp.
-- Tránh cách ra lệnh trực tiếp nếu có cách diễn đạt lịch sự hơn mà vẫn giữ nguyên lực giao tiếp của câu gốc.
-- Không tự thêm lời xin lỗi, cảm ơn, lý do, điều kiện hoặc thông tin không có trong câu gốc.
-- Không biến một yêu cầu bắt buộc thành một yêu cầu tùy chọn.
-- Giữ nguyên hoàn toàn ý nghĩa, chủ thể, hành động, phủ định, thời gian, số lượng và mức độ chắc chắn của câu gốc.`
-};
-
-const contextInstruction =
-  contextInstructions[context] ||
-  contextInstructions.auto;
+const contextInstruction = audienceGuidance(context);
 const lang = LANG_CONFIG[targetLangKey];
 let systemPrompt;
 
@@ -62,7 +29,11 @@ ${text}
 BẢN DỊCH ĐÃ CÓ:
 ${existingTranslation}
 
-Không dịch lại và không thay đổi bản dịch trên.`;
+Không dịch lại và không thay đổi bản dịch trên.
+
+${DOMAIN_CONTEXT_RULES}
+${contextInstruction}
+- Các quy tắc ngữ cảnh chỉ dùng để hiểu ngữ nghĩa khi tạo dịch ngược / từ vựng; tuyệt đối không tự sửa TRANSLATION đã lưu.`;
 
   if (backTranslation) {
     if (telegramMode) {
@@ -134,6 +105,8 @@ Hãy tự động nhận diện ngôn ngữ của văn bản đầu vào:
 - Không được trả lại nguyên văn đầu vào.
 - Không giải thích.
 
+${DOMAIN_CONTEXT_RULES}
+
 ${contextInstruction}
 
 ĐỊNH DẠNG TRẢ VỀ BẮT BUỘC:
@@ -160,6 +133,8 @@ QUY TẮC DỊCH:
   + Dịch sang tiếng Việt.
 - Không được lặp lại nguyên văn đầu vào.
 - Bản dịch phải tự nhiên và đúng ngữ cảnh.
+
+${DOMAIN_CONTEXT_RULES}
 
 ${contextInstruction}`;
 
