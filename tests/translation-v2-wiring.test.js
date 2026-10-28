@@ -79,6 +79,16 @@ test('Holdout CLI can select only untested IDs without paying for earlier cases'
   }
 });
 
+test('Holdout benchmark flags suspicious everyday classification without modifying translation status',()=>{
+  const {domainReviewSuggested}=require('../scripts/benchmark-translation-v2');
+  assert.equal(domainReviewSuggested('work','daily'),true,'C09-type mismatch');
+  assert.equal(domainReviewSuggested('work','unknown'),true);
+  assert.equal(domainReviewSuggested('work','it'),false,'C05-type overlap');
+  assert.equal(domainReviewSuggested('work','mixed'),false,'C03-type overlap');
+  assert.equal(domainReviewSuggested('it','daily'),true);
+  assert.equal(domainReviewSuggested('friend','daily'),false);
+  assert.equal(domainReviewSuggested('mixed','work'),false);
+});
 test('Private results are ignored by git',()=>{
   assert.match(read('.gitignore'),/benchmarks\/results\//);
 });
