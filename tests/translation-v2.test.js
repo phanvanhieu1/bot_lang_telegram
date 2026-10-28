@@ -45,7 +45,8 @@ test('Claude analyzes first; DB approved glossary overrides Claude guessed termi
   assert.equal(result.appliedTerms[0].source,'刷子');
   assert.deepEqual(result.usage.providers.sort(),['claude','openai']);
   assert.ok(calls[1].input.includes('đường dây bào khuyến mãi'));
-  assert.ok(calls[1].input.includes('cái bàn chải'));
+  assert.equal(calls[1].input.includes('cái bàn chải'),false);
+  assert.equal(JSON.parse(calls[1].input).analysis.domain,'work');
   assert.ok(calls[1].sys.includes('ưu tiên'));
 });
 test('No matching domain means do not force workplace meaning',async()=>{
@@ -53,6 +54,7 @@ test('No matching domain means do not force workplace meaning',async()=>{
   assert.deepEqual(resolveTerms('我想买个刷子',rows,{context:'friend',analyzedDomain:'daily'}),[]);
   assert.deepEqual(resolveTerms('这是刷子吗',rows,{context:'auto',analyzedDomain:'unknown'}),[]);
   assert.equal(resolveTerms('这是刷子吗',rows,{context:'colleague',analyzedDomain:'unknown'}).length,1);
+  assert.equal(resolveTerms('这是刷子吗',rows,{context:'colleague',analyzedDomain:'daily'}).length,1);
   assert.equal(resolveTerms('这是刷子吗',rows,{context:'auto',analyzedDomain:'work'}).length,1);
 });
 test('Longest approved phrase wins over overlapping short term',()=>{
