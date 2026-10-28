@@ -30,6 +30,7 @@ const {
 } = require('../utils/validator');
 
 const FREE_CACHE_TTL = 24 * 60 * 60 * 1000;
+const {glossaryInstructions,validateAppliedTerms}=require('../terminology/resolver');
 
 async function getFreeCachedTranslation(text) {
   const cached = await getFreeCachedText(text);
@@ -172,12 +173,14 @@ async function translateWithProvider(
 
 async function runTranslationPipeline(
   text,
-  requestProvider
+  requestProvider,
+  terms=[]
 ) {
   // Groq / OpenRouter: both directions are generated in ONE AI request.
   const result = await translateWithProvider(
     text,
-    requestProvider
+    requestProvider,
+    terms.length?buildFreePrompt(text)+glossaryInstructions(terms):null
   );
 
   const inputIsChinese = containsChinese(text);
@@ -248,8 +251,10 @@ async function runDeepLPipeline(text) {
   };
 }
 
-async function translateFree(text) {
-  const cachedResult = await getFreeCachedTranslation(text);
+async function translateFree(text,options={}) {
+  const terms=options.terms||[];
+  // Shared cache cannot hold user-specific dictionary translations.
+  const cachedResult = terms.length?null:await getFreeCachedTranslation(text);
 
   if (cachedResult) {
     return {
@@ -266,10 +271,11 @@ async function translateFree(text) {
   try {
     const result = await runTranslationPipeline(
       text,
-      requestGroq
+      requestGroq,
+      terms
     );
 
-    await persistFreeCache(text, result);
+    if(!terms.length)await persistFreeCache(text, result);
 
     return result;
   } catch (error) {
@@ -282,10 +288,11 @@ async function translateFree(text) {
   try {
     const result = await runTranslationPipeline(
       text,
-      requestOpenRouter
+      requestOpenRouter,
+      terms
     );
 
-    await persistFreeCache(text, result);
+    if(!terms.length)await persistFreeCache(text, result);
 
     return result;
   } catch (error) {
@@ -300,6 +307,9 @@ async function translateFree(text) {
     );
 
     try {
+  // DeepL cannot receive required glossary instructions; never silently
+  // ignore approved user terminology during fallback.
+  if(terms.length){const e=new Error('Glossary cannot be enforced with DeepL');e.code='TERMINOLOGY_REQUIRED';throw e;}
   const result = await runDeepLPipeline(text);
 
   await persistFreeCache(text, result);
