@@ -370,3 +370,15 @@ html[data-theme] #openPracticeBtn svg{
 #termAppliedSummary[hidden]{display:none!important}
 .term-applied-summary{font-size:12px;line-height:1.5;color:var(--ui-muted,#526174);
   margin:4px 0;overflow-wrap:anywhere}
+
+/* Per-translation token and price comparison, never claiming unmetered API calls are free. */
+#requestUsagePanel[hidden]{display:none!important}
+.request-usage-panel{margin:9px 0;padding:9px 0;border-top:1px solid var(--ui-border,#cbd5e1);color:var(--ui-text,inherit)}
+.request-usage-heading{display:flex;justify-content:space-between;gap:10px;align-items:baseline;font-size:12px;margin-bottom:5px}
+.request-usage-heading span{font-size:11px;color:var(--ui-muted,#64748b)}
+.request-usage-panel table{border-collapse:collapse;width:100%;font-size:11px;text-align:left}
+.request-usage-panel th,.request-usage-panel td{padding:5px 7px;border-bottom:1px solid var(--ui-border,#cbd5e1)}
+.request-usage-panel th:first-child,.request-usage-panel td:first-child{max-width:300px;overflow-wrap:anywhere}
+.request-usage-panel th:not(:first-child),.request-usage-panel td:not(:first-child){text-align:right;font-variant-numeric:tabular-nums}
+.request-usage-panel .request-usage-total{font-weight:700}
+.request-usage-note{font-size:11px;line-height:1.45;color:var(--ui-muted,#64748b);margin:6px 0 0}
