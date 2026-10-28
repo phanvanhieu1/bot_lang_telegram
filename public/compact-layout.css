@@ -382,3 +382,13 @@ html[data-theme] #openPracticeBtn svg{
 .request-usage-panel th:not(:first-child),.request-usage-panel td:not(:first-child){text-align:right;font-variant-numeric:tabular-nums}
 .request-usage-panel .request-usage-total{font-weight:700}
 .request-usage-note{font-size:11px;line-height:1.45;color:var(--ui-muted,#64748b);margin:6px 0 0}
+
+/* V1/V2 per-click cost appears immediately under the translate buttons. */
+#translationCostSnapshot[hidden],#cacheOriginPanel[hidden]{display:none!important}
+.translation-cost-snapshot{margin:2px 4px 5px;text-align:right;
+  font-size:11px;line-height:1.45;color:var(--ui-muted,#64748b);
+  overflow-wrap:anywhere}
+.cache-origin-panel{padding:9px 0 1px;margin-top:7px;
+  border-top:1px dashed var(--ui-border,#cbd5e1)}
+.cache-origin-panel>strong{display:block;font-size:11px;margin-bottom:4px}
+@media(max-width:580px){.translation-cost-snapshot{text-align:left}}
