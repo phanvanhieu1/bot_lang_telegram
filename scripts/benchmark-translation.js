@@ -33,6 +33,7 @@ function loadOldBuilder(file, ref) {
     module, exports: module.exports,
     require(name) {
       if (name === '../../config') return config;
+      if (name === './context.rules') return require('../ai/prompts/context.rules');
       throw new Error('Unsupported baseline import: ' + name);
     }
   };
