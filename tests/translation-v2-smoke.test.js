@@ -6,8 +6,8 @@ const {spawnSync}=require('node:child_process');
 const cases=require('../benchmarks/v2-glossary-fixtures.json').cases;
 const {select,makeFixtures,fakeProviders,runOne}=require('../scripts/smoke-translation-v2');
 const root=path.join(__dirname,'..');
-test('eight synthetic cases cover work, daily, IT, no context, longest phrase, wrong repair',()=>{
-  assert.equal(cases.length,8);
+test('nine synthetic cases cover work, daily, IT, longest phrase, repair and vi-to-zh reversal',()=>{
+  assert.equal(cases.length,9);
   assert.equal(new Set(cases.map(c=>c.id)).size,8);
   assert.ok(cases.find(c=>c.id==='G01').claudeGuess.includes('bàn chải'));
   assert.ok(cases.find(c=>c.id==='G01').verifiedTranslation.includes('đường dây bào khuyến mãi'));
@@ -106,4 +106,17 @@ test('live-mode glossary match is not the same as a human translation quality PA
   assert.equal(result.termMatchOK,true);
   assert.equal(result.plumbingOK,null);
   assert.equal(result.humanQualityReviewed,false);
+});
+
+test('Bidirectional G09 checks Vietnamese source with approved work phrase, no AI cost',async()=>{
+  const c=cases.find(x=>x.id==='G09');
+  const result=await runOne(c,{mode:'mock',glossary:'fixture'});
+  assert.equal(result.plumbingOK,true);
+  assert.equal(result.status,'PASS');
+  assert.deepEqual(result.expectedTerms,['đường dây bào khuyến mãi']);
+  assert.deepEqual(result.actualTerms,['đường dây bào khuyến mãi']);
+  assert.equal(result.translation,'这是刷子吗？');
+  const disabled={...c,dictionary:c.dictionary.map(term=>({...term,bidirectional:false}))};
+  const withoutOptIn=await runOne(disabled,{mode:'mock',glossary:'fixture'});
+  assert.deepEqual(withoutOptIn.actualTerms,[]);
 });
