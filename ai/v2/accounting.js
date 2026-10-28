@@ -3,6 +3,8 @@
 // Approximate known paid-model charges only. Other providers may be billed
 // despite a "free" plan. Never present these estimates as exact invoices.
 const PRICES = Object.freeze({
+  // Same GPT-4o tariff as V1 PRO: 2.50 / 10 USD per million tokens.
+  'gpt-4o':{input:2.5,output:10},
   'gpt-6.1-sol': {input:2,output:10},
   'gpt-6.1-terra':{input:1,output:5},
   'claude-sonnet-5-5':{input:2,output:10},
