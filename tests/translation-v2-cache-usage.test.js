@@ -141,7 +141,7 @@ test('V2 endpoint cache HIT skips paid providers and history billing, isolates u
       const response=await fetch(url,{method:'POST',headers:{
         'content-type':'application/json','x-test-user':owner},
         body:JSON.stringify({text:'这是刷子吗？',targetLang:'zh',context})});
-      assert.equal(response.status,200,await response.text().catch(()=>null));
+      assert.equal(response.status,200);
       return response.json();
     }
     let one=await send();
