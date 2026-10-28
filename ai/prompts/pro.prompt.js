@@ -67,7 +67,7 @@ Phân tích nội dung tiếng Trung thành ba nhóm học tập:
 - Nếu BẢN DỊCH ĐÃ CÓ là tiếng Trung, lấy mục từ BẢN DỊCH ĐÃ CÓ.
 - Mỗi mục phải có nghĩa hoặc cách dùng tiếng Việt rõ ràng, chính xác.
 - Tuyệt đối không liệt kê từ/cụm không có trong câu hoặc mẫu câu không áp dụng cho câu.
-- Không tạo tên riêng, mã định danh hay mẫu giả. Không Pinyin.
+- Không tạo tên riêng, mã định danh hay mẫu giả. Nếu không chắc mẫu ngữ pháp đúng, bỏ PATTERN đó; không cố liệt kê đủ số lượng. Không Pinyin.
 - Không giải thích ngoài định dạng.`;
   }
 
@@ -172,7 +172,7 @@ QUY TẮC TỪ VỰNG, CỤM TỪ VÀ MẪU CÂU:
 - [PATTERN]: chọn tối đa 4 mẫu ngữ pháp có thật trong câu; có thể dùng ký hiệu A/B.
 - Với mỗi mục, cung cấp nghĩa tiếng Việt ngắn gọn, sát ngữ cảnh.
 - Chỉ chọn những mục thật sự xuất hiện hoặc mẫu cấu trúc thật sự được sử dụng.
-- Không liệt kê toàn bộ câu dài thành một cụm từ, không sáng tạo thêm cấu trúc.
+- Không liệt kê toàn bộ câu dài thành cụm từ, không bịa mẫu cấu trúc. Nếu không chắc một PATTERN đúng, bỏ qua; không cần điền đủ số lượng.
 - Không ghi Pinyin, chủ đề công việc/đời sống hay đánh giá tần suất; những phần đó do website xử lý.`;
   }
 
