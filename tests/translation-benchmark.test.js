@@ -50,5 +50,5 @@ test('offline dry-run compares both prompt generations for the same inputs', () 
   const data=JSON.parse(result.stdout);
   assert.equal(data.cases.length,2);
   assert.ok(data.cases.every(x=>x.oldChars>0 && x.newChars>0));
-  assert.ok(data.cases.every(x=>x.newChars>x.oldChars));
+  assert.ok(data.cases.every(x=>x.newChars===x.oldChars));
 });
