@@ -115,4 +115,4 @@ async function translateChatImage(buffer, learningLang) {
   };
 }
 
-module.exports = { translateChatImage, actualImageType, parseVisionResult, MAX_BYTES };
+module.exports = { translateChatImage, actualImageType, parseVisionResult, createPrompt, MAX_BYTES };
