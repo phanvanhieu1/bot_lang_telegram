@@ -26,6 +26,22 @@ function loadIsolated(relative, mock) {
   return module.exports;
 }
 
+
+test('shared V1 instructions stay compact but retain all semantic guardrails', () => {
+  const rules = contextRules.DOMAIN_CONTEXT_RULES;
+  assert.ok(rules.length <= 1250, `Domain rules grew to ${rules.length} characters`);
+  assert.match(rules, /KHÔNG mặc định mọi câu là việc công ty/);
+  assert.match(rules, /điều kiện → hành động/);
+  assert.match(rules, /KHÔNG bỏ vế cuối/);
+  assert.match(rules, /说下\/说一下/);
+  assert.match(rules, /提现/);
+  assert.match(rules, /cache/);
+  assert.match(rules, /tự nhiên, ngắn gọn, đủ ý/);
+  for (const profile of ['auto', 'friend', 'colleague', 'superior']) {
+    assert.ok(contextRules.audienceGuidance(profile).length < 150);
+  }
+});
+
 test('FREE Chinese and Vietnamese prompts preserve abbreviations, game operations, friends and output schema', () => {
   const zh = buildFreePrompt(example);
   assert.match(zh, /说下\/说一下/);
