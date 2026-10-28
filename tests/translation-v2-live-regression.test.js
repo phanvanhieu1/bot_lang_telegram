@@ -157,16 +157,28 @@ const holdoutSnapshots=[
   {id:'C01',analysisDomain:'work',resolvedDomain:'work',
     translation:'Khi duyệt yêu cầu rút tiền, nếu phát hiện cùng một hội viên gửi nhiều yêu cầu trong thời gian ngắn, hãy đối chiếu lịch sử trước, xác nhận xong rồi mới xử lý.'},
   {id:'C02',analysisDomain:'work',resolvedDomain:'work',
-    // Original paid result is semantically correct but contains awkward tense stacking.
-    translation:'Đừng thao tác lại khoản chi vừa rồi, bên tài chính đã đang theo dõi xử lý rồi.'},
+    // Original paid result had awkward tense stacking; this is the confirmed rerun.
+    translation:'Đừng thao tác lại khoản chi tiền vừa rồi, bên tài chính đang theo dõi xử lý rồi.'},
   {id:'C03',analysisDomain:'mixed',resolvedDomain:'mixed',
     translation:'Tối nay, mục thể thao sẽ được bảo trì, cổng đặt cược tạm thời đóng, các trò chơi khác không bị ảnh hưởng.'},
   {id:'C04',analysisDomain:'work',resolvedDomain:'work',
     translation:'Đối chiếu xong danh sách người trúng thưởng thì gửi cho tôi một bản nhé. Không gấp, trước sáng mai là được.'},
   {id:'C05',analysisDomain:'it',resolvedDomain:'it',
-    translation:'Hội viên này đã nạp tiền thành công nhưng số dư vẫn chưa được ghi có. Kiểm tra xem có phải do callback bị chậm không.'}
+    translation:'Hội viên này đã nạp tiền thành công nhưng số dư vẫn chưa được ghi có. Kiểm tra xem có phải do callback bị chậm không.'},
+  {id:'C06',analysisDomain:'work',resolvedDomain:'work',
+    translation:'Những mục không qua kiểm soát rủi ro thì cứ tạm để đó, đừng hủy ngay, chờ quản lý phản hồi.'},
+  {id:'C07',analysisDomain:'work',resolvedDomain:'work',
+    translation:'Tạm thời đừng phân bổ các đơn đã chuyển sang xử lý thủ công vào kênh chi tiền tự động.'},
+  {id:'C08',analysisDomain:'work',resolvedDomain:'work',
+    translation:'Kiểm tra lịch sử trả thưởng hôm qua, nếu có bản ghi trùng lặp thì tổng hợp riêng ra.'},
+  // C09 was marked daily by the real analyzer. This REPLAYS the defect,
+  // rather than endorsing it as a correct work-domain classification.
+  {id:'C09',analysisDomain:'daily',resolvedDomain:'daily',
+    translation:'Hạn mức không đủ để thực hiện khoản rút tiền này, không phải do lỗi hệ thống. Hãy xác nhận lại với bộ phận chăm sóc khách hàng trước.'},
+  {id:'C10',analysisDomain:'work',resolvedDomain:'work',
+    translation:'Ngày mai hoạt động mới bắt đầu, liên kết thấy hôm nay chỉ dùng để thử nghiệm, tạm thời đừng gửi vào nhóm hội viên.'}
 ];
-test('C01-C05 original paid outputs replay safely with resolved domains',async()=>{
+test('C01-C10 owner-supplied paid outputs replay without asserting model domain correctness',async()=>{
   for(const snapshot of holdoutSnapshots){
     const fixture=holdoutCases.find(x=>x.id===snapshot.id);
     assert.ok(fixture,snapshot.id);
