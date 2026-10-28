@@ -37,6 +37,9 @@ test('shared V1 instructions stay compact but retain all semantic guardrails', (
   assert.match(rules, /提现/);
   assert.match(rules, /cache/);
   assert.match(rules, /tự nhiên, ngắn gọn, đủ ý/);
+  assert.match(rules, /Giữ rõ loại giao dịch/);
+  assert.match(rules, /khẩu ngữ thân mật/);
+  assert.match(rules, /KHÔNG hy sinh sắc thái\/thuật ngữ/);
   for (const profile of ['auto', 'friend', 'colleague', 'superior']) {
     assert.ok(contextRules.audienceGuidance(profile).length < 150);
   }
@@ -74,6 +77,7 @@ test('PRO full retains vocabulary/back fields and respects incoming superior req
   assert.match(prompt, /^TRANSLATION:/m);
   assert.match(prompt, /^BACK_TRANSLATION:/m);
   assert.match(prompt, /^VOCABULARY:/m);
+  assert.match(prompt, /không cần điền đủ số lượng/);
   const supple = buildProPrompt(example, 'zh', false, {
     context: 'colleague', existingTranslation: 'Bản dịch đã lưu',
     backTranslation: true, vocabulary: true
@@ -82,6 +86,7 @@ test('PRO full retains vocabulary/back fields and respects incoming superior req
   assert.doesNotMatch(supple, /^TRANSLATION:/m);
   assert.match(supple, /^BACK_TRANSLATION:/m);
   assert.match(supple, /^VOCABULARY:/m);
+  assert.match(supple, /không cố liệt kê đủ số lượng/);
 });
 
 test('English FREE and PRO use shared domain/audience rules without changing named fields', () => {
