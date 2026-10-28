@@ -40,6 +40,8 @@ test('shared V1 instructions stay compact but retain all semantic guardrails', (
   assert.match(rules, /Giữ rõ loại giao dịch/);
   assert.match(rules, /khẩu ngữ thân mật/);
   assert.match(rules, /KHÔNG hy sinh sắc thái\/thuật ngữ/);
+  assert.match(contextRules.audienceGuidance('friend'), /tránh máy móc dùng/);
+  assert.match(contextRules.audienceGuidance('colleague'), /không tự thêm tiểu từ thúc giục/);
   for (const profile of ['auto', 'friend', 'colleague', 'superior']) {
     assert.ok(contextRules.audienceGuidance(profile).length < 150);
   }
