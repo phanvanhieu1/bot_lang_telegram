@@ -290,7 +290,7 @@ or `it` meaning when classification is mixed.
 Historical snapshots are replayed offline in the
 `translation-v2-live-regression.test.js` tests; they cannot verify
 the quality of future model outputs. The remaining 30 holdout cases
-and staging MongoDB glossary tests have not been executed here.
+and staging MongoDB glossary tests had not yet been executed at that point.
 For the next five work samples only, without paying again for C01-C05:
 
 ```bash
@@ -301,6 +301,54 @@ node scripts/benchmark-translation-v2.js --ids=C06,C07,C08,C09,C10 --domain=work
 The paid command executes only the requested IDs, in their specified order,
 and writes a private JSON result. Unknown, repeated, or off-domain IDs fail
 before any provider request. Review all new model outputs manually.
+
+### C02 recheck and C06-C10 work holdout (2026-10-28)
+
+The owner provided six more paid provider records: C02 rerun plus C06-C10.
+All six were model PASS with zero validator issues. Manual review found
+the Chinese source meaning (negation, instructions, ordering, timing)
+preserved in each case. **C02's previous awkward 'đã đang' phrase has
+disappeared in the paid rerun**; the output now naturally uses
+'bên tài chính đang theo dõi xử lý rồi'. This is one verified improvement,
+not a guarantee the phrasing is fixed for every similar sentence.
+
+The six calls took **44.128 seconds total**, averaging **7.355 seconds**;
+the Claude stages took **29.340 seconds**, the OpenAI stages
+**14.785 seconds**. Usage total: **6,502 input tokens** and
+**3,586 output tokens**. This batch contains a repeated C02, so
+**10 distinct work holdout cases** (C01-C10) have now been run,
+with **25 remaining** across friend/IT/mixed.
+
+**C09 classification issue:** the source is an organizational
+withdrawal-limit / customer-support instruction, but Claude selected
+`domain:"daily"` and the engine preserved `resolvedDomain:"daily"`
+under auto context. The translation was semantically correct, but this
+could suppress confirmed work-only glossary entries. We have tightened
+the analyzer's **general** work-vs-personal classification guidance
+without embedding C09 in the model prompt. Do not forcibly override
+the analyzer's classification using finance words alone: an ordinary
+personal purchase must not inherit workplace glossary entries.
+
+The holdout CLI now records `domainReviewSuggested:true` and increments
+`domainReviewCount` when an expected work/IT case resolves to daily/
+unknown (or a friend case resolves outside daily). This is a
+**non-blocking human-review flag**, distinct from model PASS and
+the engine's `issues` array. IT or mixed within work examples
+is not automatically flagged (e.g. C03, C05).
+
+The updated analyzer domain guidance **still needs a paid C09 recheck**;
+historical snapshots in offline tests reproduce the observed mistake
+on purpose, rather than claiming it was fixed. Staging MongoDB
+glossary integration has not been validated.
+
+```bash
+# Confirm the analyzer's new work classification without rerunning other paid cases:
+node scripts/benchmark-translation-v2.js --dry-run --ids=C09 --domain=work
+node scripts/benchmark-translation-v2.js --ids=C09 --domain=work
+
+# After checking C09, continue with new daily conversation cases:
+node scripts/benchmark-translation-v2.js --ids=F01,F02,F03,F04,F05 --domain=friend
+```
 
 ### Known limits
 
@@ -313,11 +361,11 @@ before any provider request. Review all new model outputs manually.
   staging tests pass.
 
 **Real provider integration is verified for eight synthetic glossary cases; semantic quality and staging integration are not yet independently verified.**
-On a staging VPS with your keys, first run the limited synthetic holdout:
+On a staging VPS with your own configured keys, continue the remaining holdout in small batches:
 
 ```bash
-node scripts/benchmark-translation-v2.js --dry-run --limit=5
-node scripts/benchmark-translation-v2.js --limit=5 --domain=work
+node scripts/benchmark-translation-v2.js --dry-run --ids=F01,F02,F03,F04,F05 --domain=friend
+node scripts/benchmark-translation-v2.js --ids=F01,F02,F03,F04,F05 --domain=friend
 ```
 
 The script writes private JSON under the git-ignored `benchmarks/results/`.
