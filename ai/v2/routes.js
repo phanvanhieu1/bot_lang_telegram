@@ -42,6 +42,7 @@ function createV2Router({ translate = deepTranslate, env = process.env, cache = 
     if(active.has(id)) return res.status(429).json({
       success:false,code:'V2_ALREADY_RUNNING',message:'Một lượt dịch chuyên sâu đang xử lý.'
     });
+    const startedAt=Date.now();
     active.add(id);
     try {
       // Fail closed if the glossary cannot be read: a stale cache must never
@@ -59,13 +60,14 @@ function createV2Router({ translate = deepTranslate, env = process.env, cache = 
           success:true,engine:ENGINE_VERSION,
           result:'TRANSLATION: '+translated.translation,
           ...translated,usage,cached:true,
-          requestUsage:cachedV2Usage(translated.originalUsage||null)
+          requestUsage:cachedV2Usage(translated.originalUsage||null,Date.now()-startedAt)
         });
       }
       const translated=await translate({text:text.trim(),context,
         loadGlossary:(source,opts)=>lookupUserTerms(req.user._id,source,opts)});
       const estimate=estimateUsage(translated.usage);
       const requestUsage=summarizeV2Usage(translated.usage,estimate);
+      requestUsage.elapsedMs=Date.now()-startedAt;
       // Re-read owner glossary to prevent storing a response that raced with
       // an edit/delete during the expensive LLM calls.
       if(translated.status==='PASS'){
@@ -94,6 +96,7 @@ function createV2Router({ translate = deepTranslate, env = process.env, cache = 
         // Translation is still useful if usage DB write fails.
         console.error('V2 usage write failed');
       }
+      requestUsage.elapsedMs=Date.now()-startedAt;
       return res.json({
         success:true,engine:ENGINE_VERSION,
         result:'TRANSLATION: '+translated.translation,
