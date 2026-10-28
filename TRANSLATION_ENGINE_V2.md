@@ -291,6 +291,16 @@ Historical snapshots are replayed offline in the
 `translation-v2-live-regression.test.js` tests; they cannot verify
 the quality of future model outputs. The remaining 30 holdout cases
 and staging MongoDB glossary tests have not been executed here.
+For the next five work samples only, without paying again for C01-C05:
+
+```bash
+node scripts/benchmark-translation-v2.js --dry-run --ids=C06,C07,C08,C09,C10 --domain=work
+node scripts/benchmark-translation-v2.js --ids=C06,C07,C08,C09,C10 --domain=work
+```
+
+The paid command executes only the requested IDs, in their specified order,
+and writes a private JSON result. Unknown, repeated, or off-domain IDs fail
+before any provider request. Review all new model outputs manually.
 
 ### Known limits
 
