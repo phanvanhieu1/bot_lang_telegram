@@ -431,3 +431,55 @@ before merge/deploy. No change to production is authorized by this PR.
 **Relationship to PR #4:** PR #4 (optimized V1 context prompt) remains a
 separate draft; this branch is based on `main`. Resolve the two branches'
 shared V1 prompt changes intentionally if both are eventually merged.
+
+## V2 user-scoped cache and per-click billing table
+
+- V2 stores only `PASS` translations in MongoDB collection
+  `translation_v2_cache`, TTL **14 days**. A `REVIEW` answer is not cached.
+- Keys include account ID, trimmed original text, user-selected context,
+  auto-detected translation direction, V2 engine version, actual configured
+  Claude/OpenAI model IDs, and SHA-256 of the logged-in owner's entire
+  approved terminology mapping. Editing, adding, removing, or changing the
+  bidirectional approval of a glossary record changes that fingerprint.
+  No personal term is shared between accounts.
+- The server rechecks the glossary fingerprint after the LLM call, so it does
+  not populate a stale cache if an approved meaning was edited mid-request.
+  Reads also enforce expiry even before MongoDB's TTL cleanup runs.
+- A cached response returns `cached:true` and per-click usage
+  `{inputTokens:0,outputTokens:0,totalTokens:0,estimatedCostUsd:0}`.
+  No new usage billing record is inserted on the cache-hit path.
+- Each successful V1 FREE, V1 PRO and V2 text translation returns an
+  additional `requestUsage` field without breaking the older `usage` field.
+  The UI shows a small **Token & chi phí lượt dịch** table directly under the
+  translation, including cache hit/miss, input/output tokens, price estimate
+  and model-level stages where supported.
+- V1 PRO pricing currently follows the existing GPT-4o accounting rates:
+  input $2.50/million tokens, output $10/million. V2 pricing is sourced
+  from `ai/v2/accounting.js`. Prices are **estimates**, not invoices.
+  FREE providers with missing token reports or unknown billing rates show
+  `—` instead of pretending the cost is $0.
+- The table reflects only tokens and calls made **for the current click**:
+  a cache HIT is $0 additional AI cost even if the initial cached result
+  previously incurred an expense. Groq/OpenRouter FREE token counts are
+  carried from provider usage metadata where available.
+
+### Manual browser QA (no staging-test script required)
+
+1. Pull `feature/translation-engine-v2`, restart the existing website with
+   its ordinary MongoDB configuration, and log in with PRO/Admin access.
+   Enable V2 with `V2_ENABLED=true` and your existing Claude/OpenAI keys.
+2. Enter a short Chinese sentence and click **Dịch chuyên sâu V2**.
+   Expect `CACHE MISS`, a per-provider input/output/cost table and a result.
+3. Click V2 again without changing text/context. If the first result was
+   `PASS`, expect `CACHE HIT`, zero new tokens, and $0 new AI cost.
+   If the first result was `REVIEW`, expect it **not** to hit the cache.
+4. Switch between **Bạn bè** and **Đồng nghiệp**. Expect independent cache
+   entries. Add/edit a glossary entry, translate the same sentence again and
+   expect a cache miss because the glossary signature changed.
+5. Click the original **Dịch** button in PRO mode: V1's GPT-4o token and
+   estimated cost appear. Repeat a cacheable request: expect zero incremental
+   usage. Do the same in FREE mode: a missing provider tariff displays `—`.
+6. Confirm that the usage table is cleared when starting another translation
+   or clearing the input. No `V2_TEST_MONGODB_URI` or staging user ID is
+   needed for any of these normal interface flows.
+
