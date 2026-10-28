@@ -531,3 +531,46 @@ shared V1 prompt changes intentionally if both are eventually merged.
    or clearing the input. No `V2_TEST_MONGODB_URI` or staging user ID is
    needed for any of these normal interface flows.
 
+
+## V2 token-reduction model configuration (2026-10-29; supersedes fast trial above)
+
+After observing ~800 total tokens from V1 and ~4,000 from V2 on one
+sentence, V2 now uses **the same GPT model as V1 PRO**, while retaining
+the smallest/fastest current Claude family for semantic analysis:
+
+| Stage | New default | Configuration |
+| --- | --- | --- |
+| Claude analyzer | `claude-haiku-5-5` | `output_config.effort=low`, `thinking.type=disabled` |
+| OpenAI translator and repair | `gpt-4o` | No `reasoning.effort` field (not accepted by GPT-4o) |
+
+These defaults apply automatically when `V2_OPENAI_MODEL` and
+`V2_CLAUDE_MODEL` were never set in `.env`. Existing users only need to
+pull the branch and restart the server. V1 uses its original GPT-4o code
+path unchanged. V2 still makes **two model calls** on a cache miss, so
+its token usage will not necessarily equal V1 and it may still exceed V1.
+
+Disabling Haiku thinking prioritizes token efficiency; it can reduce
+semantic analysis quality for difficult or ambiguous workplace phrases.
+The DB glossary and deterministic translation/number checks stay
+enabled; evaluate quality through the normal web interface.
+
+V2 rates now recognize GPT-4o ($2.50 input / $10 output per million
+tokens) and Claude Haiku 5.5 ($0.10 input / $0.50 output per million
+tokens for short prompts). Cost shown is an estimate, not an invoice.
+
+To opt back into Claude thinking or use a different model intentionally,
+set optional environment overrides such as:
+
+```dotenv
+V2_CLAUDE_THINKING=adaptive
+V2_CLAUDE_EFFORT=medium
+V2_OPENAI_MODEL=gpt-6.1-terra
+V2_OPENAI_REASONING_EFFORT=none
+```
+
+V2 cache keys include model, reasoning and Claude thinking/effort
+settings, so previous Terra/Haiku results do not mask the new behavior.
+The interface still reports cache HIT/MISS, per-stage token usage,
+estimated costs, and measured elapsed time. For comparison, translate a
+new sentence or one that is a cache MISS and compare the two models'
+reported token counts; no paid benchmark is run by the project CI.
