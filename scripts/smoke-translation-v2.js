@@ -53,7 +53,7 @@ function fakeProviders(c) {
     }
   };
 }
-async function runOne(c,{mode='mock',glossary='fixture',dbModel=null}={}) {
+async function runOne(c,{mode='mock',glossary='fixture',dbModel=null,providersOverride=null}={}) {
   const loadGlossary=glossary==='fixture'
     ? async(source,opts)=>resolveTerms(source,makeFixtures(c),opts)
     : glossary==='db'
@@ -64,20 +64,25 @@ async function runOne(c,{mode='mock',glossary='fixture',dbModel=null}={}) {
   try{
     const result=await deepTranslate({
       text:c.source,context:c.context,loadGlossary
-    },mock||undefined);
+    },providersOverride||mock||undefined);
     const actualTerms=result.appliedTerms.map(x=>x.source);
     const expectedTerms=c.expectTerms||[];
-    const plumbingOK=mode!=='mock'||(
-      expectedTerms.every(x=>actualTerms.includes(x)) &&
-      actualTerms.every(x=>expectedTerms.includes(x)) &&
-      result.status===c.expectStatus &&
-      (!mock||mock.calls.claude===1) &&
-      (!mock||mock.calls.openai=== (c.id==='G08'?2:1))
-    );
+    const termMatchOK=expectedTerms.every(x=>actualTerms.includes(x)) &&
+      actualTerms.every(x=>expectedTerms.includes(x));
+    // Do NOT label live runs "plumbing OK" just because HTTP calls returned.
+    // For live, this check verifies only exact glossary matching and cannot
+    // assert semantic correctness of the entire translation.
+    const plumbingOK=mode==='mock'?(
+      termMatchOK && result.status===c.expectStatus &&
+      mock.calls.claude===1 &&
+      mock.calls.openai===(c.id==='G08'?2:1)
+    ):null;
     return {id:c.id,mode,context:c.context,source:c.source,
-      expectedTerms,actualTerms,status:result.status,translation:result.translation,
-      issues:result.issues,analysis:result.analysis,usage:result.usage,
-      elapsedMs:Date.now()-start,plumbingOK};
+      expectedTerms,actualTerms,termMatchOK,status:result.status,
+      translation:result.translation,issues:result.issues,
+      analysis:result.analysis,translationNotes:result.translationNotes,
+      usage:result.usage,elapsedMs:Date.now()-start,plumbingOK,
+      humanQualityReviewed:false};
   } catch(error){
     return {id:c.id,mode,errorCode:String(error.code||'V2_SMOKE_ERROR').slice(0,90),
       elapsedMs:Date.now()-start,plumbingOK:false};
@@ -128,9 +133,15 @@ async function main(args=process.argv.slice(2)){
     new Date().toISOString().replace(/[:.]/g,'-')+'.json');
   fs.writeFileSync(out,JSON.stringify({mode,glossary,records,
     note:'Synthetic cases; model PASS is not independent human quality validation. No production changes.'},null,2)+'\n',{mode:0o600});
-  const passed=records.filter(r=>r.plumbingOK && !r.errorCode).length;
-  console.log(JSON.stringify({report:out,total:records.length,plumbingPassed:passed,
-    failures:records.length-passed},null,2));
+  const passed=records.filter(r=>
+    !r.errorCode && (mode==='mock'?r.plumbingOK:r.termMatchOK)).length;
+  const reportSummary={report:out,total:records.length,
+    mockPlumbingPassed:mode==='mock'?passed:null,
+    liveTermMatches:mode==='live'?passed:null,
+    needsReview:records.filter(r=>r.status==='REVIEW').length,
+    semanticQualityReviewed:false,
+    failures:records.length-passed};
+  console.log(JSON.stringify(reportSummary,null,2));
   if(passed!==records.length)process.exitCode=1;
   return {passed,total:records.length};
 }
