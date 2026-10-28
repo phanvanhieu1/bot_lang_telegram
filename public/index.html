@@ -283,7 +283,22 @@
 <div class="free-limit-reset" id="freeReset"></div>
 </div>
 <section aria-label="Chi tiết bản dịch" class="translation-details" id="translationDetails">
-<div class="details-heading"><span>Chi tiết bản dịch</span></div>
+<div class="details-heading"><span>Chi tiết bản dịch</span>
+<button id="termAddBtn" type="button" class="term-add-btn" title="Thêm thuật ngữ chuyên ngành">＋ Thuật ngữ</button></div>
+<section id="termEditor" class="term-editor" hidden aria-label="Quản lý thuật ngữ cá nhân">
+  <h3 id="termEditorTitle">Thêm thuật ngữ chuyên ngành</h3>
+  <form id="termForm">
+    <label for="termSource">Từ/cụm từ tiếng Trung</label><input id="termSource" required maxlength="100" autocomplete="off"/>
+    <label for="termMeaning">Nghĩa chuyên ngành bằng tiếng Việt</label><input id="termMeaning" required maxlength="240" autocomplete="off"/>
+    <label for="termDomain">Lĩnh vực</label>
+    <select id="termDomain"><option value="work">Công việc</option><option value="it">IT</option><option value="daily">Đời sống</option><option value="any">Mọi ngữ cảnh</option></select>
+    <label for="termNotes">Ghi chú (tùy chọn)</label><input id="termNotes" maxlength="350" autocomplete="off"/>
+    <div class="term-editor-actions"><button type="submit" id="termSave">Lưu thuật ngữ</button><button type="button" id="termCancel">Đóng</button></div>
+  </form>
+  <p id="termFeedback" role="status"></p>
+  <div id="termList" class="term-list"></div>
+</section>
+<p id="termTranslationWarning" class="term-warning" hidden role="status"></p>
 <div class="details-content">
 <div class="translation-extras">
 <div class="result-box hidden" id="vocabularyWrapper">
@@ -451,6 +466,7 @@
 </style>
 <script src="/language-ui.js"></script>
 <script src="/translation-vocab.js"></script>
+<script src="/terminology.js"></script>
 <script src="/app.js"></script>
 <script src="/google-style.js"></script>
 <script src="/practice-audio.js"></script>
