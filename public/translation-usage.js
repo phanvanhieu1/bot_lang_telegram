@@ -70,14 +70,18 @@
       return;
     }
     const hit=summary.cached===true;
-    const previous=hit&&summary.originalUsage&&typeof summary.originalUsage==='object'
+    const verifiedCachedTranslation=summary.translationCached===true;
+    const previous=(hit||verifiedCachedTranslation)&&
+      summary.originalUsage&&typeof summary.originalUsage==='object'
       ?summary.originalUsage:null;
     const label=engine==='v2'?'Dịch V2':'Dịch V1';
     panel.hidden=false;
     headline.hidden=false;
-    state.textContent=hit?'CACHE HIT':'CACHE MISS · gọi API';
+    state.textContent=verifiedCachedTranslation
+      ?'CACHE HIT · kiểm chứng mới'
+      :hit?'CACHE HIT':'CACHE MISS · gọi API';
     rows(tbody,summary,hit);
-    headline.textContent=label+' · '+(hit?'CACHE HIT':'CACHE MISS')+
+    headline.textContent=label+' · '+(hit||verifiedCachedTranslation?'CACHE HIT':'CACHE MISS')+
       ' · '+token(summary.totalTokens)+' token mới · Lượt này '+usd(summary.estimatedCostUsd)+
       (previous?' · Lần tạo cache '+usd(previous.estimatedCostUsd):'')+
       (known(summary.elapsedMs)?' · '+duration(summary.elapsedMs):'');
@@ -86,7 +90,9 @@
       if(previous)rows(originRows,previous,false);
       else originRows.replaceChildren();
     }
-    note.textContent=hit
+    note.textContent=verifiedCachedTranslation
+      ?'Bản dịch được lấy từ cache. Chỉ phát sinh token/chi phí cho kiểm chứng độc lập trong lượt này.'
+      :hit
       ?previous
         ?'Lượt này không gọi API dịch. Bảng thứ hai ghi token và chi phí ước tính của lần tạo cache trước đây, không tính lại vào lượt này.'
         :'Lượt này không gọi API dịch. Cache được lưu từ phiên bản chưa ghi chi phí ban đầu, nên không thể truy xuất chính xác khoản đã trả trước đó.'
