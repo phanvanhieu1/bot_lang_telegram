@@ -640,7 +640,7 @@ const response = await fetch(translateEndpoint, {
     window.renderTermHighlights?.(data.appliedTerms || []);
     window.displayAppliedTerms?.(data.appliedTerms || []);
     window.displayTermWarning?.(data.terminologyWarnings || []);
-    window.renderRequestUsage?.(data.requestUsage||null);
+    window.renderRequestUsage?.(data.requestUsage||null,'v1');
     if (selectedLang === 'en') {
       window.dispatchEvent(new CustomEvent('translation-finished', {
         detail: { sourceLanguage: data.sourceLanguage }
@@ -815,7 +815,7 @@ translateV2Btn.addEventListener('click', async () => {
     document.getElementById('outputSpeakBtn').hidden = !hasTranslation;
     window.renderTermHighlights?.(data.appliedTerms || []);
     window.displayAppliedTerms?.(data.appliedTerms || []);
-    window.renderRequestUsage?.(data.requestUsage||null);
+    window.renderRequestUsage?.(data.requestUsage||null,'v2');
     window.displayTermWarning?.((data.issues||[]).filter(x=>x.includes('Thuật ngữ')));
     window.renderTranslationVocabulary?.([], '', 'zh');
     const direction = data.sourceLanguage === 'vi' && data.targetLanguage === 'zh'
