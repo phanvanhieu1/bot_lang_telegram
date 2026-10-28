@@ -148,3 +148,47 @@ test('G01 real failure: Claude says daily but explicit colleague and confirmed D
     'Do not let unapproved brush guess compete with confirmed DB terminology');
   assert.equal(calls[0].approvedTerminology[0].meaning,'đường dây bào khuyến mãi');
 });
+
+// C01-C05 owner-supplied paid-provider snapshots from unseen holdout.
+// Replaying outputs verifies integration and domain telemetry only;
+// it does NOT convert historical text into a deterministic quality score.
+const holdoutCases=require('../benchmarks/v2-holdout.json').cases;
+const holdoutSnapshots=[
+  {id:'C01',analysisDomain:'work',resolvedDomain:'work',
+    translation:'Khi duyệt yêu cầu rút tiền, nếu phát hiện cùng một hội viên gửi nhiều yêu cầu trong thời gian ngắn, hãy đối chiếu lịch sử trước, xác nhận xong rồi mới xử lý.'},
+  {id:'C02',analysisDomain:'work',resolvedDomain:'work',
+    // Original paid result is semantically correct but contains awkward tense stacking.
+    translation:'Đừng thao tác lại khoản chi vừa rồi, bên tài chính đã đang theo dõi xử lý rồi.'},
+  {id:'C03',analysisDomain:'mixed',resolvedDomain:'mixed',
+    translation:'Tối nay, mục thể thao sẽ được bảo trì, cổng đặt cược tạm thời đóng, các trò chơi khác không bị ảnh hưởng.'},
+  {id:'C04',analysisDomain:'work',resolvedDomain:'work',
+    translation:'Đối chiếu xong danh sách người trúng thưởng thì gửi cho tôi một bản nhé. Không gấp, trước sáng mai là được.'},
+  {id:'C05',analysisDomain:'it',resolvedDomain:'it',
+    translation:'Hội viên này đã nạp tiền thành công nhưng số dư vẫn chưa được ghi có. Kiểm tra xem có phải do callback bị chậm không.'}
+];
+test('C01-C05 original paid outputs replay safely with resolved domains',async()=>{
+  for(const snapshot of holdoutSnapshots){
+    const fixture=holdoutCases.find(x=>x.id===snapshot.id);
+    assert.ok(fixture,snapshot.id);
+    const calls=[];
+    const result=await deepTranslate({text:fixture.source,context:'auto',
+      loadGlossary:async()=>[]},{
+      claude:async()=>{
+        calls.push('claude');
+        return {text:JSON.stringify({
+          domain:snapshot.analysisDomain,intent:'replay',tone:'neutral',
+          facts:[],terms:[],ambiguities:[]}),
+          model:'claude-replay',usage:{input:1,output:1}};
+      },
+      openai:async()=>{
+        calls.push('openai');
+        return {text:JSON.stringify({translation:snapshot.translation,
+          semanticReviewRequired:false,uncertainties:[]}),
+          model:'openai-replay',usage:{input:1,output:1}};
+      }
+    });
+    assert.equal(result.status,'PASS',snapshot.id+': '+result.issues.join(';'));
+    assert.equal(result.analysis.resolvedDomain,snapshot.resolvedDomain,snapshot.id);
+    assert.deepEqual(calls,['claude','openai'],snapshot.id);
+  }
+});
