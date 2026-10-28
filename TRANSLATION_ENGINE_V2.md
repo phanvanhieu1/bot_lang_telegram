@@ -622,3 +622,53 @@ Suggested manual browser checks:
    are labeled as *suggestions, not saved Chinese vocabulary*.
 5. Test V1 PRO and V1 FREE buttons: they must not retain stale Claude
    terms, and the old vocabulary engine must remain unchanged.
+
+## V2 interface parity with V1 PRO (2026-10-29; supersedes V2-specific detail layout above)
+
+Both translation buttons now use the **same V1** response layout and frontend
+`parseResult(data.result)` function. V2's separate Claude analysis and
+Vietnamese-suggestion panels are hidden: these are no longer alternative
+UI layouts. **V2 only changes the core translation processing** (Claude
+analysis, then GPT-4o translation).
+
+The existing four PRO toggles apply to both buttons:
+- **Dịch ngược**: for Vietnamese → Chinese, GPT-4o supplies a genuine
+  translation of its own Chinese output back into Vietnamese in the same
+  structured translation response. Like V1, Chinese → Vietnamese does not
+  show backtranslation.
+- **Phát âm**: use the same local `generatePinyin()` as V1, without an
+  additional AI call; it appears in the existing pronunciation section.
+- **Từ vựng**: source Chinese uses Claude's grounded terms and grammar
+  patterns; source Vietnamese uses the Chinese target translation and
+  GPT-4o's structured [WORD]/[PHRASE]/[PATTERN] items. Both directions
+  go through V1's source validator and the **same MongoDB study resolver**.
+  The same V1 cards show saved meanings, Pinyin, categories and encounter
+  counts; disabling collection prevents dictionary reads/writes.
+- **Kiểm chứng**: opt-in uses the **same independent GPT-4o verifier as V1**
+  with PASS/WARNING/FAIL, confidence, issues and message in the original
+  V1 verification panel. This is an **additional paid API request**, so
+  a V2 cache miss with verification enabled can involve more than the two
+  core AI calls. It is accounted for separately. When its result is cached
+  alongside a PASS translation, a repeat request avoids re-verification.
+
+V2 now also saves translations to the existing per-account **Lịch sử**
+endpoint in exactly the V1 labeled text format. Tokens and estimated API
+spend retain the previously added V2-specific comparison table.
+
+For Vietnamese input the V2 cache key includes the backtranslation and
+vocabulary switches, since these change the output requested from GPT-4o.
+For Chinese input those flags do not change the underlying Claude analysis
+and have no impact on cache keys; Mongo vocabulary cards are read through
+the same existing resolver on every displayed translation, preserving
+deduplication and current manually edited meanings. `verification` is
+resolved only when requested, and its result can be added to a PASS cache
+without rewriting the original cost of generating the translation.
+
+No new endpoints, buttons, separate learning panels, translation DB or
+extra default LLM calls are needed. V1 behavior is unchanged.
+
+Suggested UI smoke test: switch each PRO checkbox ON/OFF in turn for
+both V1 and V2, translate Chinese → Vietnamese and Vietnamese → Chinese,
+then compare the four existing output areas, vocabulary cards, history
+and usage table. Repeat once to test V2 cache HIT and verify that the
+independent check costs no additional tokens when already cached.
