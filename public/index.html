@@ -308,6 +308,12 @@
 </section>
 <p id="termAppliedSummary" class="term-applied-summary" hidden role="status" aria-live="polite"></p>
 <p id="termTranslationWarning" class="term-warning" hidden role="status"></p>
+<section id="requestUsagePanel" class="request-usage-panel" hidden aria-label="Thống kê token và chi phí API lượt dịch">
+  <div class="request-usage-heading"><strong>Token & chi phí lượt dịch</strong><span id="requestUsageState"></span></div>
+  <table><thead><tr><th scope="col">Nhà cung cấp / Model</th><th scope="col">Input</th><th scope="col">Output</th><th scope="col">USD ước tính</th></tr></thead>
+    <tbody id="requestUsageRows"></tbody></table>
+  <p id="requestUsageNote" class="request-usage-note"></p>
+</section>
 <div class="details-content">
 <div class="translation-extras">
 <div class="result-box hidden" id="vocabularyWrapper">
@@ -476,6 +482,7 @@
 <script src="/language-ui.js"></script>
 <script src="/translation-vocab.js"></script>
 <script src="/terminology.js"></script>
+<script src="/translation-usage.js"></script>
 <script src="/app.js"></script>
 <script src="/google-style.js"></script>
 <script src="/practice-audio.js"></script>
