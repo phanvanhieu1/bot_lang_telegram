@@ -97,6 +97,43 @@ Offline tests cover owner scoping, domain matching, longest phrase, metadata
 spans, cache isolation, Claude/DB conflict handling, structured output,
 OpenAI correction and clean failure on missing DB/provider.
 
+## Recovery for truncated provider JSON (2026-10-28)
+
+The first live G01/G02 smoke after reducing Claude output limits showed:
+G02 returned a correct translation and PASS, while G01 returned
+`V2_INVALID_AGENT_JSON` without a provider-stage diagnosis.
+G02 already consumed 473 Claude output tokens near the previous 480-token
+limit, so truncation is a plausible cause; the previous error report did not
+contain enough detail to prove exactly which stage failed.
+
+The engine now starts Claude at an 800-token **maximum** for short texts
+(a cap, not tokens requested), checks the Anthropic `stop_reason`, and
+retries **only analysis, at most once**, with a larger cap when the result
+was truncated or the JSON was structurally invalid. Valid concise results
+still use only the tokens the model emits. It never retries on ordinary
+network failures or failed credentials.
+
+Failed live reports now contain sanitized
+`failedStage`, `attempts`, `firstError`, `lastError`, and
+`failedStages` (usage/timing only). OpenAI malformed/incomplete JSON
+is identified separately as `V2_OPENAI_TRANSLATION_INVALID_JSON` or
+`V2_OPENAI_TRANSLATION_INCOMPLETE`. No raw model text, keys or
+headers are written in these diagnostics.
+
+Rerun only the two synthetic inputs first:
+
+```bash
+git fetch origin
+git switch feature/translation-engine-v2
+git pull --ff-only origin feature/translation-engine-v2
+npm test
+node scripts/smoke-translation-v2.js --mode=live --accept-paid=true --glossary=fixture --ids=G01,G02
+```
+
+If a live call fails again, report the record containing `failedStage`
+and `failedStages`. A failed analysis retry may still incur tokens from
+both Claude calls, so compare usage/cost before expanding the test.
+
 ## Integration smoke: glossary and live provider compatibility
 
 The legacy `benchmark-translation-v2.js` benchmark intentionally tests
