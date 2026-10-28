@@ -43,7 +43,7 @@ test('benchmark requests preserve original model settings without requiring secr
 });
 
 test('offline dry-run compares both prompt generations for the same inputs', () => {
-  const result=spawnSync(process.execPath,['scripts/benchmark-translation.js','--mode=pro','--limit=2','--dry-run'], {
+  const result=spawnSync(process.execPath,['scripts/benchmark-translation.js','--mode=pro','--baseline=HEAD','--limit=2','--dry-run'], {
     cwd:path.join(__dirname,'..'),encoding:'utf8',timeout:15000
   });
   assert.equal(result.status,0,result.stderr);
