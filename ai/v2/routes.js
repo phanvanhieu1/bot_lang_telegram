@@ -8,8 +8,11 @@ const { estimateUsage } = require('./accounting');
 const {summarizeV2Usage,cachedV2Usage}=require('./request-usage');
 const {lookupUserTerms}=require('../terminology/resolver');
 const v2Cache=require('./cache');
+const {toStudyVocabulary}=require('./vocabulary');
+const {resolveTranslationVocabulary}=require('../../web-vocabulary/resolver');
 
-function createV2Router({ translate = deepTranslate, env = process.env, cache = v2Cache, recordUsage = addUsage } = {}) {
+function createV2Router({ translate = deepTranslate, env = process.env, cache = v2Cache,
+  recordUsage = addUsage, resolveVocabulary = resolveTranslationVocabulary } = {}) {
   const router = express.Router();
   const active = new Set(); // best-effort per-process concurrency gate
   const enabled = () => env.V2_ENABLED === 'true';
@@ -17,6 +20,24 @@ function createV2Router({ translate = deepTranslate, env = process.env, cache = 
     ((env.OPENAI_API_KEYS||'').trim()||env.OPENAI_API_KEY||env.OPENAI_API) &&
     (env.CLAUDE_API_KEY||env.ANTHROPIC_API_KEY||env.CLAUDE_API)
   );
+
+  // Only Claude terms grounded in an actual Chinese source are collected.
+  // The existing V1 study resolver preserves saved definitions, pinyin and
+  // encounter counts. Vocabulary failures never discard a valid translation.
+  async function studyDetails(userId, source, translated, enabled) {
+    if(!enabled) return {vocabularyItems:[],vocabularyError:null};
+    if(translated.sourceLanguage!=='zh')return {vocabularyItems:[],vocabularyError:null};
+    const vocabulary=toStudyVocabulary(translated.analysisTerms||[],source,'zh');
+    if(!vocabulary)return {vocabularyItems:[],vocabularyError:null};
+    try{
+      const items=await resolveVocabulary({userId,language:'zh',
+        foreignText:source,vocabulary});
+      return {vocabularyItems:items,vocabularyError:null};
+    }catch(_){
+      console.warn('[V2] vocabulary resolution unavailable');
+      return {vocabularyItems:[],vocabularyError:'Kho từ vựng đang tạm thời không khả dụng'};
+    }
+  }
 
   // Do not reveal whether key names/secret values are configured.
   router.get('/status',requireAuth,(req,res)=>{
@@ -32,9 +53,10 @@ function createV2Router({ translate = deepTranslate, env = process.env, cache = 
     if(!enabled() || !available()) return res.status(503).json({
       success:false,code:'V2_DISABLED',message:'Dịch chuyên sâu chưa được bật trên máy chủ.'
     });
-    const {text,context='auto',targetLang='zh'}=req.body || {};
+    const {text,context='auto',targetLang='zh',vocabulary=true}=req.body || {};
     if(targetLang!=='zh' || typeof text!=='string'||!text.trim()||
-       text.length>2000 || !['auto','friend','colleague','superior'].includes(context)){
+       text.length>2000 || typeof vocabulary!=='boolean' ||
+       !['auto','friend','colleague','superior'].includes(context)){
       return res.status(400).json({success:false,code:'V2_INVALID_INPUT',
         message:'V2 hiện hỗ trợ Trung–Việt, tối đa 2.000 ký tự.'});
     }
@@ -54,12 +76,13 @@ function createV2Router({ translate = deepTranslate, env = process.env, cache = 
       catch(_){console.warn('[V2] cache read unavailable');}
       if(hit){
         const translated=hit.value;
+        const details=await studyDetails(req.user._id,text.trim(),translated,vocabulary);
         const usage={stages:[],totalInputTokens:0,totalOutputTokens:0,
           providers:[],estimatedKnownPaidUsd:0,pricingIncomplete:false};
         return res.json({
           success:true,engine:ENGINE_VERSION,
           result:'TRANSLATION: '+translated.translation,
-          ...translated,usage,cached:true,
+          ...translated,...details,usage,cached:true,
           requestUsage:cachedV2Usage(translated.originalUsage||null,Date.now()-startedAt)
         });
       }
@@ -78,6 +101,7 @@ function createV2Router({ translate = deepTranslate, env = process.env, cache = 
               translation:translated.translation,status:translated.status,
               needsReview:translated.needsReview,issues:translated.issues,
               analysis:translated.analysis,translationNotes:translated.translationNotes||[],
+              analysisTerms:translated.analysisTerms||[],
               appliedTerms:translated.appliedTerms||[],
               sourceLanguage:translated.sourceLanguage,
               targetLanguage:translated.targetLanguage,
@@ -86,6 +110,7 @@ function createV2Router({ translate = deepTranslate, env = process.env, cache = 
           }
         }catch(_){console.warn('[V2] cache write unavailable');}
       }
+      const details=await studyDetails(req.user._id,text.trim(),translated,vocabulary);
       // Keep existing user stats; estimated cost only covers known paid
       // models. Incomplete estimation is always marked for the client.
       try{
@@ -103,7 +128,9 @@ function createV2Router({ translate = deepTranslate, env = process.env, cache = 
         translation:translated.translation,
         status:translated.status,needsReview:translated.needsReview,
         issues:translated.issues,analysis:translated.analysis,
+        analysisTerms:translated.analysisTerms||[],
         translationNotes:translated.translationNotes||[],
+        ...details,
         appliedTerms:translated.appliedTerms||[],
         sourceLanguage:translated.sourceLanguage,
         targetLanguage:translated.targetLanguage,
