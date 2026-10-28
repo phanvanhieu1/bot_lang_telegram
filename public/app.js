@@ -549,6 +549,8 @@ async function translate() {
 
   copyBtn.hidden = true;
   document.getElementById('outputSpeakBtn').hidden = true;
+  window.displayAppliedTerms?.([]);
+  window.displayTermWarning?.([]);
   pronunciation.textContent = '';
 vocabulary.textContent = '';
   window.renderTranslationVocabulary?.([], '', selectedLang);
@@ -635,6 +637,7 @@ const response = await fetch(translateEndpoint, {
 }
 
     window.renderTermHighlights?.(data.appliedTerms || []);
+    window.displayAppliedTerms?.(data.appliedTerms || []);
     window.displayTermWarning?.(data.terminologyWarnings || []);
     if (selectedLang === 'en') {
       window.dispatchEvent(new CustomEvent('translation-finished', {
@@ -790,6 +793,8 @@ translateV2Btn.addEventListener('click', async () => {
   translateV2Btn.disabled = true;
   status.textContent = 'Đang phân tích và đối chiếu bản dịch chuyên sâu...';
   status.className = 'status';
+  window.displayAppliedTerms?.([]);
+  window.displayTermWarning?.([]);
   try {
     const response = await fetch('/api/translate/v2', {
       method:'POST', headers:{'Content-Type':'application/json'},credentials:'same-origin',
@@ -798,15 +803,27 @@ translateV2Btn.addEventListener('click', async () => {
     const data = await response.json();
     if (version !== languageRequestVersion || textInput.value.trim() !== text) return;
     if (!response.ok || !data.success) throw new Error(data.message || 'Dịch chuyên sâu thất bại');
-    parseResult(data.result);
+    // The model's translation is structured text: never reparse its content
+    // as pseudo-labels that might appear in the user's sentence.
+    parseResult('TRANSLATION: ');
+    translation.textContent = data.translation;
+    const hasTranslation = Boolean(translation.textContent.trim());
+    copyBtn.hidden = !hasTranslation;
+    document.getElementById('outputSpeakBtn').hidden = !hasTranslation;
     window.renderTermHighlights?.(data.appliedTerms || []);
+    window.displayAppliedTerms?.(data.appliedTerms || []);
     window.displayTermWarning?.((data.issues||[]).filter(x=>x.includes('Thuật ngữ')));
     window.renderTranslationVocabulary?.([], '', 'zh');
+    const direction = data.sourceLanguage === 'vi' && data.targetLanguage === 'zh'
+      ? 'Việt → Trung' : data.sourceLanguage === 'zh' && data.targetLanguage === 'vi'
+        ? 'Trung → Việt' : 'Trung ↔ Việt';
+    const count = Array.isArray(data.appliedTerms) ? data.appliedTerms.length : 0;
     if (data.needsReview) {
-      status.textContent = '⚠ Bản dịch V2 còn điểm cần kiểm tra: ' + (data.issues || []).slice(0,2).join('; ');
+      status.textContent = '⚠ Dịch V2 ('+direction+') cần kiểm tra: ' + (data.issues || []).slice(0,2).join('; ');
       status.className = 'status error';
     } else {
-      status.textContent = '✓ Dịch V2 hoàn tất · đã kiểm tra thuật ngữ và mã/số liệu (chưa kiểm định toàn bộ ngữ nghĩa)';
+      status.textContent = '✓ Dịch V2 '+direction+' · '+count+
+        ' thuật ngữ đã xác nhận được áp dụng (chưa kiểm định toàn bộ ngữ nghĩa)';
       status.className = 'status success';
     }
     loadUsage();
@@ -1208,6 +1225,7 @@ window.addEventListener('learning-language-change', () => {
   status.textContent = '';
   status.className = 'status';
   window.displayTermWarning?.([]);
+  window.displayAppliedTerms?.([]);
   translation.innerHTML = '<div class="translation-placeholder"><span class="translation-placeholder-icon">文</span><p>Bản dịch sẽ xuất hiện tại đây</p></div>';
   copyBtn.hidden = true;
   document.getElementById('outputSpeakBtn').hidden = true;
