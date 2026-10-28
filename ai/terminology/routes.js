@@ -13,11 +13,13 @@ function valid(payload) {
   const notes=String(payload.notes||'').trim();
   const domain=payload.domain||'work';
   const sourceLang=payload.sourceLang||'zh',targetLang=payload.targetLang||'vi';
+  const bidirectional=payload.bidirectional===true;
+  if(payload.bidirectional!==undefined&&typeof payload.bidirectional!=='boolean')return null;
   if(!source||source.length>100||!translation||translation.length>240||
     notes.length>350||!domains.has(domain)||
     !(['zh','vi'].includes(sourceLang)&&['zh','vi'].includes(targetLang))||
     sourceLang===targetLang)return null;
-  return {source,translation,notes,domain,sourceLang,targetLang,status:'approved'};
+  return {source,translation,notes,domain,sourceLang,targetLang,bidirectional,status:'approved'};
 }
 router.get('/',async(req,res)=>{
   try{
@@ -25,6 +27,7 @@ router.get('/',async(req,res)=>{
     res.json({success:true,items:items.map(x=>({
       id:String(x._id),source:x.source,translation:x.translation,
       domain:x.domain,sourceLang:x.sourceLang,targetLang:x.targetLang,
+      bidirectional:x.bidirectional===true,
       notes:x.notes||'',version:x.version
     }))});
   }catch(_){res.status(503).json({success:false,message:'Không thể tải thuật ngữ'});}
@@ -49,7 +52,9 @@ router.patch('/:id',async(req,res)=>{
       {$set:data,$inc:{version:1}},{new:true,runValidators:true});
     if(!doc)return res.sendStatus(404);
     return res.json({success:true,item:{id:String(doc._id),source:doc.source,
-      translation:doc.translation,domain:doc.domain,version:doc.version}});
+      translation:doc.translation,domain:doc.domain,
+      sourceLang:doc.sourceLang,targetLang:doc.targetLang,
+      bidirectional:doc.bidirectional===true,version:doc.version}});
   }catch(e){
     return res.status(e.code===11000?409:503).json({success:false,message:'Không sửa được thuật ngữ'});
   }
