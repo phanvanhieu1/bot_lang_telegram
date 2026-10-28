@@ -66,6 +66,10 @@ function createProviders(env = process.env) {
     if (/^(gpt-[56]|o[1-9])/.test(openaiModel)) {
       body.reasoning = { effort: 'medium' };
     }
+    if(meta.jsonSchema){
+      body.text={format:{type:'json_schema',name:'translation_v2',
+        strict:true,schema:meta.jsonSchema}};
+    }
     const data = await postJson('https://api.openai.com/v1/responses', {
       authorization: 'Bearer ' + openaiKey
     }, body, 90000);
