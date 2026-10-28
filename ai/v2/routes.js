@@ -5,6 +5,7 @@ const { requireAuth, requireRole } = require('../../modules/users/user.middlewar
 const { addUsage } = require('../../usage');
 const { deepTranslate, ENGINE_VERSION } = require('./engine');
 const { estimateUsage } = require('./accounting');
+const {summarizeV2Usage,cachedV2Usage}=require('./request-usage');
 const {lookupUserTerms}=require('../terminology/resolver');
 const v2Cache=require('./cache');
 
@@ -58,14 +59,13 @@ function createV2Router({ translate = deepTranslate, env = process.env, cache = 
           success:true,engine:ENGINE_VERSION,
           result:'TRANSLATION: '+translated.translation,
           ...translated,usage,cached:true,
-          requestUsage:{inputTokens:0,outputTokens:0,totalTokens:0,
-            estimatedCostUsd:0,pricingIncomplete:false,cached:true,
-            stages:[],model:'V2 (cache)'}
+          requestUsage:cachedV2Usage(translated.originalUsage||null)
         });
       }
       const translated=await translate({text:text.trim(),context,
         loadGlossary:(source,opts)=>lookupUserTerms(req.user._id,source,opts)});
       const estimate=estimateUsage(translated.usage);
+      const requestUsage=summarizeV2Usage(translated.usage,estimate);
       // Re-read owner glossary to prevent storing a response that raced with
       // an edit/delete during the expensive LLM calls.
       if(translated.status==='PASS'){
@@ -78,7 +78,8 @@ function createV2Router({ translate = deepTranslate, env = process.env, cache = 
               analysis:translated.analysis,translationNotes:translated.translationNotes||[],
               appliedTerms:translated.appliedTerms||[],
               sourceLanguage:translated.sourceLanguage,
-              targetLanguage:translated.targetLanguage
+              targetLanguage:translated.targetLanguage,
+              originalUsage:requestUsage
             }});
           }
         }catch(_){console.warn('[V2] cache write unavailable');}
@@ -104,19 +105,7 @@ function createV2Router({ translate = deepTranslate, env = process.env, cache = 
         sourceLanguage:translated.sourceLanguage,
         targetLanguage:translated.targetLanguage,
         usage:{...translated.usage,...estimate}, cached:false,
-        requestUsage:{
-          inputTokens:translated.usage.totalInputTokens,
-          outputTokens:translated.usage.totalOutputTokens,
-          totalTokens:translated.usage.totalInputTokens+translated.usage.totalOutputTokens,
-          estimatedCostUsd:estimate.estimatedKnownPaidUsd,
-          pricingIncomplete:estimate.pricingIncomplete,
-          cached:false,
-          stages:(translated.usage.stages||[]).filter(x=>x.usage).map(x=>({
-            provider:x.provider,model:x.model,role:x.role,
-            inputTokens:x.usage.input||0,outputTokens:x.usage.output||0,
-            ...estimateUsage({stages:[x]})
-          }))
-        }
+        requestUsage
       });
     }catch(error){
       const code=String(error?.code||'V2_UNAVAILABLE');
