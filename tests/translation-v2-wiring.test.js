@@ -89,6 +89,18 @@ test('Holdout benchmark flags suspicious everyday classification without modifyi
   assert.equal(domainReviewSuggested('friend','daily'),false);
   assert.equal(domainReviewSuggested('mixed','work'),false);
 });
+test('Glossary editor exposes both source directions and explicit reversal approval',()=>{
+  const html=read('public/index.html');
+  const ui=read('public/terminology.js');
+  const model=read('ai/terminology/model.js');
+  assert.match(html,/id="termSourceLang"/);
+  assert.match(html,/id="termBidirectional"/);
+  assert.match(ui,/bidirectional:twoWay.checked/);
+  assert.match(ui,/targetLang:sourceLang.value==='vi'\?'zh':'vi'/);
+  assert.match(ui,/entry.bidirectional/);
+  assert.match(model,/bidirectional:\{type:Boolean,default:false\}/);
+});
+
 test('Private results are ignored by git',()=>{
   assert.match(read('.gitignore'),/benchmarks\/results\//);
 });
