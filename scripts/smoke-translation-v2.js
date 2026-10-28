@@ -84,7 +84,15 @@ async function runOne(c,{mode='mock',glossary='fixture',dbModel=null,providersOv
       usage:result.usage,elapsedMs:Date.now()-start,plumbingOK,
       humanQualityReviewed:false};
   } catch(error){
+    const diagnostic=error.diagnostics||{};
     return {id:c.id,mode,errorCode:String(error.code||'V2_SMOKE_ERROR').slice(0,90),
+      failedStage:diagnostic.stage||null,
+      attempts:Number.isInteger(diagnostic.attempts)?diagnostic.attempts:null,
+      firstError:diagnostic.firstError||null,
+      lastError:diagnostic.secondError||null,
+      // Provider usage/timing helps understand failures and incurred cost.
+      // Never include raw API output, headers, prompt, credentials or text.
+      failedStages:Array.isArray(diagnostic.stages)?diagnostic.stages:[],
       elapsedMs:Date.now()-start,plumbingOK:false};
   }
 }
