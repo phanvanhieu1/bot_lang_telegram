@@ -60,6 +60,25 @@ test('V2 holdout dry-run requires no credentials and sends no calls',()=>{
   assert.deepEqual(out.ids,['C01','C02','C03','C04']);
 });
 
+test('Holdout CLI can select only untested IDs without paying for earlier cases',()=>{
+  const run=spawnSync(process.execPath,[
+    'scripts/benchmark-translation-v2.js','--dry-run',
+    '--ids=C06,C07,C08,C09,C10','--domain=work'
+  ],{cwd:root,timeout:15000,encoding:'utf8'});
+  assert.equal(run.status,0,run.stderr);
+  const plan=JSON.parse(run.stdout);
+  assert.equal(plan.count,5);
+  assert.deepEqual(plan.ids,['C06','C07','C08','C09','C10']);
+
+  for(const ids of ['C06,C06','C06,UNKNOWN','F01']){
+    const rejected=spawnSync(process.execPath,[
+      'scripts/benchmark-translation-v2.js','--dry-run',
+      '--ids='+ids,'--domain=work'
+    ],{cwd:root,timeout:15000,encoding:'utf8'});
+    assert.notEqual(rejected.status,0,'Rejected: '+ids);
+  }
+});
+
 test('Private results are ignored by git',()=>{
   assert.match(read('.gitignore'),/benchmarks\/results\//);
 });
