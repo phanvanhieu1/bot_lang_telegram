@@ -26,6 +26,8 @@ const userRoutes = require('./modules/users/user.routes');
 const apiMonitoringRoutes = require('./api-monitoring/router');
 const telegramLinkRoutes = require('./telegram-sync/routes');
 const { createV2Router } = require('./ai/v2/routes');
+const glossaryRoutes=require('./ai/terminology/routes');
+const {lookupUserTerms,termHighlights,validateAppliedTerms}=require('./ai/terminology/resolver');
 const { startQuotaPolling } = require('./api-monitoring/quotas');
 const { addUsage, getUsageStats } = require('./usage');
 const {
@@ -183,6 +185,7 @@ app.put('/api/admin/maintenance', requireRole('admin'), async (req, res) => {
 });
 
 app.use('/api/vocabulary', vocabularyRoutes);
+app.use('/api/terminology',glossaryRoutes);
 app.use('/api/admin/users', userRoutes);
 app.use('/api/monitoring', apiMonitoringRoutes);
 app.use('/api/telegram', telegramLinkRoutes);
@@ -676,9 +679,11 @@ app.post(
         });
       }
 
-      const result = await translateFree(
-        text.trim()
-      );
+      const freeIsChinese=containsChinese(text.trim());
+      const freeTerms=await lookupUserTerms(req.user._id,text.trim(),{
+        context:'auto',sourceLang:freeIsChinese?'zh':'vi',
+        targetLang:freeIsChinese?'vi':'zh'});
+      const result = await translateFree(text.trim(),{terms:freeTerms});
 
       const inputIsChinese =
   containsChinese(text);
@@ -719,8 +724,9 @@ const pronunciation =
       result.parsed.backTranslation
   },
 
-  rateLimit:
-    result.rateLimit || null
+  rateLimit:result.rateLimit || null,
+  appliedTerms:termHighlights(result.parsed.translation,freeTerms),
+  terminologyWarnings:validateAppliedTerms(result.parsed.translation,freeTerms)
 });
 
     } catch (error) {
@@ -866,17 +872,19 @@ app.post('/api/translate',requirePro, async (req, res) => {
 
     const inputText = text.trim();
 const inputIsChinese = containsChinese(inputText);
+const appliedTerms=await lookupUserTerms(req.user._id,inputText,{
+  context,sourceLang:inputIsChinese?'zh':'vi',targetLang:inputIsChinese?'vi':'zh'
+});
 
 const shouldBackTranslate =
   backTranslation &&
   !inputIsChinese &&
   targetLang === 'zh';
 
-  const cachedData = await getWebCachedText(
-  text.trim(),
-  targetLang,
-  fastMode,
-  context
+  // Bypass global shared cache when per-user terminology was matched;
+  // never read or persist customized translations in the shared cache.
+  const cachedData = appliedTerms.length ? null : await getWebCachedText(
+  text.trim(),targetLang,fastMode,context
 );
 
 const missing = {
@@ -912,6 +920,7 @@ if (hasMissingData) {
       backTranslation: missing.backTranslation,
       vocabulary: missing.vocabulary,
       existingTranslation: cachedData?.translation || null,
+      terms:appliedTerms,
       context
     }
   );
@@ -960,7 +969,7 @@ if (result) {
     newData.vocabulary = '';
   }
 
-  await persistProCache(
+  if(!appliedTerms.length) await persistProCache(
   text.trim(),
   targetLang,
   fastMode,
@@ -992,7 +1001,7 @@ if (
 
     finalCache.pronunciation = localPinyin;
 
-    await persistProCache(
+    if(!appliedTerms.length) await persistProCache(
   text.trim(),
   targetLang,
   fastMode,
@@ -1029,7 +1038,7 @@ if (
 
   finalCache.verification = verificationData;
 
-  await persistProCache(
+  if(!appliedTerms.length) await persistProCache(
     inputText,
     targetLang,
     fastMode,
@@ -1145,7 +1154,9 @@ res.json({
   vocabularyItems:personal.items,
   vocabularyError:personal.error,
   cached: !result && !verificationUsage,
-  usage
+  usage,
+  appliedTerms:termHighlights(finalCache.translation||'',appliedTerms),
+  terminologyWarnings:validateAppliedTerms(finalCache.translation||'',appliedTerms)
 });
 
 
