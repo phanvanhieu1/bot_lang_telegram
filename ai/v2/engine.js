@@ -4,7 +4,8 @@
 // No terminology is ever auto-saved from model output.
 const {createProviders,safeError}=require('./providers');
 const {glossaryInstructions,termHighlights,validateAppliedTerms,contextDomain}=require('../terminology/resolver');
-const ENGINE_VERSION='v2.1.0';
+const {sanitizeClaudeTerms}=require('./vocabulary');
+const ENGINE_VERSION='v2.2.0';
 
 function parseObject(raw) {
   const s=String(raw||'').replace(/<think>[\s\S]*?<\/think>/g,'')
@@ -51,7 +52,7 @@ function safeFrame(obj) {
     intent:obj.intent.slice(0,220),
     tone:String(obj.tone||'').slice(0,130),
     facts:Array.isArray(obj.facts)?obj.facts.slice(0,12).map(x=>String(x).slice(0,180)):[],
-    terms:Array.isArray(obj.terms)?obj.terms.slice(0,12)
+    terms:Array.isArray(obj.terms)?obj.terms.slice(0,8)
       .filter(x=>x&&typeof x.source==='string').map(x=>({
         source:x.source.slice(0,80),meaning:String(x.meaning||'').slice(0,120)
       })):[],
@@ -100,7 +101,11 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[]},
   }
   const analyzing='Bạn là chuyên gia phân tích ngữ nghĩa Trung-Việt; KHÔNG dịch. '+coreRules+
     ' Trả JSON NGẮN, không Markdown: {"domain":"work|it|daily|mixed|unknown","intent":"...","tone":"...","facts":["..."],"terms":[{"source":"...","meaning":"..."}],"ambiguities":["..."]}. '+
-    'Intent tối đa 20 từ, tone tối đa 5 từ, facts tối đa 3 ý ngắn; terms tối đa 4 cụm cần lưu ý. '+
+    'Intent tối đa 20 từ, tone tối đa 5 từ, facts tối đa 3 ý ngắn. '+ 
+    'terms tối đa 8 từ hoặc cụm từ hữu ích để học, chỉ chọn mục xuất hiện nguyên văn trong câu. '+
+    'source chép đúng từ/cụm từ ở nguyên văn, meaning là nghĩa tiếng Việt ngắn gọn theo ngữ cảnh (với câu gốc tiếng Việt thì giải thích ngắn bằng tiếng Việt). '+
+    'Ưu tiên từ tiếng Trung ít nhất hai chữ Hán; không chọn họ tên, mã tài khoản, số, URL hoặc từ không xuất hiện trong câu. '+
+    'Nghĩa Claude chỉ là đề xuất học tập, không phải thuật ngữ đã được xác nhận. '+
     'Ambiguities tối đa 2, CHỈ ghi khi có ít nhất hai cách hiểu làm đổi ý hành động/chủ thể/phủ định mà không thể chọn trung tính. '+
     'Phân loại theo HOẠT ĐỘNG và vai trò của câu, không theo từng từ khóa: work khi là quy trình vận hành của tổ chức (duyệt giao dịch, chi trả, hạn mức hệ thống, kiểm soát rủi ro, phối hợp các bộ phận); daily khi là sinh hoạt/giao dịch cá nhân; it khi chủ yếu xử lý phần mềm, API, hạ tầng; mixed khi có nhiều lĩnh vực mà không có lĩnh vực chính; unknown nếu thiếu căn cứ. '+
     'Đừng xếp một chỉ dẫn nghiệp vụ thành daily chỉ vì câu ngắn hoặc không nhắc rõ cơ quan. Đừng xếp một câu mua sắm cá nhân thành work chỉ vì có tiền. '+
@@ -227,7 +232,17 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[]},
   if(translated.semanticReviewRequired) {
     issues.push('Câu có mơ hồ quan trọng ảnh hưởng nghĩa bản dịch; cần kiểm tra thủ công.');
   }
+  const analysisTerms=sanitizeClaudeTerms(frame.terms,sourceText,direction.source)
+    .map(term=>{
+      // Confirmed user glossary wins over speculative analyzer meanings in
+      // the learning suggestions as well as in the final translation.
+      const approved=glossary.find(item=>item.source===term.source);
+      return approved&&direction.source==='zh'
+        ? {...term,meaning:approved.translation}
+        : term;
+    });
   return {
+    analysisTerms,
     engine:ENGINE_VERSION,sourceLanguage:direction.source,
     targetLanguage:direction.target,translation:translated.translation,
     status:issues.length?'REVIEW':'PASS',needsReview:Boolean(issues.length),
