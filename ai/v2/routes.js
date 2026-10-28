@@ -8,7 +8,7 @@ const { estimateUsage } = require('./accounting');
 const {lookupUserTerms}=require('../terminology/resolver');
 const v2Cache=require('./cache');
 
-function createV2Router({ translate = deepTranslate, env = process.env, cache = v2Cache } = {}) {
+function createV2Router({ translate = deepTranslate, env = process.env, cache = v2Cache, recordUsage = addUsage } = {}) {
   const router = express.Router();
   const active = new Set(); // best-effort per-process concurrency gate
   const enabled = () => env.V2_ENABLED === 'true';
@@ -86,7 +86,7 @@ function createV2Router({ translate = deepTranslate, env = process.env, cache = 
       // Keep existing user stats; estimated cost only covers known paid
       // models. Incomplete estimation is always marked for the client.
       try{
-        await addUsage({userId:req.user._id,
+        await recordUsage({userId:req.user._id,
           totalTokens:translated.usage.totalInputTokens+translated.usage.totalOutputTokens,
           cost:estimate.estimatedKnownPaidUsd});
       }catch(_){
