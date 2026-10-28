@@ -1,4 +1,5 @@
 // Website-only, PRO-gated chat screenshot translation. Input images are not persisted.
+const { DOMAIN_CONTEXT_RULES } = require('./ai/prompts/context.rules');
 const { getRandomOpenAIClient } = require('./ai/providers/openai.provider');
 
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -66,6 +67,8 @@ function createPrompt(learningLang) {
     'Tự xác định NGÔN NGỮ CHÍNH của nội dung hội thoại: nếu chủ yếu là tiếng Việt thì sourceLanguage "vi", ngược lại dùng "' + learningLang + '".',
     'Nếu nguồn là tiếng Việt => dịch tin nhắn sang ' + foreign + '. Nếu nguồn là ' + foreign + ' => dịch tin nhắn sang tiếng Việt.',
     'Kết quả quan trọng nhất: DỊCH RÕ NGHĨA, tự nhiên, dễ hiểu như một đoạn chat thực tế, không dịch cứng từng chữ; giữ nguyên giọng điệu, câu hỏi, lời nhắn và sự lịch sự.',
+    DOMAIN_CONTEXT_RULES,
+    'Với ảnh hội thoại, suy luận tham chiếu từ các tin nhắn lân cận khi thực sự có căn cứ; không tự gộp nội dung của người nói khác, không đoán chi tiết từ phần ảnh bị che.',
     'Không lược bỏ phần nội dung quan trọng; không tự thêm thông tin không có trong ảnh.',
     'Bảo toàn nguyên trạng mọi mã, ký hiệu và tên riêng như X7, U2C, BC, tên người, số tiền, số tài khoản, số lượng; đừng tự mở rộng tên viết tắt.',
     'Với biệt ngữ công việc/giao dịch như 代付, 出款, 三方, dịch theo ngữ cảnh thật rõ; nếu có thể hiểu theo nhiều nghĩa, giải thích sự không chắc chắn trong notes bằng tiếng Việt.',
