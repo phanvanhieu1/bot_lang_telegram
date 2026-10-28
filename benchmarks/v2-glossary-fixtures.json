@@ -167,6 +167,28 @@
       "liveExpectTerms": [
         "刷子"
       ]
+    },
+    {
+      "id": "G09",
+      "domain": "work",
+      "context": "colleague",
+      "source": "Đây có phải là đường dây bào khuyến mãi không?",
+      "claudeDomain": "work",
+      "claudeGuess": "tổ chức hoặc nhóm",
+      "dictionary": [
+        {
+          "source": "刷子",
+          "translation": "đường dây bào khuyến mãi",
+          "domain": "work",
+          "bidirectional": true
+        }
+      ],
+      "plainTranslation": "这是一个团伙吗？",
+      "verifiedTranslation": "这是刷子吗？",
+      "expectTerms": [
+        "đường dây bào khuyến mãi"
+      ],
+      "expectStatus": "PASS"
     }
   ]
 }
