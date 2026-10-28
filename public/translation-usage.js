@@ -13,7 +13,7 @@
   function usd(x){
     if(!known(x))return '—';
     if(x===0)return '$0';
-    return '$'+x.toFixed(x<0.001?7:5).replace(/0+$/,'').replace(/\\.$/,'');
+    return '$'+x.toFixed(x<0.001?7:5).replace(/0+$/,'').replace(/\.$/,'');
   }
   function cell(tr,value){
     const td=document.createElement('td');
