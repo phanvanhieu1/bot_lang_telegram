@@ -31,7 +31,7 @@ function matchingTerm(text,term) {
     // Vietnamese accents count as word characters. Chinese substrings can
     // legitimately be embedded in adjacent Han characters.
     const wordBoundaryNeeded=!/[\u3400-\u9fff]/u.test(source);
-    const insideWord=/[\p{L}\p{N}_]/u;
+    const insideWord=/[\p{Script=Latin}\p{N}_]/u;
     if(!wordBoundaryNeeded||(!insideWord.test(before)&&!insideWord.test(after)))return start;
     start=text.toLocaleLowerCase().indexOf(source.toLocaleLowerCase(),start+1);
   }
