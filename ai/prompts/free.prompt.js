@@ -1,3 +1,5 @@
+const { DOMAIN_CONTEXT_RULES } = require('./context.rules');
+
 function containsChinese(text) {
   return /[\u3400-\u9FFF]/u.test(text || '');
 }
@@ -12,7 +14,9 @@ const TRANSLATION_RULES = `QUY TẮC DỊCH VÀ NGỮ CẢNH:
 - Không tự thêm lời xin lỗi, cảm ơn, lý do, điều kiện hoặc thông tin không có trong câu gốc.
 - Có thể điều chỉnh trật tự từ, cách xưng hô và dấu câu để bản dịch mượt mà, nhưng không làm thay đổi ý nghĩa.
 - Nếu câu gốc có nhiều cách hiểu mà thiếu ngữ cảnh, chọn cách hiểu thông dụng và ít suy diễn nhất.
-- Không giải thích, không Markdown, không thêm nội dung khác.`;
+- Không giải thích, không Markdown, không thêm nội dung khác.
+
+${DOMAIN_CONTEXT_RULES}`;
 
 function buildFreePrompt(text) {
   const inputIsChinese = containsChinese(text);

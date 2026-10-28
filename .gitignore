@@ -12,3 +12,6 @@ sessions.sqlite-wal
 # Isolated Telegram test bot token & state
 .env.telegram-test
 .telegram-test-data/
+
+# Local live-translation QA output; do not commit benchmark responses
+benchmarks/results/
