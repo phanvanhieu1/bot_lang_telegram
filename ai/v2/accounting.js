@@ -4,7 +4,11 @@
 // despite a "free" plan. Never present these estimates as exact invoices.
 const PRICES = Object.freeze({
   'gpt-6.1-sol': {input:2,output:10},
-  'claude-sonnet-5-5':{input:2,output:10}
+  'gpt-6.1-terra':{input:1,output:5},
+  'claude-sonnet-5-5':{input:2,output:10},
+  // Haiku 5.5 standard text price for prompts <=100K tokens (V2 <=2K chars).
+  // Excludes any future prompt-cache and volume discounts.
+  'claude-haiku-5-5':{input:0.10,output:0.50}
 });
 function estimateUsage(usage) {
   let known=0, unknown=false;
