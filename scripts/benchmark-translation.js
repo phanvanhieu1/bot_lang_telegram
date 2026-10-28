@@ -171,13 +171,14 @@ async function evaluateVariant({
 
 async function main() {
   const mode = flag('mode','pro');
-  const provider = flag('provider','groq');
+  const provider = flag('provider',mode === 'free' ? 'groq' : 'openai');
   const baseline = flag('baseline','origin/main');
   const limit = Number(flag('limit',String(suite.cases.length)));
   const dryRun = process.argv.includes('--dry-run');
   const withAudit = process.argv.includes('--audit');
   if (!['pro','pro-fast','free'].includes(mode)) throw new Error('Mode must be pro, pro-fast or free');
-  if (!['groq','openrouter'].includes(provider)) throw new Error('Provider must be groq or openrouter');
+  if (mode === 'free' && !['groq','openrouter'].includes(provider)) throw new Error('FREE provider must be groq or openrouter');
+  if (mode !== 'free' && provider !== 'openai') throw new Error('PRO provider is openai (gpt-4o)');
   if (!Number.isInteger(limit) || limit<1 || limit>suite.cases.length) throw new Error('Invalid limit');
   const old = {
     free: loadOldBuilder('ai/prompts/free.prompt.js', baseline).buildFreePrompt,
