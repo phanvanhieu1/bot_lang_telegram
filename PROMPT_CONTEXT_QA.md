@@ -79,3 +79,40 @@ checklists before shipping. LIVE test quality cannot be established by GitHub
 CI: CI has no access to these credentials and only runs offline tests.
 DeepL fallback accepts no LLM prompt, so it is not included in prompt A/B
 comparison and must be evaluated separately.
+
+## Observed A/B results (16 cases, 2026-10-28)
+
+Human review of a user-provided GPT-4o A/B report (one trial per case, before
+subsequent prompt refinements). This is NOT a holdout benchmark, and the
+auditor uses the same GPT-4o family as the translator.
+
+- Baseline automatic auditor: 15 PASS, 1 FAIL (W01).
+- Candidate automatic auditor: 16 PASS, 0 FAIL.
+- Critical improvement: W01 retained the reporting request at the end
+  of the Chinese source; baseline omitted it.
+- W02: candidate phrased the colloquial request to report abnormalities more
+  naturally. T01/T02: candidate kept `staging` and `log` as IT terminology.
+- W05: candidate lost the specificity of `出款` (outbound payment) by
+  using a generic "khoản tiền", even though the auditor returned PASS.
+- F01/F02: candidate became more neutral/formal and less natural in friendly
+  messages; baseline sounded more like everyday chat.
+- W03/W04/W06/W07/W08/F03/T03/V01/V02: both preserved the essential meaning,
+  with stylistic or terminology differences.
+- V01 was identical between variants; the V02 differences were minimal.
+- Some AI1 vocabulary PATTERN examples were unreliable; a stricter
+  instruction to omit uncertain pattern templates has been added.
+
+Translation-call token totals (NOT prices, excludes auditor):
+- Baseline: 10,717 input; 1,706 output; 12,423 total.
+- Candidate: 15,695 input; 1,439 output; 17,134 total.
+- Translation token increase: ~37.9% in this small corpus.
+- With auditor: 18,141 total tokens baseline vs 22,783 candidate (~25.6%).
+
+NEXT QUALITY GATE:
+1. Run 16 cases at least three independent times on the latest PR head.
+2. Add fresh, previously unseen workplace/chat/IT examples to reduce overfitting.
+3. Human-review semantics, command/negation preservation, financial terminology
+   specificity and colloquial register; mark PASS/WARNING/FAIL separately from
+   the model-based auditor.
+4. Do not merge or deploy on auditor 16/16 alone. API access and cost stay
+   under the user's control; no live provider calls were made by this PR.
