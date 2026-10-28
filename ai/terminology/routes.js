@@ -67,3 +67,5 @@ router.delete('/:id',async(req,res)=>{
   }catch(_){return res.status(503).json({success:false,message:'Không xóa được thuật ngữ'});}
 });
 module.exports=router;
+// Expose pure validation for schema regression tests without server requests.
+module.exports.validateGlossaryPayload=valid;
