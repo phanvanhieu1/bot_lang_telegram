@@ -72,6 +72,33 @@ test('live-mode report cannot falsely claim plumbing success on missing approved
   assert.equal(result.plumbingOK,null);
   assert.equal(result.humanQualityReviewed,false);
 });
+test('G08 deliberately expects an omitted term in mock but requires the approved term live',async()=>{
+  const c=cases.find(x=>x.id==='G08');
+  const mocked=await runOne(c,{mode:'mock',glossary:'fixture'});
+  assert.equal(mocked.status,'REVIEW');
+  assert.deepEqual(mocked.expectedTerms,[]);
+  assert.equal(mocked.termMatchOK,true);
+
+  // Same G08 sentence, but without the deliberately broken mock provider.
+  const realBehavior={...c,forceWrong:false,repairWrong:false};
+  const simulatedLive=await runOne(realBehavior,{mode:'live',glossary:'fixture',
+    providersOverride:fakeProviders(realBehavior)});
+  assert.equal(simulatedLive.status,'PASS');
+  assert.deepEqual(simulatedLive.expectedTerms,['刷子']);
+  assert.deepEqual(simulatedLive.actualTerms,['刷子']);
+  assert.equal(simulatedLive.termMatchOK,true);
+  assert.equal(simulatedLive.plumbingOK,null);
+  assert.equal(simulatedLive.humanQualityReviewed,false);
+});
+test('G08 live refusal of confirmed term is reported as a failure',async()=>{
+  const c=cases.find(x=>x.id==='G08');
+  const result=await runOne(c,{mode:'live',glossary:'fixture',providersOverride:fakeProviders(c)});
+  assert.equal(result.status,'REVIEW');
+  assert.deepEqual(result.expectedTerms,['刷子']);
+  assert.deepEqual(result.actualTerms,[]);
+  assert.equal(result.termMatchOK,false);
+});
+
 test('live-mode glossary match is not the same as a human translation quality PASS',async()=>{
   const sample=cases.find(x=>x.id==='G01');
   const result=await runOne(sample,{mode:'live',glossary:'fixture',
