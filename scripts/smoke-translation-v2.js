@@ -66,7 +66,10 @@ async function runOne(c,{mode='mock',glossary='fixture',dbModel=null,providersOv
       text:c.source,context:c.context,loadGlossary
     },providersOverride||mock||undefined);
     const actualTerms=result.appliedTerms.map(x=>x.source);
-    const expectedTerms=c.expectTerms||[];
+    // G08 deliberately forces a bad translation only with the mock provider.
+    // A real provider must instead be evaluated against the approved term.
+    const expectedTerms=(mode==='live' && Array.isArray(c.liveExpectTerms))
+      ? c.liveExpectTerms : (c.expectTerms||[]);
     const termMatchOK=expectedTerms.every(x=>actualTerms.includes(x)) &&
       actualTerms.every(x=>expectedTerms.includes(x));
     // Do NOT label live runs "plumbing OK" just because HTTP calls returned.
