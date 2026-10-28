@@ -141,6 +141,23 @@ test('Claude analysis output is bounded for short inputs',async()=>{
   assert.match(m.calls[0].sys,/Ambiguities tối đa 2/);
   assert.match(m.calls[0].sys,/Không liệt kê chi tiết/);
 });
+test('Mixed automatic context is visible but does not force specialized terms',()=>{
+  const rows=[term({domain:'work'}),term({domain:'it',translation:'module Brush'})];
+  assert.equal(require('../ai/terminology/resolver').contextDomain('auto','mixed'),'mixed');
+  assert.deepEqual(resolveTerms('刷子',rows,{context:'auto',analyzedDomain:'mixed'}),[]);
+  const anyTerm=term({domain:'any',translation:'cách gọi đã xác nhận'});
+  const selected=resolveTerms('刷子',[...rows,anyTerm],{context:'auto',analyzedDomain:'mixed'});
+  assert.equal(selected.length,1);
+  assert.equal(selected[0].domain,'any');
+});
+test('Translator prompt provides generic Vietnamese aspect and fluency guidance',async()=>{
+  const m=mocked();
+  await deepTranslate({text:'他已经开始处理了',context:'colleague'},m.providers);
+  const system=m.calls.find(x=>x.which==='openai').sys;
+  assert.match(system,/phó từ chỉ thời và thể/);
+  assert.match(system,/đã bắt đầu và vẫn tiếp diễn/);
+  assert.equal(system.includes('财务那边'),false);
+});
 test('Input and provider schema failures are bounded',async()=>{
   await assert.rejects(deepTranslate({text:'a'.repeat(2001)},mocked().providers),{code:'V2_INVALID_INPUT'});
   assert.throws(()=>parseObject('not json'),{code:'V2_INVALID_AGENT_JSON'});
