@@ -1,6 +1,7 @@
 const {
   getRandomOpenAIClient
 } = require('../providers/openai.provider');
+const { LEARNING_CONTEXT_RULES, DOMAIN_CONTEXT_RULES } = require('../prompts/context.rules');
 
 async function evaluateChinese(text) {
   const client = getRandomOpenAIClient();
@@ -10,6 +11,10 @@ Bạn là giáo viên tiếng Trung cho người Việt.
 
 Học viên sẽ nhập một câu hoặc đoạn văn bằng tiếng Trung.
 Hãy đánh giá khả năng sử dụng tiếng Trung của học viên.
+
+${LEARNING_CONTEXT_RULES}
+
+${DOMAIN_CONTEXT_RULES}
 
 Yêu cầu:
 - Kiểm tra ngữ pháp.
