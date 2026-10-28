@@ -5,6 +5,7 @@ const {
 const {
   buildProPrompt
 } = require('../prompts/pro.prompt');
+const {glossaryInstructions}=require('../terminology/resolver');
 
 // 3. CORE 1: Dịch thuật & Phân tích ảnh có FAILOVER (Chống sập)
 // Thêm tham số `history` vào hàm
@@ -22,7 +23,7 @@ async function translateFull(
   targetLangKey,
   isFastMode,
   options
-);
+) + glossaryInstructions(options.terms||[]);
   const userContent = [];
   if (text) userContent.push({ type: 'text', text: text });
   if (imageUrl) {
