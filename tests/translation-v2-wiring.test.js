@@ -16,7 +16,7 @@ test('V2 routing is feature-flagged, PRO-only and does not replace original V1 r
   assert.match(routing,/V2_ENABLED === 'true'/);
   assert.match(routing,/requireRole\('pro','admin'\)/);
   assert.match(routing,/active\.has\(id\)/);
-  assert.match(routing,/V2_REQUIRES_OPENAI_AND_CLAUDE|translate\(\{text:text\.trim\(\),context\}\)/);
+  assert.match(routing,/loadGlossary:\(source,opts\)=>lookupUserTerms/);
 });
 
 test('V2 button is separate, initially hidden and never auto-triggers on old translate',()=>{
