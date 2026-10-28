@@ -30,7 +30,7 @@ test('benchmark result extraction ignores unrelated supplemental fields', () => 
 test('benchmark requests preserve original model settings without requiring secrets', () => {
   const item = fixture.cases[0];
   const prompt = 'test prompt';
-  const pro = requestSpec('pro','groq',prompt,item);
+  const pro = requestSpec('pro','openai',prompt,item);
   assert.equal(pro.model,'gpt-4o');
   assert.equal(pro.temperature,0.3);
   assert.equal(pro.messages[0].role,'system');
