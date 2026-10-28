@@ -184,7 +184,11 @@ async function main() {
     free: loadOldBuilder('ai/prompts/free.prompt.js', baseline).buildFreePrompt,
     pro: loadOldBuilder('ai/prompts/pro.prompt.js', baseline).buildProPrompt
   };
-  const cases = suite.cases.slice(0, limit);
+  const ids = flag('ids', '').split(',').map(x => x.trim()).filter(Boolean);
+  const selectedIds = new Set(ids);
+  const allowedIds = new Set(suite.cases.map(item => item.id));
+  if (ids.some(id => !allowedIds.has(id))) throw new Error('Unknown case id in --ids');
+  const cases = suite.cases.filter(item => !selectedIds.size || selectedIds.has(item.id)).slice(0, limit);
   const planned = cases.map(item=>({
     id:item.id,source:item.source,category:item.category,
     oldPrompt:promptFor('old',mode,item,old),
