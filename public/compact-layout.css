@@ -392,3 +392,14 @@ html[data-theme] #openPracticeBtn svg{
   border-top:1px dashed var(--ui-border,#cbd5e1)}
 .cache-origin-panel>strong{display:block;font-size:11px;margin-bottom:4px}
 @media(max-width:580px){.translation-cost-snapshot{text-align:left}}
+
+/* Lightweight V2 interpretation; never presents AI hypotheses as verified facts. */
+#v2AnalysisDetails[hidden]{display:none!important}
+.v2-analysis-details{margin:5px 0 9px;padding:7px 0 8px;
+  border-bottom:1px solid var(--ui-border,#d6dce5);
+  font-size:12px;line-height:1.5;color:var(--ui-text,inherit)}
+.v2-analysis-heading{display:flex;align-items:baseline;justify-content:space-between;
+  gap:12px;flex-wrap:wrap;font-size:12px}
+.v2-analysis-heading span{font-size:11px;color:var(--ui-muted,#667085)}
+.v2-analysis-details p{margin:3px 0 0;overflow-wrap:anywhere}
+#v2AnalysisNotes{color:var(--ui-muted,#667085)}
