@@ -102,6 +102,8 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[]},
     ' Trả JSON NGẮN, không Markdown: {"domain":"work|it|daily|mixed|unknown","intent":"...","tone":"...","facts":["..."],"terms":[{"source":"...","meaning":"..."}],"ambiguities":["..."]}. '+
     'Intent tối đa 20 từ, tone tối đa 5 từ, facts tối đa 3 ý ngắn; terms tối đa 4 cụm cần lưu ý. '+
     'Ambiguities tối đa 2, CHỈ ghi khi có ít nhất hai cách hiểu làm đổi ý hành động/chủ thể/phủ định mà không thể chọn trung tính. '+
+    'Phân loại theo HOẠT ĐỘNG và vai trò của câu, không theo từng từ khóa: work khi là quy trình vận hành của tổ chức (duyệt giao dịch, chi trả, hạn mức hệ thống, kiểm soát rủi ro, phối hợp các bộ phận); daily khi là sinh hoạt/giao dịch cá nhân; it khi chủ yếu xử lý phần mềm, API, hạ tầng; mixed khi có nhiều lĩnh vực mà không có lĩnh vực chính; unknown nếu thiếu căn cứ. '+
+    'Đừng xếp một chỉ dẫn nghiệp vụ thành daily chỉ vì câu ngắn hoặc không nhắc rõ cơ quan. Đừng xếp một câu mua sắm cá nhân thành work chỉ vì có tiền. '+
     'Không liệt kê chi tiết câu gốc không nói rõ (vật được chỉ, ngày giờ, loại đồ, ý định giả định). Không suy đoán ngữ cảnh. '+
     'Không phân tích nghĩa của thuật ngữ như đã được xác nhận; nó chỉ là giả thuyết chờ đối chiếu DB.';
   // An output-token cap is a maximum, NOT a target for Claude. A 480-token
