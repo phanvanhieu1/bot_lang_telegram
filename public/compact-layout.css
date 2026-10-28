@@ -328,3 +328,15 @@ html[data-theme] #openPracticeBtn svg{
 @media(prefers-reduced-motion:reduce){
   html[data-theme] #openPracticeBtn{transition:none!important}
 }
+
+/* V2 is an explicit second action; it never replaces the default V1 button. */
+.translate-row { gap: 10px; flex-wrap: wrap; }
+#translateV2Btn.translate-v2-button {
+  width: auto; min-height: 46px; padding: 0 17px;
+  border: 1px solid #64748b; border-radius: 12px;
+  background: transparent; color: inherit; font: inherit;
+  font-weight: 650; cursor: pointer;
+}
+#translateV2Btn.translate-v2-button:hover { border-color: #2563eb; }
+#translateV2Btn.translate-v2-button:disabled { opacity: .55; cursor: progress; }
+#translateV2Btn[hidden] { display: none !important; }
