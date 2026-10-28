@@ -551,6 +551,7 @@ async function translate() {
   document.getElementById('outputSpeakBtn').hidden = true;
   window.displayAppliedTerms?.([]);
   window.displayTermWarning?.([]);
+  window.renderRequestUsage?.(null);
   pronunciation.textContent = '';
 vocabulary.textContent = '';
   window.renderTranslationVocabulary?.([], '', selectedLang);
@@ -639,6 +640,7 @@ const response = await fetch(translateEndpoint, {
     window.renderTermHighlights?.(data.appliedTerms || []);
     window.displayAppliedTerms?.(data.appliedTerms || []);
     window.displayTermWarning?.(data.terminologyWarnings || []);
+    window.renderRequestUsage?.(data.requestUsage||null);
     if (selectedLang === 'en') {
       window.dispatchEvent(new CustomEvent('translation-finished', {
         detail: { sourceLanguage: data.sourceLanguage }
@@ -795,6 +797,7 @@ translateV2Btn.addEventListener('click', async () => {
   status.className = 'status';
   window.displayAppliedTerms?.([]);
   window.displayTermWarning?.([]);
+  window.renderRequestUsage?.(null);
   try {
     const response = await fetch('/api/translate/v2', {
       method:'POST', headers:{'Content-Type':'application/json'},credentials:'same-origin',
@@ -812,6 +815,7 @@ translateV2Btn.addEventListener('click', async () => {
     document.getElementById('outputSpeakBtn').hidden = !hasTranslation;
     window.renderTermHighlights?.(data.appliedTerms || []);
     window.displayAppliedTerms?.(data.appliedTerms || []);
+    window.renderRequestUsage?.(data.requestUsage||null);
     window.displayTermWarning?.((data.issues||[]).filter(x=>x.includes('Thuật ngữ')));
     window.renderTranslationVocabulary?.([], '', 'zh');
     const direction = data.sourceLanguage === 'vi' && data.targetLanguage === 'zh'
@@ -1226,6 +1230,7 @@ window.addEventListener('learning-language-change', () => {
   status.className = 'status';
   window.displayTermWarning?.([]);
   window.displayAppliedTerms?.([]);
+  window.renderRequestUsage?.(null);
   translation.innerHTML = '<div class="translation-placeholder"><span class="translation-placeholder-icon">文</span><p>Bản dịch sẽ xuất hiện tại đây</p></div>';
   copyBtn.hidden = true;
   document.getElementById('outputSpeakBtn').hidden = true;
