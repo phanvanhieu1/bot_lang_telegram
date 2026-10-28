@@ -50,3 +50,15 @@ test('fixture glossary is never written to MongoDB',()=>{
   assert.equal(data[0].status,'approved');
   assert.ok(data.every(x=>x._id.length===24));
 });
+
+test('CLI mock smoke executes whole synthetic path without any paid API keys',()=>{
+  const run=spawnSync(process.execPath,[
+    'scripts/smoke-translation-v2.js','--mode=mock','--ids=G01,G02'
+  ],{cwd:root,timeout:15000,encoding:'utf8',env:{
+    ...process.env,CLAUDE_API_KEY:'',ANTHROPIC_API_KEY:'',
+    OPENAI_API_KEY:'',OPENAI_API_KEYS:'',MONGODB_URI:''
+  }});
+  assert.equal(run.status,0,run.stderr);
+  assert.match(run.stdout,/fixture:OK/);
+  assert.match(run.stdout,/"plumbingPassed": 2/);
+});
