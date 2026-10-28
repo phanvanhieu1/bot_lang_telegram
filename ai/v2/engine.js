@@ -90,8 +90,11 @@ async function deepTranslate({text, context='auto'}, providers=createProviders()
     }
   };
   async function cheap(role,system,user) {
-    try { return await execute(role,'groq',()=>providers.groq(system,user)); }
-    catch (_) {return execute(role,'openrouter',()=>providers.openrouter(system,user)); }
+    // Use DIFFERENT free providers for analysis and independent criticism.
+    const primary=role==='skeptic'?'openrouter':'groq';
+    const fallback=role==='skeptic'?'groq':'openrouter';
+    try { return await execute(role,primary,()=>providers[primary](system,user)); }
+    catch (_) {return execute(role,fallback,()=>providers[fallback](system,user)); }
   }
   const base=STRATEGY+'\nNgữ cảnh người nghe: '+context+'.\nCặp ngôn ngữ: '+dir.source+' -> '+dir.target+'.';
   let frame;
