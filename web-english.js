@@ -83,14 +83,16 @@ function serialize(parsed, verification) {
 async function translateEnglishFree(text) {
   const cache = await getFreeCachedText(text, 'en');
   if (cache?.parsed?.translation && ['vi', 'en'].includes(cache.parsed.sourceLanguage)) {
-    return { ...cache, cached: true, provider: 'cache', rateLimit: null };
+    return { ...cache, cached: true, provider: 'cache', usage:null,rateLimit: null };
   }
   const errors = [];
   for (const provider of [requestGroq, requestOpenRouter]) {
     try {
       const response = await provider(prompt(text, { vocabulary: false }));
       const parsed = parseEnglish(response.content);
-      const result = { parsed, content: serialize(parsed), rateLimit: response.rateLimit || null, provider: response.provider };
+      const result = { parsed, content: serialize(parsed),
+        rateLimit: response.rateLimit || null, provider: response.provider,
+        usage:response.usage||null };
       try {
         await setFreeCachedText(text, { content: result.content, parsed, createdAt: Date.now() }, 'en');
       } catch (error) {
