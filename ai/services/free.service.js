@@ -167,7 +167,8 @@ async function translateWithProvider(
     content: result.content,
     parsed,
     provider: result.provider,
-    rateLimit: result.rateLimit
+    rateLimit: result.rateLimit,
+    usage: result.usage||null
   };
 }
 
@@ -207,6 +208,7 @@ async function runTranslationPipeline(
     },
     provider: result.provider,
     cached: false,
+    usage:result.usage||null,
     rateLimit: result.rateLimit
   };
 }
@@ -247,6 +249,7 @@ async function runDeepLPipeline(text) {
     parsed,
     provider: 'deepl',
     cached: false,
+    usage:null,
     rateLimit: null
   };
 }
@@ -262,6 +265,7 @@ async function translateFree(text,options={}) {
       parsed: cachedResult.parsed,
       provider: 'cache',
       cached: true,
+      usage:null,
       rateLimit: null
     };
   }
