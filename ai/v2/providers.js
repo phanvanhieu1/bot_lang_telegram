@@ -95,6 +95,9 @@ function createProviders(env = process.env) {
     if (!text) throw safeError('V2_CLAUDE_EMPTY');
     return {
       text, provider:'claude',model:data.model || claudeModel,
+      // Anthropic explicitly reports max_tokens when a response is cut off.
+      // Expose only the finish reason; do not retain/log raw response text.
+      stopReason:String(data.stop_reason||'unknown').slice(0,40),
       usage:{input:Number(data.usage?.input_tokens||0),
         output:Number(data.usage?.output_tokens||0)}
     };
