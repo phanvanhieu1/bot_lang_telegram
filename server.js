@@ -30,6 +30,7 @@ const glossaryRoutes=require('./ai/terminology/routes');
 const {lookupUserTerms,termHighlights,validateAppliedTerms}=require('./ai/terminology/resolver');
 const { startQuotaPolling } = require('./api-monitoring/quotas');
 const { addUsage, getUsageStats } = require('./usage');
+const { proRequestUsage,freeRequestUsage } = require('./translation-request-usage');
 const {
   translateFull,
   evaluateChinese,
@@ -675,7 +676,8 @@ app.post(
             backTranslation: en.parsed.backTranslation,
             pronunciation: ''
           },
-          rateLimit: en.rateLimit
+          rateLimit: en.rateLimit,
+          requestUsage:freeRequestUsage(en)
         });
       }
 
@@ -726,6 +728,7 @@ const pronunciation =
   },
 
   rateLimit:result.rateLimit || null,
+  requestUsage:freeRequestUsage(result),
   appliedTerms:termHighlights(result.parsed.translation,freeTerms),
   terminologyWarnings:validateAppliedTerms(result.parsed.translation,freeTerms)
 });
@@ -867,7 +870,8 @@ app.post('/api/translate',requirePro, async (req, res) => {
         vocabularyError:personal.error,
         cached: en.cached,
         sourceLanguage: en.parsed.sourceLanguage,
-        usage: en.usage
+        usage: en.usage,
+        requestUsage:proRequestUsage(en.usage,en.cached)
       });
     }
 
@@ -1156,6 +1160,7 @@ res.json({
   vocabularyError:personal.error,
   cached: !result && !verificationUsage,
   usage,
+  requestUsage:proRequestUsage(usage,!result && !verificationUsage),
   appliedTerms:termHighlights(finalCache.translation||'',appliedTerms),
   terminologyWarnings:validateAppliedTerms(finalCache.translation||'',appliedTerms)
 });
