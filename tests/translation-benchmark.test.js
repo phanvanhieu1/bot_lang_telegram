@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
 const path = require('node:path');
 const fixture = require('../benchmarks/translation-context-v1.json');
-const { translationFrom, requestSpec, chosenModel } = require('../scripts/benchmark-translation');
+const { translationFrom, requestSpec, chosenModel, evaluateVariant, audit, promptFor } = require('../scripts/benchmark-translation');
 
 test('quality corpus covers workplace action/negation, informal chat and IT without real data', () => {
   assert.equal(fixture.cases.length, 16);
@@ -51,4 +51,51 @@ test('offline dry-run compares both prompt generations for the same inputs', () 
   assert.equal(data.cases.length,2);
   assert.ok(data.cases.every(x=>x.oldChars>0 && x.newChars>0));
   assert.ok(data.cases.every(x=>x.newChars===x.oldChars));
+});
+
+test('auditor JSON schema enforces status, missing and reason', async () => {
+  let spec;
+  const client = {chat:{completions:{create: async arg=>{
+    spec = arg;
+    return {choices:[{message:{content:JSON.stringify({
+      status:'FAIL',missing:['Thiếu yêu cầu cuối câu'],reason:'Thiếu lời nhắc báo lại'
+    })}}],usage:{total_tokens:20}};
+  }}}};
+  const result=await audit(client, fixture.cases[0], {translation:'Phát hiện có hội viên cược thể thao'});
+  assert.equal(spec.response_format.type,'json_schema');
+  assert.equal(spec.response_format.json_schema.strict,true);
+  assert.deepEqual(spec.response_format.json_schema.schema.required,['status','missing','reason']);
+  assert.equal(result.status,'FAIL');
+  assert.equal(result.missing.length,1);
+});
+
+test('preserves translated response when auditor returns malformed output', async () => {
+  const record=await evaluateVariant({
+    client:{},judge:{},item:fixture.cases[0],prompt:'stub',mode:'pro',provider:'groq',
+    translationFn:async()=>({translation:'Báo lại nếu có hội viên cược thể thao được',raw:'TRANSLATION: ...',usage:{total_tokens:120}}),
+    auditFn:async()=>{throw new Error('INVALID_AUDIT_FORMAT');}
+  });
+  assert.equal(record.translation,'Báo lại nếu có hội viên cược thể thao được');
+  assert.equal(record.auditError,'INVALID_AUDIT_FORMAT');
+  assert.equal(record.errorCode,undefined);
+  assert.equal(record.usage.total_tokens,120);
+});
+
+test('distinguishes translator failure from auditor failure', async () => {
+  const record=await evaluateVariant({
+    client:{},judge:{},item:fixture.cases[0],prompt:'stub',mode:'pro',provider:'groq',
+    translationFn:async()=>{throw Object.assign(new Error('Provider issue'),{status:429});},
+    auditFn:async()=>{throw new Error('should not run');}
+  });
+  assert.equal(record.errorCode,'429');
+  assert.equal(record.auditError,undefined);
+  assert.equal(record.translation,undefined);
+});
+
+test('PRO benchmark prompts do not request Chinese back translation on web', () => {
+  const old={free:()=>'',pro:(source,lang,fast,options)=>JSON.stringify(options)};
+  const chinese=JSON.parse(promptFor('baseline','pro',fixture.cases[0],old));
+  assert.equal(chinese.backTranslation,false);
+  const vietnamese=JSON.parse(promptFor('baseline','pro',fixture.cases.at(-1),old));
+  assert.equal(vietnamese.backTranslation,true);
 });
