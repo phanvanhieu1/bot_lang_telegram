@@ -65,3 +65,34 @@ test('G02 paid output: missing brush subtype or travel time are not translation 
   assert.match(result.translation,/bàn chải/);
   assert.ok(providers.calls[0].maxOutputTokens<=900);
 });
+
+test('G01 real failure: Claude says daily but explicit colleague and confirmed DB term win',async()=>{
+  const calls=[];
+  const providers={
+    claude:async()=>({text:JSON.stringify({
+      domain:'daily',
+      intent:'Nhờ đồng nghiệp xem đây có phải là 刷子 không.',
+      tone:'colleague',facts:[],
+      terms:[{source:'刷子',meaning:'bàn chải'}],ambiguities:[]
+    }),model:'claude-sonnet-5-5',usage:{input:546,output:586}}),
+    openai:async(_system,input)=>{
+      calls.push(JSON.parse(input));
+      return {text:JSON.stringify({
+        translation:'Xem giúp mình với, đây có phải là đường dây bào khuyến mãi không?',
+        semanticReviewRequired:false,uncertainties:[]
+      }),model:'gpt-6.1-sol',usage:{input:455,output:93}};
+    }
+  };
+  const result=await deepTranslate({text:'帮忙看下，这是刷子吗？',context:'colleague',
+    loadGlossary:(source,opts)=>Promise.resolve(resolveTerms(source,[term],opts))
+  },providers);
+  assert.equal(result.status,'PASS');
+  assert.equal(result.analysis.domain,'daily','Preserve what Claude actually said for diagnosis');
+  assert.equal(result.analysis.resolvedDomain,'work','Confirmed glossary work domain wins');
+  assert.equal(result.appliedTerms[0].source,'刷子');
+  assert.equal(calls.length,1);
+  assert.equal(calls[0].analysis.domain,'work');
+  assert.deepEqual(calls[0].analysis.terms,[],
+    'Do not let unapproved brush guess compete with confirmed DB terminology');
+  assert.equal(calls[0].approvedTerminology[0].meaning,'đường dây bào khuyến mãi');
+});
