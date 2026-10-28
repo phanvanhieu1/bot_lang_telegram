@@ -7,6 +7,9 @@ const schema=new mongoose.Schema({
   sourceLang:{type:String,enum:['zh','vi'],default:'zh'},
   targetLang:{type:String,enum:['vi','zh'],default:'vi'},
   domain:{type:String,enum:['work','it','daily','any'],default:'work'},
+  // Opt-in: an explicitly confirmed pair may also be used in reverse.
+  // Existing glossary records remain one-way by default.
+  bidirectional:{type:Boolean,default:false},
   priority:{type:Number,default:100,min:1,max:100},
   status:{type:String,enum:['approved'],default:'approved'},
   notes:{type:String,default:'',maxlength:350},
