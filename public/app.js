@@ -827,18 +827,17 @@ translateV2Btn.addEventListener('click', async () => {
     const response = await fetch('/api/translate/v2', {
       method:'POST', headers:{'Content-Type':'application/json'},credentials:'same-origin',
       body:JSON.stringify({text,targetLang:'zh',context:contextSelect.value,
-        vocabulary:vocabularyToggle.checked})
+        backTranslation:backTranslationToggle.checked,
+        pronunciation:pronunciationToggle.checked,
+        vocabulary:vocabularyToggle.checked,
+        verification:verificationToggle.checked})
     });
     const data = await response.json();
     if (version !== languageRequestVersion || textInput.value.trim() !== text) return;
     if (!response.ok || !data.success) throw new Error(data.message || 'Dịch chuyên sâu thất bại');
-    // The model's translation is structured text: never reparse its content
-    // as pseudo-labels that might appear in the user's sentence.
-    parseResult('TRANSLATION: ');
-    translation.textContent = data.translation;
-    const hasTranslation = Boolean(translation.textContent.trim());
-    copyBtn.hidden = !hasTranslation;
-    document.getElementById('outputSpeakBtn').hidden = !hasTranslation;
+    // V1 and V2 use the same labeled result and exactly the same UI parser,
+    // toggles and output containers. Two-stage AI is only a server concern.
+    parseResult(data.result);
     window.renderTermHighlights?.(data.appliedTerms || []);
     window.displayAppliedTerms?.(data.appliedTerms || []);
     window.renderRequestUsage?.(data.requestUsage||null,'v2');
@@ -847,15 +846,16 @@ translateV2Btn.addEventListener('click', async () => {
       ? data.vocabularyItems:[];
     window.renderTranslationVocabulary?.(
       cards,vocabularyToggle.checked?(data.vocabularyError||''):'','zh');
-    window.renderV2ClaudeTerms?.(
-      vocabularyToggle.checked?(data.analysisTerms||[]):[],
-      data.sourceLanguage||'zh',cards.length>0);
-    renderV2AnalysisDetails(data);
+    // The legacy V2-only suggestion/analysis panels remain hidden. V2 uses
+    // the exact same vocabulary cards and detail sections as V1.
     const direction = data.sourceLanguage === 'vi' && data.targetLanguage === 'zh'
       ? 'Việt → Trung' : data.sourceLanguage === 'zh' && data.targetLanguage === 'vi'
         ? 'Trung → Việt' : 'Trung ↔ Việt';
     const count = Array.isArray(data.appliedTerms) ? data.appliedTerms.length : 0;
-    if (data.needsReview) {
+    if (data.verificationError && verificationToggle.checked) {
+      status.textContent = '⚠ Dịch V2 thành công, nhưng kiểm chứng độc lập chưa hoàn thành';
+      status.className = 'status error';
+    } else if (data.needsReview) {
       status.textContent = '⚠ Dịch V2 ('+direction+') cần kiểm tra: ' + (data.issues || []).slice(0,2).join('; ');
       status.className = 'status error';
     } else {
@@ -975,7 +975,8 @@ if (verificationToggle.checked && verificationMatch) {
 
     verificationStatus.textContent = config.text;
 
-    if (Number.isFinite(Number(data.confidence))) {
+    if (data.confidence !== null && data.confidence !== undefined &&
+      Number.isFinite(Number(data.confidence))) {
       verificationConfidence.textContent =
         `${Number(data.confidence)}%`;
     }
