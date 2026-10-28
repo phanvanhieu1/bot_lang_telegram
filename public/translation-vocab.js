@@ -39,6 +39,13 @@
       item.isNew?'Mới':'Đã có');
     status.title=item.isNew?'Mục vừa được thêm vào từ điển':'Mục đã tồn tại trong từ điển';
     node(meta,'span','translation-vocab-count',count+' lần gặp');
+    if(item.type!=='pattern' && (item.text||item.key)) {
+      const add=node(meta,'button','term-vocab-add','＋');
+      add.type='button';add.title='Lưu vào từ điển thuật ngữ chuyên ngành';
+      add.setAttribute('aria-label','Thêm thuật ngữ '+(item.text||item.key));
+      add.addEventListener('click',()=>window.openTerminologyEditor?.(
+        item.text||item.key,item.meaning||'',item.category==='daily_life'?'daily':'work'));
+    }
     node(card,'div','translation-vocab-meaning',item.meaning||'Chưa có nghĩa');
     const pending=item.category==='unclassified';
     node(card,'div','translation-vocab-topic'+(pending?' is-pending':''),
