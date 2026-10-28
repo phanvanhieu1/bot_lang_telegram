@@ -261,6 +261,37 @@ still require human judgment.
 Paid runs refuse to start unless both API keys are configured and
 `--accept-paid=true` is supplied. Do not paste keys into chat or GitHub.
 
+### C01-C05 paid semantic holdout (2026-10-28)
+
+The owner supplied five new paid Claude/OpenAI results from the work holdout.
+Manual reading against the Chinese originals found no material loss of
+conditions, negation, processing sequence, or deadlines in **5/5**.
+C02 has a fluency defect ("đã đang theo dõi"), despite preserving the
+meaning that Finance had started and is still following up. This is a
+**quality note**, not an API error or verified automatic failure.
+
+Reported latency was **33.731 seconds** in total (**6.746 seconds**
+per request), with **21.372 seconds** in Claude analysis and **12.355
+seconds** in OpenAI translation. Total reported usage: **5,275 input**
+and **2,678 output tokens**. These are observed values, not a latency
+or quality guarantee.
+
+The translator now receives a general Vietnamese aspect/fluency
+instruction. This is deliberately **not** a hardcoded correction for
+C02, and its effect requires another live model run before being
+claimed as fixed.
+
+For C03 the analyzer selected `mixed`; domain normalization now
+preserves `resolvedDomain:"mixed"` instead of reporting `unknown`.
+With automatic context, only domain-neutral (`any`) glossary terms
+may apply. This conservative rule avoids silently forcing a `work`
+or `it` meaning when classification is mixed.
+
+Historical snapshots are replayed offline in the
+`translation-v2-live-regression.test.js` tests; they cannot verify
+the quality of future model outputs. The remaining 30 holdout cases
+and staging MongoDB glossary tests have not been executed here.
+
 ### Known limits
 
 - An exact phrase match can produce a REVIEW even if a valid synonym is used.
