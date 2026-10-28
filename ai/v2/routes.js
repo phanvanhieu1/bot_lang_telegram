@@ -18,7 +18,7 @@ function createV2Router({translate=deepTranslate,env=process.env,cache=v2Cache,
   recordUsage=addUsage,resolveVocabulary=resolveTranslationVocabulary,
   verify=verifyTranslation,recordHistory=addHistory}={}){
   const router=express.Router(),active=new Set();
-  const enabled=()=>env.V2_ENABLED==='true';
+  const enabled=()=>env.V2_ENABLED === 'true';
   const available=()=>Boolean(
     ((env.OPENAI_API_KEYS||'').trim()||env.OPENAI_API_KEY||env.OPENAI_API)&&
     (env.CLAUDE_API_KEY||env.ANTHROPIC_API_KEY||env.CLAUDE_API)
@@ -84,7 +84,7 @@ function createV2Router({translate=deepTranslate,env=process.env,cache=v2Cache,
       const translationCached=Boolean(hit);
       const translated=hit?hit.value:await translate({text:original,context,
         backTranslation,vocabulary,
-        loadGlossary:(source,opts)=>lookupUserTerms(owner,source,opts)});
+        loadGlossary:(source,opts)=>lookupUserTerms(req.user._id,source,opts)});
 
       // Miss: preserve only validated PASS content in owner-isolated cache.
       const estimate=translationCached?null:estimateUsage(translated.usage);
