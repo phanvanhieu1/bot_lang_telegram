@@ -150,6 +150,16 @@ test('Mixed automatic context is visible but does not force specialized terms',(
   assert.equal(selected.length,1);
   assert.equal(selected[0].domain,'any');
 });
+test('Analyzer distinguishes organizational workflow from personal purchase without literal fixture examples',async()=>{
+  const m=mocked();
+  await deepTranslate({text:'这笔钱怎么办？',context:'auto'},m.providers);
+  const analyzer=m.calls.find(x=>x.which==='claude');
+  assert.match(analyzer.sys,/Phân loại theo HOẠT ĐỘNG/);
+  assert.match(analyzer.sys,/quy trình vận hành của tổ chức/);
+  assert.match(analyzer.sys,/giao dịch cá nhân/);
+  assert.doesNotMatch(analyzer.sys,/这笔提现额度不够/);
+  assert.doesNotMatch(analyzer.sys,/C09/);
+});
 test('Translator prompt provides generic Vietnamese aspect and fluency guidance',async()=>{
   const m=mocked();
   await deepTranslate({text:'他已经开始处理了',context:'colleague'},m.providers);
