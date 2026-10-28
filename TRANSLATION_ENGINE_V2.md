@@ -18,11 +18,11 @@ The V2 button is a deliberate paid/deep translation request:
    compare. It is optional, and never determines the answer by voting.
 4. **OpenRouter critic** (Groq fallback) examines both outputs, including
    omissions, tone, terminology, negation and action requests.
-5. **OpenAI auditor** adjudicates against the source. Only a PASS may be
-   displayed as checked. Any unsupported ambiguity or critic objection yields
-   REVIEW, surfaced in the UI.
+5. **OpenAI and Claude each audit the source and both candidates**. Both
+   must agree on a preferred candidate for a PASS. Disagreements, unverifiable
+   ambiguity or critic objections yield REVIEW, visible in the UI.
 6. A REPAIR verdict requests **one targeted Claude revision**, independently
-   checked by OpenAI. There are no unbounded repair loops.
+   checked again by **both OpenAI and Claude**. No unbounded repair loops.
 
 The model's PASS is **not a guarantee** of correctness. Disagreement,
 unresolved ambiguity and important missing codes/numbers must be disclosed.
@@ -90,3 +90,32 @@ not included in the initial estimate. The JSON response includes
 
 This draft is based on `main`, independent from the unmerged V1 contextual
 prompt PR #4.
+
+### Local live quality evaluation (requires API keys, billable)
+
+```bash
+git fetch origin
+git switch feature/translation-engine-v2
+git pull --ff-only origin feature/translation-engine-v2
+npm ci
+npm test
+
+# Offline: no API calls
+node scripts/benchmark-translation-v2.js --dry-run --limit=5
+
+# When valid test keys are configured in your local .env:
+# Limit to five new holdout examples first; DO NOT run for real employer data.
+node scripts/benchmark-translation-v2.js --limit=5 --domain=work
+
+# Later, compare social register, technology and mixed context independently.
+node scripts/benchmark-translation-v2.js --limit=10 --domain=friend
+node scripts/benchmark-translation-v2.js --limit=10 --domain=it
+```
+
+Results are saved locally in ignored `benchmarks/results/` JSON files. No
+provider credentials, requests or raw translation text are printed to server
+logs; the CLI prints translations from **synthetic** holdout cases for review.
+
+V2 is not currently a vocabulary/grammar/pronunciation tutor; those remain
+V1 features. We should integrate the verified learning layer only after
+translation accuracy has been evaluated independently.
