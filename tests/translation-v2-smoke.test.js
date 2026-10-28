@@ -8,7 +8,7 @@ const {select,makeFixtures,fakeProviders,runOne}=require('../scripts/smoke-trans
 const root=path.join(__dirname,'..');
 test('nine synthetic cases cover work, daily, IT, longest phrase, repair and vi-to-zh reversal',()=>{
   assert.equal(cases.length,9);
-  assert.equal(new Set(cases.map(c=>c.id)).size,8);
+  assert.equal(new Set(cases.map(c=>c.id)).size,9);
   assert.ok(cases.find(c=>c.id==='G01').claudeGuess.includes('bàn chải'));
   assert.ok(cases.find(c=>c.id==='G01').verifiedTranslation.includes('đường dây bào khuyến mãi'));
   assert.deepEqual(select(['--ids=G01,G02']).map(c=>c.id),['G01','G02']);
