@@ -6,8 +6,9 @@ const { addUsage } = require('../../usage');
 const { deepTranslate, ENGINE_VERSION } = require('./engine');
 const { estimateUsage } = require('./accounting');
 const {lookupUserTerms}=require('../terminology/resolver');
+const v2Cache=require('./cache');
 
-function createV2Router({ translate = deepTranslate, env = process.env } = {}) {
+function createV2Router({ translate = deepTranslate, env = process.env, cache = v2Cache } = {}) {
   const router = express.Router();
   const active = new Set(); // best-effort per-process concurrency gate
   const enabled = () => env.V2_ENABLED === 'true';
@@ -42,9 +43,46 @@ function createV2Router({ translate = deepTranslate, env = process.env } = {}) {
     });
     active.add(id);
     try {
+      // Fail closed if the glossary cannot be read: a stale cache must never
+      // bypass the owner's currently confirmed terminology.
+      const signature=await cache.signatureForOwner(req.user._id);
+      const key=cache.keyForRequest({owner:id,text,context,signature,env});
+      let hit=null;
+      try{hit=await cache.getCached({owner:req.user._id,key});}
+      catch(_){console.warn('[V2] cache read unavailable');}
+      if(hit){
+        const translated=hit.value;
+        const usage={stages:[],totalInputTokens:0,totalOutputTokens:0,
+          providers:[],estimatedKnownPaidUsd:0,pricingIncomplete:false};
+        return res.json({
+          success:true,engine:ENGINE_VERSION,
+          result:'TRANSLATION: '+translated.translation,
+          ...translated,usage,cached:true,
+          requestUsage:{inputTokens:0,outputTokens:0,totalTokens:0,
+            estimatedCostUsd:0,pricingIncomplete:false,cached:true,
+            stages:[],model:'V2 (cache)'}
+        });
+      }
       const translated=await translate({text:text.trim(),context,
         loadGlossary:(source,opts)=>lookupUserTerms(req.user._id,source,opts)});
       const estimate=estimateUsage(translated.usage);
+      // Re-read owner glossary to prevent storing a response that raced with
+      // an edit/delete during the expensive LLM calls.
+      if(translated.status==='PASS'){
+        try{
+          const current=await cache.signatureForOwner(req.user._id);
+          if(current===signature){
+            await cache.storeCached({owner:req.user._id,key,value:{
+              translation:translated.translation,status:translated.status,
+              needsReview:translated.needsReview,issues:translated.issues,
+              analysis:translated.analysis,translationNotes:translated.translationNotes||[],
+              appliedTerms:translated.appliedTerms||[],
+              sourceLanguage:translated.sourceLanguage,
+              targetLanguage:translated.targetLanguage
+            }});
+          }
+        }catch(_){console.warn('[V2] cache write unavailable');}
+      }
       // Keep existing user stats; estimated cost only covers known paid
       // models. Incomplete estimation is always marked for the client.
       try{
@@ -65,7 +103,20 @@ function createV2Router({ translate = deepTranslate, env = process.env } = {}) {
         appliedTerms:translated.appliedTerms||[],
         sourceLanguage:translated.sourceLanguage,
         targetLanguage:translated.targetLanguage,
-        usage:{...translated.usage,...estimate}, cached:false
+        usage:{...translated.usage,...estimate}, cached:false,
+        requestUsage:{
+          inputTokens:translated.usage.totalInputTokens,
+          outputTokens:translated.usage.totalOutputTokens,
+          totalTokens:translated.usage.totalInputTokens+translated.usage.totalOutputTokens,
+          estimatedCostUsd:estimate.estimatedKnownPaidUsd,
+          pricingIncomplete:estimate.pricingIncomplete,
+          cached:false,
+          stages:(translated.usage.stages||[]).filter(x=>x.usage).map(x=>({
+            provider:x.provider,model:x.model,role:x.role,
+            inputTokens:x.usage.input||0,outputTokens:x.usage.output||0,
+            ...estimateUsage({stages:[x]})
+          }))
+        }
       });
     }catch(error){
       const code=String(error?.code||'V2_UNAVAILABLE');
