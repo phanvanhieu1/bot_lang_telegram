@@ -29,12 +29,19 @@ test('Glossary load always scopes approved entries to logged-in owner and direct
 });
 test('Term only matches an allowed domain, including colleague IT overrides',()=>{
   assert.equal(contextDomain('colleague','it'),'it');
+  assert.equal(contextDomain('colleague','daily'),'work');
+  assert.equal(contextDomain('superior','daily'),'work');
   assert.equal(contextDomain('colleague','unknown'),'work');
   assert.equal(contextDomain('friend','work'),'daily');
+  assert.equal(contextDomain('auto','daily'),'daily');
   assert.deepEqual(resolveTerms('这是刷子吗',[entry()],{
     context:'friend',analyzedDomain:'work'}),[]);
   assert.deepEqual(resolveTerms('这是刷子吗',[entry()],{
     context:'auto',analyzedDomain:'unknown'}),[]);
+  assert.equal(resolveTerms('这是刷子吗',[entry()],{
+    context:'colleague',analyzedDomain:'daily'}).length,1);
+  assert.equal(resolveTerms('这是刷子吗',[entry()],{
+    context:'superior',analyzedDomain:'daily'}).length,1);
 });
 test('Overlapping variants resolve longest first and preserve exact position',()=>{
   const rows=[entry({source:'刷子'}),entry({source:'这是刷子',translation:'đây là đường dây'})];
