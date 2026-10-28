@@ -86,10 +86,45 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[]},
     'Ambiguities tối đa 2, CHỈ ghi khi có ít nhất hai cách hiểu làm đổi ý hành động/chủ thể/phủ định mà không thể chọn trung tính. '+
     'Không liệt kê chi tiết câu gốc không nói rõ (vật được chỉ, ngày giờ, loại đồ, ý định giả định). Không suy đoán ngữ cảnh. '+
     'Không phân tích nghĩa của thuật ngữ như đã được xác nhận; nó chỉ là giả thuyết chờ đối chiếu DB.';
-  const analysisTokenLimit=Math.min(1200,Math.max(480,Math.ceil(sourceText.length*0.65)+200));
-  const analyzed=await stage('analyzer','claude',()=>providers.claude(analyzing,
-    JSON.stringify({original:sourceText,context}),{maxOutputTokens:analysisTokenLimit}));
-  const frame=safeFrame(parseObject(analyzed.text));
+  // An output-token cap is a maximum, NOT a target for Claude. A 480-token
+  // cap truncated real short Chinese sentences despite a concise prompt.
+  // Start with enough headroom; if JSON is genuinely incomplete, retry
+  // the analysis ONCE with a larger budget, never the whole translation.
+  const analysisTokenLimit=Math.min(1300,Math.max(800,Math.ceil(sourceText.length*0.9)+300));
+  const analysisRetryLimit=Math.min(2200,Math.max(1600,analysisTokenLimit*2));
+  const analyzerInput=JSON.stringify({original:sourceText,context});
+  const isMalformed=(e)=>['V2_INVALID_AGENT_JSON','V2_INVALID_ANALYSIS','V2_CLAUDE_TRUNCATED'].includes(e?.code);
+  async function analyze(role,limit,retry=false){
+    const result=await stage(role,'claude',()=>providers.claude(
+      retry?analyzing+' Trả về MỘT JSON hoàn chỉnh, súc tích; không có giải thích ngoài JSON.':analyzing,
+      analyzerInput,{maxOutputTokens:limit}));
+    if(result.stopReason==='max_tokens')throw safeError('V2_CLAUDE_TRUNCATED');
+    return safeFrame(parseObject(result.text));
+  }
+  let frame;
+  try{
+    frame=await analyze('analyzer',analysisTokenLimit);
+  }catch(firstError){
+    if(!isMalformed(firstError))throw firstError;
+    try{
+      frame=await analyze('analyzer-retry',analysisRetryLimit,true);
+    }catch(secondError){
+      const code=secondError?.code==='V2_CLAUDE_TRUNCATED'
+        ?'V2_CLAUDE_ANALYSIS_TRUNCATED':
+        isMalformed(secondError)?'V2_CLAUDE_ANALYSIS_INVALID_JSON':
+        (secondError?.code||'V2_CLAUDE_ANALYSIS_UNAVAILABLE');
+      const failed=safeError(code);
+      failed.diagnostics={stage:'claude_analysis',attempts:2,
+        firstError:firstError?.code||'UNKNOWN',
+        secondError:secondError?.code||'UNKNOWN',
+        // Billing and timing only; never leak provider output or source text.
+        stages:stages.map(x=>({
+          role:x.role,provider:x.provider,model:x.model,ms:x.ms,
+          usage:x.usage||{input:0,output:0}
+        }))};
+      throw failed;
+    }
+  }
 
   // DB lookup is performed AFTER the Claude analysis, but DB's confirmed
   // meaning always overrides Claude when the entry matches the selected domain.
