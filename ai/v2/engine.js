@@ -5,7 +5,7 @@ const { createProviders, safeError } = require('./providers');
 const ENGINE_VERSION = 'v2.0.0';
 const AUDIENCES = new Set(['auto','friend','colleague','superior']);
 const STRATEGY = `Dịch Trung giản thể ↔ Việt tự nhiên, chính xác, không diễn giải thêm.
-Tự xác định khi nào là chat bạn bè/đời sống, công việc trò chơi trực tuyến (đặt cược, quay thưởng, hội viên, nạp/rút, chi tiền, phong khống) hoặc IT/dev.
+Tự xác định khi nào là chat bạn bè/đời sống, công việc trò chơi trực tuyến (đặt cược, quay thưởng, hội viên, nạp/rút tiền, chi tiền, kiểm soát rủi ro) hoặc IT/dev.
 Giữ từng nghĩa trong nguyên văn: người thực hiện, hành động, yêu cầu ở cuối câu Trung rút gọn, điều kiện ngầm có căn cứ, phủ định, con số, thời gian, thuật ngữ, giọng điệu.
 Không giả định mọi câu thuộc nghiệp vụ game; giữ nguyên tên riêng, mã, API, staging, log, tên hàm.
 Viết lời chat thân mật như người thật; chỉ dùng lời lịch sự/cứng rắn nếu nguồn hay người nghe yêu cầu. Không tự thêm chi tiết. Nếu mơ hồ thì không bịa.
@@ -212,7 +212,8 @@ async function deepTranslate({text, context='auto'}, providers=createProviders()
     issues.push(...skeptic.issues.slice(0,3));
   }
   if(frame.ambiguities.length && auditStatus==='PASS') {
-    // Ambiguities are surfaced, not treated as proof a translation is wrong.
+    // Human review, not "verified", when the original admits multiple readings.
+    auditStatus='REVIEW';
     issues.push('Câu gốc có điểm có thể hiểu nhiều cách; nên đối chiếu ngữ cảnh.');
   }
   return {
