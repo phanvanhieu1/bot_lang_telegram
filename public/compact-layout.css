@@ -340,3 +340,24 @@ html[data-theme] #openPracticeBtn svg{
 #translateV2Btn.translate-v2-button:hover { border-color: #2563eb; }
 #translateV2Btn.translate-v2-button:disabled { opacity: .55; cursor: progress; }
 #translateV2Btn[hidden] { display: none !important; }
+
+/* User-verified terminology: minimal, single-pane details editor. */
+#termEditor[hidden],#termTranslationWarning[hidden]{display:none!important}
+.term-add-btn{margin-left:auto;border:1px solid #9baaca;background:transparent;color:inherit;border-radius:9px;padding:6px 9px;font-size:12px;cursor:pointer}
+.term-add-btn:hover{border-color:#3470c1}
+.term-editor{margin:8px 0 12px;padding:13px;border:1px solid #c4d4e8;border-radius:12px;background:var(--ui-subtle,#f8fafc);color:var(--ui-text,#172033)}
+.term-editor h3{font-size:14px;margin:0 0 10px}
+.term-editor form{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px}
+.term-editor label{font-size:12px;color:inherit;grid-column:1/-1}
+.term-editor input,.term-editor select{width:100%;min-width:0;box-sizing:border-box;padding:9px 10px;border:1px solid #aebed3;border-radius:9px;background:var(--ui-card,#fff);color:inherit;font:inherit}
+.term-editor-actions{grid-column:1/-1;display:flex;gap:8px;margin-top:6px}
+.term-editor-actions button,.term-small{padding:7px 11px;border-radius:8px;border:1px solid #93a8c5;background:transparent;color:inherit;cursor:pointer}
+.term-editor-actions button[type=submit]{background:#2563eb;color:#fff;border-color:#2563eb}
+.term-list{display:grid;gap:5px;max-height:200px;overflow:auto}
+.term-list-item{display:flex;align-items:center;gap:6px;border-top:1px solid #bdcce0;padding:6px 0}
+.term-list-info{flex:1;min-width:0;font-size:12px;overflow-wrap:anywhere}
+.term-list-info small{display:block;color:#64748b;font-size:11px}
+.term-highlight{background:#dbeafe;color:#1d4ed8;border-bottom:2px solid #2563eb;border-radius:3px;padding:0 1px}
+.term-warning{font-size:12px;color:#b45309;margin:6px 0}
+.term-vocab-add{font-size:11px;border:1px solid #93c5fd;background:transparent;color:#2563eb;border-radius:7px;padding:4px 7px;cursor:pointer}
+@media(max-width:580px){.term-editor form{grid-template-columns:1fr}.term-list-item{flex-wrap:wrap}}
