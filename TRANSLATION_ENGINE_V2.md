@@ -91,6 +91,54 @@ Provider model overrides:
 V2 responses report aggregate tokens and an estimated cost only for recognized
 priced models; do not confuse these estimates with the provider invoices.
 
+### Faster V2 model trial (2026-10-29)
+
+V2 defaults have changed **only on this feature branch**:
+- Claude analysis: `claude-haiku-5-5` (previous `claude-sonnet-5-5`), using
+  `output_config.effort = low`.
+- OpenAI translation/repair: `gpt-6.1-terra` (previous `gpt-6.1-sol`), using
+  `reasoning.effort = none`. JSON schema and deterministic terminology /
+  number validation remain unchanged; this is **not** a quality guarantee.
+- Updated V2 accounting estimates: Haiku 5.5 $0.10 input / $0.50 output per
+  million tokens for standard prompts below 100K tokens; Terra $1 input /
+  $5 output per million. Sonnet 5.5 and Sol legacy prices remain recognized.
+  Actual invoices may differ. No live paid model requests were sent for this
+  code change.
+- `requestUsage.stages[].ms` reports actual AI stage latency; the V2
+  `requestUsage.elapsedMs` reports time spent in the server's V2 handler.
+  Both appear in the translation UI alongside tokens and USD.
+- Cache fingerprints now include **model IDs and effort levels**. First request
+  after switching models/effort is a miss; a later successful `PASS` can hit.
+  Old cached results are not deleted, just isolated by key.
+
+If `.env` already specifies `V2_CLAUDE_MODEL` or `V2_OPENAI_MODEL`, it
+**overrides** the new fast defaults. For an explicit trial use:
+
+```dotenv
+V2_ENABLED=true
+V2_CLAUDE_MODEL=claude-haiku-5-5
+V2_CLAUDE_EFFORT=low
+V2_OPENAI_MODEL=gpt-6.1-terra
+V2_OPENAI_REASONING_EFFORT=none
+```
+
+To restore the previous deep models, set:
+
+```dotenv
+V2_CLAUDE_MODEL=claude-sonnet-5-5
+V2_OPENAI_MODEL=gpt-6.1-sol
+V2_OPENAI_REASONING_EFFORT=medium
+```
+
+Unset `V2_CLAUDE_EFFORT` when returning to the old model if you want its
+original default effort. Restart the web server after editing `.env`.
+
+Manual interface comparison: use a new sentence (cache MISS), compare V2
+latency, token counts and USD; repeat the same input to check cache HIT.
+Also compare nuanced workplace/ambiguous sentences against the previous
+configuration, preserving any terminology manually approved in MongoDB.
+
+
 ## Testing
 
 ```bash
