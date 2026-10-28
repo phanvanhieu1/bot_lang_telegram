@@ -162,7 +162,10 @@
       "forceWrong": true,
       "repairWrong": true,
       "expectTerms": [],
-      "expectStatus": "REVIEW"
+      "expectStatus": "REVIEW",
+      "liveExpectTerms": [
+        "刷子"
+      ]
     }
   ]
 }
