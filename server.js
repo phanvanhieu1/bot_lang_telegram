@@ -640,7 +640,7 @@ app.post(
   requireAuth,
   async (req, res) => {
     try {
-      const { text, targetLang: requestedLang = 'zh' } = req.body || {};
+      const { text, targetLang: requestedLang = 'zh', context: freeContext = 'auto' } = req.body || {};
 
       if (typeof text !== 'string' || !text.trim()) {
         return res.status(400).json({
@@ -681,7 +681,8 @@ app.post(
 
       const freeIsChinese=containsChinese(text.trim());
       const freeTerms=await lookupUserTerms(req.user._id,text.trim(),{
-        context:'auto',sourceLang:freeIsChinese?'zh':'vi',
+        context:['auto','friend','colleague','superior'].includes(freeContext)?freeContext:'auto',
+        sourceLang:freeIsChinese?'zh':'vi',
         targetLang:freeIsChinese?'vi':'zh'});
       const result = await translateFree(text.trim(),{terms:freeTerms});
 
