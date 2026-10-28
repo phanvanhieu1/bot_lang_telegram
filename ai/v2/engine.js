@@ -150,25 +150,37 @@ async function deepTranslate({text, context='auto'}, providers=createProviders()
   } catch (_) {
     skeptic={concern:false,issues:[],unavailable:true};
   }
-  let auditResult;
+  const auditSystem=ROLES.auditor+'\n'+base;
+  async function judgePair(role,pl) {
+    const checks=await Promise.allSettled([
+      execute(role,'openai',()=>providers.openai(auditSystem,JSON.stringify(pl),{maxOutputTokens:1600})),
+      execute(role,'claude',()=>providers.claude(auditSystem,JSON.stringify(pl),{maxOutputTokens:1200}))
+    ]);
+    if(checks.some(x=>x.status!=='fulfilled')) throw safeError('V2_AUDIT_UNAVAILABLE');
+    return checks.map(x=>normalizeAudit(parseObject(x.value.text,
+      ['status','preferred','issues','reason'])));
+  }
+
+  let judgments;
   try {
-    const response=await execute('auditor','openai',()=>providers.openai(
-      ROLES.auditor+'\n'+base,
-      JSON.stringify({...payload,independentCritic:skeptic}),{maxOutputTokens:1600}));
-    auditResult=normalizeAudit(parseObject(response.text,
-      ['status','preferred','issues','reason']));
+    judgments=await judgePair('auditor',{...payload,independentCritic:skeptic});
   }catch(_) {
-    // Critical stage must fail closed rather than silently substituting V1.
+    // Both independent strong-model audits are required to mark V2 PASS.
     throw safeError('V2_AUDIT_UNAVAILABLE');
   }
-  const choice=auditResult.preferred==='claude'?'claude':'openai';
+  const [auditA,auditB]=judgments;
+  const agreedChoice=auditA.preferred!=='none' && auditA.preferred===auditB.preferred;
+  const choice=agreedChoice?auditA.preferred:
+    auditA.preferred!=='none'?auditA.preferred:
+    auditB.preferred!=='none'?auditB.preferred:'openai';
   let translation=candidates[choice];
-  let auditStatus=auditResult.status;
-  let issues=[...auditResult.issues];
-  if(auditResult.preferred==='none' && auditStatus==='PASS') auditStatus='REVIEW';
+  let issues=[...new Set([...auditA.issues,...auditB.issues])];
+  let auditStatus=judgments.some(x=>x.status==='REVIEW')?'REVIEW':
+    judgments.some(x=>x.status==='REPAIR')?'REPAIR':
+    agreedChoice?'PASS':'REVIEW';
+  if(!agreedChoice) issues.push('Hai AI kiểm định chưa thống nhất bản dịch nên dùng.');
 
-  // A single, bounded repair. Recheck against source using a DIFFERENT
-  // provider from the repair model; do not loop until models agree.
+  // At most one repair. Both OpenAI and Claude recheck the repaired version.
   if(auditStatus==='REPAIR') {
     try {
       const repaired=await execute('repair','claude',()=>providers.claude(
@@ -177,17 +189,14 @@ async function deepTranslate({text, context='auto'}, providers=createProviders()
           issues,targetLanguage:dir.target
         })));
       const repairedText=cleanCandidate(repaired);
-      const recheck=await execute('recheck','openai',()=>providers.openai(
-        ROLES.auditor+'\n'+base,
-        JSON.stringify({...payload,candidates:{
-          openai:repairedText,claude:repairedText
-        },independentCritic:skeptic,mode:'Verify repaired text against original; choose only if sound.'}),
-        {maxOutputTokens:1400}));
-      const verdict=normalizeAudit(parseObject(recheck.text,
-        ['status','preferred','issues','reason']));
+      const verdicts=await judgePair('recheck',{
+        ...payload,candidates:{openai:repairedText,claude:repairedText},
+        independentCritic:skeptic,
+        mode:'Evaluate this SINGLE repaired translation against original. Preferred may be either candidate label.'
+      });
       translation=repairedText;
-      auditStatus=verdict.status==='PASS'?'PASS':'REVIEW';
-      issues=verdict.issues;
+      auditStatus=verdicts.every(v=>v.status==='PASS')?'PASS':'REVIEW';
+      issues=[...new Set(verdicts.flatMap(v=>v.issues))];
     } catch(_) {
       auditStatus='REVIEW';
       issues.push('Không thể kiểm định độc lập bản sửa; hãy kiểm tra thủ công.');
