@@ -28,8 +28,11 @@ function matchingTerm(text,term) {
   let start=text.toLocaleLowerCase().indexOf(source.toLocaleLowerCase());
   while(start>=0){
     const before=text[start-1]||'', after=text[start+source.length]||'';
-    const isLatin=/^[a-z0-9_ ]+$/i.test(source);
-    if(!isLatin||(!/[a-z0-9_]/i.test(before)&&!/[a-z0-9_]/i.test(after)))return start;
+    // Vietnamese accents count as word characters. Chinese substrings can
+    // legitimately be embedded in adjacent Han characters.
+    const wordBoundaryNeeded=!/[\u3400-\u9fff]/u.test(source);
+    const insideWord=/[\p{L}\p{N}_]/u;
+    if(!wordBoundaryNeeded||(!insideWord.test(before)&&!insideWord.test(after)))return start;
     start=text.toLocaleLowerCase().indexOf(source.toLocaleLowerCase(),start+1);
   }
   return -1;
@@ -37,13 +40,21 @@ function matchingTerm(text,term) {
 function resolveTerms(text,rows,{context='auto',analyzedDomain='unknown',sourceLang='zh',targetLang='vi'}={}) {
   if(typeof text!=='string'||!SOURCE_LANGS.has(sourceLang))return [];
   const domain=contextDomain(context,analyzedDomain);
-  const potential=(rows||[]).filter(t=>
-    t && t.status==='approved' && t.sourceLang===sourceLang &&
-    t.targetLang===targetLang && DOMAINS.has(t.domain) &&
-    (t.domain==='any'||t.domain===domain) &&
+  const potential=(rows||[]).filter(t=>t && t.status==='approved' &&
+    DOMAINS.has(t.domain) && (t.domain==='any'||t.domain===domain) &&
+    typeof t.source==='string' && t.source.trim() &&
     typeof t.translation==='string' && t.translation.trim()
-  ).map(t=>({...t,offset:matchingTerm(text,t.source)})).filter(x=>x.offset>=0);
+  ).map(t=>{
+    const direct=t.sourceLang===sourceLang && t.targetLang===targetLang;
+    const reverse=t.bidirectional===true &&
+      t.sourceLang===targetLang && t.targetLang===sourceLang;
+    if(!direct&&!reverse)return null;
+    const oriented=direct?t:{...t,source:t.translation,
+      translation:t.source,sourceLang,targetLang};
+    return {...oriented,reverse:!direct,offset:matchingTerm(text,oriented.source)};
+  }).filter(t=>t&&t.offset>=0);
   potential.sort((a,b)=>String(b.source).length-String(a.source).length||
+    Number(a.reverse)-Number(b.reverse)||
     Number(b.priority||0)-Number(a.priority||0));
   const covered=[];
   const selected=[];
@@ -84,8 +95,13 @@ function validateAppliedTerms(text,terms) {
 async function lookupUserTerms(owner,text,options,model) {
   if(!owner)return [];
   const Model=model||require('./model');
+  // Reverse matches are opt-in only; keep this DB query owner-scoped.
   const docs=await Model.find({
-    owner,sourceLang:options.sourceLang,targetLang:options.targetLang,status:'approved'
+    owner,status:'approved',
+    $or:[
+      {sourceLang:options.sourceLang,targetLang:options.targetLang},
+      {sourceLang:options.targetLang,targetLang:options.sourceLang,bidirectional:true}
+    ]
   }).limit(2000).lean();
   return resolveTerms(text,docs,options);
 }
