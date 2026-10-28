@@ -3,7 +3,7 @@
 // speculative analysis; OpenAI translates; deterministic checks validate.
 // No terminology is ever auto-saved from model output.
 const {createProviders,safeError}=require('./providers');
-const {glossaryInstructions,termHighlights,validateAppliedTerms}=require('../terminology/resolver');
+const {glossaryInstructions,termHighlights,validateAppliedTerms,contextDomain}=require('../terminology/resolver');
 const ENGINE_VERSION='v2.1.0';
 
 function parseObject(raw) {
@@ -140,6 +140,16 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[]},
       analyzedDomain:frame.domain,sourceLang:direction.source,targetLang:direction.target});
     if(!Array.isArray(glossary))throw Error('Invalid glossary rows');
   }catch(_){throw safeError('V2_GLOSSARY_UNAVAILABLE');}
+  // Claude analysis is advisory: keep its original domain for diagnostics,
+  // but forward the RESOLVED domain and remove conflicting guessed meanings
+  // for exact source terms that have approved dictionary entries.
+  const resolvedDomain=contextDomain(context,frame.domain);
+  const authoritativeSources=new Set(glossary.map(t=>t.source.trim().toLowerCase()));
+  const translationAnalysis={
+    ...frame,
+    domain:resolvedDomain,
+    terms:frame.terms.filter(t=>!authoritativeSources.has(t.source.trim().toLowerCase()))
+  };
   const termPrompt=glossaryInstructions(glossary);
   const translating='Bạn là biên dịch viên Trung–Việt. '+coreRules+
     '\nSử dụng phân tích Claude để hiểu hành động và ý định nhưng không chấp nhận nghĩa thuật ngữ phỏng đoán nếu xung đột với danh sách đã được xác nhận.'+
@@ -155,7 +165,7 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[]},
     required:['translation','semanticReviewRequired','uncertainties']};
   const userPayload=JSON.stringify({original:sourceText,context,
     sourceLanguage:direction.source,targetLanguage:direction.target,
-    analysis:frame,
+    analysis:translationAnalysis,
     approvedTerminology:glossary.map(t=>({source:t.source,meaning:t.translation,domain:t.domain}))});
   const modelTranslation=await stage('translator','openai',()=>
     providers.openai(translating,userPayload,{maxOutputTokens:1500,jsonSchema}));
@@ -204,7 +214,8 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[]},
     status:issues.length?'REVIEW':'PASS',needsReview:Boolean(issues.length),
     issues:[...new Set(issues)].slice(0,8),
     appliedTerms:termHighlights(translated.translation,glossary),
-    analysis:{domain:frame.domain,intent:frame.intent,ambiguities:frame.ambiguities},
+    analysis:{domain:frame.domain,resolvedDomain,intent:frame.intent,
+      ambiguities:frame.ambiguities},
     translationNotes:translated.uncertainties,
     usage:{stages,totalInputTokens:stages.reduce((n,x)=>n+(x.usage?.input||0),0),
       totalOutputTokens:stages.reduce((n,x)=>n+(x.usage?.output||0),0),
