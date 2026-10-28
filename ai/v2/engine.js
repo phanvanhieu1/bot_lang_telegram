@@ -10,7 +10,13 @@ function parseObject(raw) {
   const s=String(raw||'').replace(/<think>[\s\S]*?<\/think>/g,'')
     .replace(/^\s*```(?:json)?/i,'').replace(/```\s*$/,'').trim();
   let value;
-  try {value=JSON.parse(s);} catch (_) {throw safeError('V2_INVALID_AGENT_JSON');}
+  try{value=JSON.parse(s);}
+  catch(_){
+    const a=s.indexOf('{'),b=s.lastIndexOf('}');
+    if(a<0||b<=a)throw safeError('V2_INVALID_AGENT_JSON');
+    try{value=JSON.parse(s.slice(a,b+1));}
+    catch(_){throw safeError('V2_INVALID_AGENT_JSON');}
+  }
   if(!value||typeof value!=='object'||Array.isArray(value))throw safeError('V2_INVALID_AGENT_JSON');
   return value;
 }
@@ -90,12 +96,15 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[]},
     '\nSử dụng phân tích Claude để hiểu hành động và ý định nhưng không chấp nhận nghĩa thuật ngữ phỏng đoán nếu xung đột với danh sách đã được xác nhận.'+
     termPrompt+
     '\nDịch toàn bộ câu gốc, giữ tự nhiên và sắc thái. JSON duy nhất: {"translation":"...","uncertainties":[]}.';
+  const jsonSchema={type:'object',additionalProperties:false,
+    properties:{translation:{type:'string'},uncertainties:{type:'array',items:{type:'string'}}},
+    required:['translation','uncertainties']};
   const userPayload=JSON.stringify({original:sourceText,context,
     sourceLanguage:direction.source,targetLanguage:direction.target,
     analysis:frame,
     approvedTerminology:glossary.map(t=>({source:t.source,meaning:t.translation,domain:t.domain}))});
   let translated=cleanTranslation((await stage('translator','openai',()=>
-    providers.openai(translating,userPayload,{maxOutputTokens:1500}))).text);
+    providers.openai(translating,userPayload,{maxOutputTokens:1500,jsonSchema}))).text);
   let issues=[
     ...validateAppliedTerms(translated.translation,glossary).map(x=>'Thuật ngữ chưa được áp dụng: '+x),
     ...missingProtected(sourceText,translated.translation).map(x=>'Có thể thiếu mã/số liệu: '+x)
@@ -108,7 +117,7 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[]},
         providers.openai(translating+'\nCHỈ sửa các lỗi đã được đối chiếu trong danh sách.',
           JSON.stringify({original:sourceText,current:translated.translation,
             errors:issues,approvedTerminology:glossary}),
-          {maxOutputTokens:1200}))).text);
+          {maxOutputTokens:1200,jsonSchema}))).text);
     }catch(_){/* keep original, mark review below */}
     issues=[
       ...validateAppliedTerms(translated.translation,glossary).map(x=>'Thuật ngữ chưa được áp dụng: '+x),
