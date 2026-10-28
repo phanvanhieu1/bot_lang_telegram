@@ -35,13 +35,18 @@ async function signatureForOwner(owner,GlossaryModel=Glossary){
   const rows=await GlossaryModel.find({owner,status:'approved'}).select(FIELDS).lean();
   return glossarySignature(rows);
 }
-function keyForRequest({owner,text,context,signature,env=process.env}){
+function keyForRequest({owner,text,context,signature,env=process.env,
+  backTranslation=true,vocabulary=true}){
   if(!owner||typeof text!=='string'||!signature)throw Error('V2_CACHE_INVALID_KEY');
   const direction=detectDirection(text);
   const {openaiModel,claudeModel,openaiEffort,claudeEffort,claudeThinking}=getV2ModelSettings(env);
   return digest([
-    'v2-cache-3',String(owner),text.trim(),context,
+    'v2-cache-4',String(owner),text.trim(),context,
     direction.source,direction.target,ENGINE_VERSION,
+    // Chinese source always has Claude analysis; Vietnamese source requests
+    // optional Chinese learning content from GPT-4o in the SAME translation call.
+    direction.source==='vi'?Boolean(backTranslation):null,
+    direction.source==='vi'?Boolean(vocabulary):null,
     openaiModel,claudeModel,openaiEffort,claudeEffort,claudeThinking,signature
   ]);
 }
