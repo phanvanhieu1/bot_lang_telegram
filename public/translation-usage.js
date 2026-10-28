@@ -15,6 +15,11 @@
     if(x===0)return '$0';
     return '$'+x.toFixed(x<0.001?7:5).replace(/0+$/,'').replace(/\.$/,'');
   }
+  function duration(ms){
+    if(typeof ms!=='number'||!Number.isFinite(ms)||ms<0)return '—';
+    return ms>=1000?(ms/1000).toFixed(2).replace(/0+$/,'').replace(/\.$/,'')+' s'
+      :Math.round(ms)+' ms';
+  }
   function cell(tr,value){
     const td=document.createElement('td');
     td.textContent=value;
@@ -26,6 +31,7 @@
     if(hit){
       const tr=document.createElement('tr');
       cell(tr,'Từ cache (không gọi AI)');cell(tr,'0');cell(tr,'0');cell(tr,'$0');
+      cell(tr,duration(summary.elapsedMs));
       tbody.appendChild(tr);
     }else if(stages.length){
       for(const stage of stages){
@@ -35,6 +41,7 @@
         cell(tr,token(stage.inputTokens));
         cell(tr,token(stage.outputTokens));
         cell(tr,usd(stage.estimatedKnownPaidUsd));
+        cell(tr,duration(stage.ms));
         tbody.appendChild(tr);
       }
     }else{
@@ -43,6 +50,7 @@
       cell(tr,token(summary.inputTokens));
       cell(tr,token(summary.outputTokens));
       cell(tr,usd(summary.estimatedCostUsd));
+      cell(tr,duration(summary.elapsedMs));
       tbody.appendChild(tr);
     }
     const total=document.createElement('tr');
@@ -50,6 +58,7 @@
     cell(total,'Tổng');cell(total,token(summary.inputTokens));
     cell(total,token(summary.outputTokens));
     cell(total,usd(summary.estimatedCostUsd));
+    cell(total,duration(summary.elapsedMs));
     tbody.appendChild(total);
   }
   window.renderRequestUsage=(summary,engine='v1')=>{
@@ -70,7 +79,8 @@
     rows(tbody,summary,hit);
     headline.textContent=label+' · '+(hit?'CACHE HIT':'CACHE MISS')+
       ' · '+token(summary.totalTokens)+' token mới · Lượt này '+usd(summary.estimatedCostUsd)+
-      (previous?' · Lần tạo cache '+usd(previous.estimatedCostUsd):'');
+      (previous?' · Lần tạo cache '+usd(previous.estimatedCostUsd):'')+
+      (known(summary.elapsedMs)?' · '+duration(summary.elapsedMs):'');
     if(originPanel&&originRows){
       originPanel.hidden=!previous;
       if(previous)rows(originRows,previous,false);
