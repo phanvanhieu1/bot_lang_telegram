@@ -6,7 +6,8 @@ const DOMAINS=new Set(['work','it','daily','any']);
 function normalizeDomain(value) {
   return ['work','gaming_operations','gaming','operations'].includes(value)?'work':
     ['it','dev','technical'].includes(value)?'it':
-    ['daily','friend','personal','life'].includes(value)?'daily':'unknown';
+    ['daily','friend','personal','life'].includes(value)?'daily':
+    value==='mixed'?'mixed':'unknown';
 }
 function contextDomain(context, analyzed) {
   const domain=normalizeDomain(analyzed);
@@ -16,7 +17,9 @@ function contextDomain(context, analyzed) {
   if(context==='friend') return 'daily';
   if(context==='colleague'||context==='superior')
     return domain==='it'?'it':'work';
-  return domain; // "auto": do not force work or daily without evidence
+  // When Claude judges a sentence mixed, retain that diagnostic label.
+  // Only scope-independent ('any') terms apply in auto; never guess work/IT.
+  return domain; // "auto": do not force work or IT without evidence
 }
 function matchingTerm(text,term) {
   const source=String(term||'').trim();
