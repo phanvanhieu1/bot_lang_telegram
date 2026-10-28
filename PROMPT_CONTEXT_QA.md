@@ -38,3 +38,44 @@ The examples below are **human-authored expectations**, not live API results.
 
 Note: DeepL fallback is a translation endpoint without a user-supplied LLM prompt.
 Shared LLM instructions cannot force DeepL to interpret slang the same way.
+
+## Live A/B benchmark — use local project API keys
+
+The runner sends the same synthetic case to the same provider/model twice:
+1) baseline prompt from `origin/main`, 2) updated prompt from this branch.
+This bypasses MongoDB/cache and does not start or restart server/bot processes.
+
+```bash
+git fetch origin
+git switch feature/translation-context-prompts-v1
+git pull --ff-only origin feature/translation-context-prompts-v1
+npm ci
+npm test
+
+# Offline: inspect prompt sizes and verify local git refs; no API use.
+node scripts/benchmark-translation.js --mode=pro --limit=2 --dry-run
+
+# Live: first four examples, independently checked by an AI judge.
+node scripts/benchmark-translation.js --mode=pro --limit=4 --audit
+
+# Then all 16 examples after inspecting the first results.
+node scripts/benchmark-translation.js --mode=pro --audit
+
+# Separate FAST and FREE runs (Groq / OpenRouter) for coverage.
+node scripts/benchmark-translation.js --mode=pro-fast --audit
+node scripts/benchmark-translation.js --mode=free --provider=groq --audit
+node scripts/benchmark-translation.js --mode=free --provider=openrouter --audit
+```
+
+The script reads `.env` locally (`OPENAI_API_KEYS` or `OPENAI_API_KEY`,
+`GROQ_API_KEY`, `OPENROUTER_API_KEY`) but never prints credentials.
+It stores private JSON reports in `benchmarks/results/` (ignored by Git).
+The provider calls are billable; do not put private employer chats into public
+test fixtures or GitHub Issues.
+
+**Limits:** The judge also uses `gpt-4o`; its PASS/WARNING/FAIL is advisory,
+not ground truth or human review. Inspect the translated sentences and fix
+checklists before shipping. LIVE test quality cannot be established by GitHub
+CI: CI has no access to these credentials and only runs offline tests.
+DeepL fallback accepts no LLM prompt, so it is not included in prompt A/B
+comparison and must be evaluated separately.
