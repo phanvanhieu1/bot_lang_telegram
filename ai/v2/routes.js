@@ -64,6 +64,7 @@ function createV2Router({ translate = deepTranslate, env = process.env } = {}) {
         translationNotes:translated.translationNotes||[],
         appliedTerms:translated.appliedTerms||[],
         sourceLanguage:translated.sourceLanguage,
+        targetLanguage:translated.targetLanguage,
         usage:{...translated.usage,...estimate}, cached:false
       });
     }catch(error){
