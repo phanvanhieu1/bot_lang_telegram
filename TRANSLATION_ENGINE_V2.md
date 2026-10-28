@@ -26,9 +26,17 @@ unresolved glossary/numeric mismatches or **material** ambiguity that could alte
 ### Context and ambiguity
 
 - A workplace-only mapping does not apply to clear friend/daily-life context.
-- Explicit `friend` selects daily-life terms; colleague/superior fallback to
-  workplace if Claude cannot identify a better domain.
-- Claude can identify IT in a conversation between coworkers.
+- Explicit `friend` selects daily-life terms. Explicit `colleague` or
+  `superior` prioritizes work terms **even if Claude guesses daily**; Claude
+  may still identify a clearly technical IT message, which selects IT terms.
+  This is a deliberate user-context override: if you are speaking to a
+  colleague about ordinary household items, select the friend/daily context
+  instead or use auto for content-driven interpretation.
+- The resolver's effective domain is passed to OpenAI separately from Claude's
+  original domain (retained in diagnostics). Claude term guesses that conflict
+  with an approved DB entry are excluded from OpenAI's translation analysis.
+- In `auto`, Claude's domain remains a hypothesis; no work glossary is
+  forced when its analysis is daily/unknown.
 - With `auto` and no domain evidence, specialized entries are deliberately
   not forced into the sentence. For ambiguous short workplace phrases such as
   `这是刷子吗？`, select **Đồng nghiệp** if you intend the work meaning.
@@ -133,6 +141,35 @@ node scripts/smoke-translation-v2.js --mode=live --accept-paid=true --glossary=f
 If a live call fails again, report the record containing `failedStage`
 and `failedStages`. A failed analysis retry may still incur tokens from
 both Claude calls, so compare usage/cost before expanding the test.
+
+## G01 glossary precedence regression (2026-10-28)
+
+The second live G01 run had valid Claude/OpenAI JSON but **failed glossary
+matching**: Claude classified the ambiguous work sentence as `daily`
+despite the explicitly selected `colleague` context. The old resolver
+trusted Claude and skipped the approved work term `刷子`, causing OpenAI to
+produce the ordinary brush meaning. The report correctly recorded
+`termMatchOK:false` although the engine status was `PASS`.
+
+The fixed resolver gives explicit colleague/superior work context priority
+over Claude's daily guess, while retaining technical IT and friend/daily
+separation. V2 sends the resolved domain and only the DB-confirmed meaning
+to OpenAI; the original analyzer domain is still returned for transparency.
+
+Re-test the exact conflict with the fixture `G01` whose mocked Claude
+domain is deliberately `daily`, then run the two paid synthetic cases:
+
+```bash
+npm test
+node scripts/smoke-translation-v2.js --mode=mock --ids=G01,G02
+node scripts/smoke-translation-v2.js --mode=live --accept-paid=true --glossary=fixture --ids=G01,G02
+```
+
+A successful live G01 should show `analysis.domain:"daily"` if Claude
+continues to guess that, `analysis.resolvedDomain:"work"`,
+`actualTerms:["刷子"]`, and `termMatchOK:true`. The translation itself
+still needs human semantic review. These changes were made to the resolver
+and precedence policy, **not** by inserting G01 into any AI prompt.
 
 ## Integration smoke: glossary and live provider compatibility
 
