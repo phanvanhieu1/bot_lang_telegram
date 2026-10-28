@@ -5,6 +5,7 @@ const { requireAuth, requireRole } = require('../../modules/users/user.middlewar
 const { addUsage } = require('../../usage');
 const { deepTranslate, ENGINE_VERSION } = require('./engine');
 const { estimateUsage } = require('./accounting');
+const {lookupUserTerms}=require('../terminology/resolver');
 
 function createV2Router({ translate = deepTranslate, env = process.env } = {}) {
   const router = express.Router();
@@ -41,7 +42,8 @@ function createV2Router({ translate = deepTranslate, env = process.env } = {}) {
     });
     active.add(id);
     try {
-      const translated=await translate({text:text.trim(),context});
+      const translated=await translate({text:text.trim(),context,
+        loadGlossary:(source,opts)=>lookupUserTerms(req.user._id,source,opts)});
       const estimate=estimateUsage(translated.usage);
       // Keep existing user stats; estimated cost only covers known paid
       // models. Incomplete estimation is always marked for the client.
@@ -59,6 +61,7 @@ function createV2Router({ translate = deepTranslate, env = process.env } = {}) {
         translation:translated.translation,
         status:translated.status,needsReview:translated.needsReview,
         issues:translated.issues,analysis:translated.analysis,
+        appliedTerms:translated.appliedTerms||[],
         sourceLanguage:translated.sourceLanguage,
         usage:{...translated.usage,...estimate}, cached:false
       });
