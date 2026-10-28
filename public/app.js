@@ -2,6 +2,7 @@
 const textInput = document.getElementById('text');
 const targetLang = document.getElementById('targetLang');
 const translateBtn = document.getElementById('translateBtn');
+const translateV2Btn = document.getElementById('translateV2Btn');
 const translateText = document.getElementById('translateText');
 const status = document.getElementById('status');
 const languageSelector = document.getElementById('languageSelector');
@@ -113,9 +114,23 @@ const freeReset =
 
 let translatorMode = 'free';
 let currentUserRole = null;
+let v2EnabledForUser = false;
+let v2Busy = false;
+function refreshV2Button() {
+  translateV2Btn.hidden = !(v2EnabledForUser && translatorMode === 'pro' && targetLang.value === 'zh');
+}
+async function checkV2Access() {
+  try {
+    const response = await fetch('/api/translate/v2/status', { credentials:'same-origin',cache:'no-store' });
+    const data = response.ok ? await response.json() : {enabled:false};
+    v2EnabledForUser = data.enabled === true;
+  } catch (_) { v2EnabledForUser = false; }
+  refreshV2Button();
+}
 
 function setTranslatorMode(mode) {
   translatorMode = mode;
+  refreshV2Button();
 
   const isPro = mode === 'pro';
 
@@ -243,6 +258,7 @@ async function initializeUserRole() {
     );
 
     translateBtn.disabled = false;
+    void checkV2Access();
 
   } catch (error) {
     console.error('Auth error:', error);
@@ -502,6 +518,7 @@ practiceExplanation.textContent =
 // =========================
 
 async function translate() {
+  if (v2Busy) return;
   // Guards both keyboard and button submissions while a request is in flight.
   if (translateBtn.disabled) return;
 
@@ -517,6 +534,7 @@ async function translate() {
   }
 
   translateBtn.disabled = true;
+  translateV2Btn.disabled = true;
   translateBtn.classList.add('loading');
 
   status.textContent = 'Đang dịch...';
@@ -636,6 +654,7 @@ const response = await fetch(translateEndpoint, {
   } finally {
     if (requestVersion === languageRequestVersion) {
       translateBtn.disabled = false;
+      translateV2Btn.disabled = false;
       translateBtn.classList.remove('loading');
     }
   }
@@ -754,6 +773,47 @@ textInput.addEventListener('keydown', (event) => {
 // =========================
 
 translateBtn.addEventListener('click', translate);
+
+translateV2Btn.addEventListener('click', async () => {
+  if (!v2EnabledForUser || v2Busy || translateBtn.disabled || targetLang.value !== 'zh' || translatorMode !== 'pro') return;
+  const text = textInput.value.trim();
+  if (!text) { status.textContent = 'Vui lòng nhập nội dung cần dịch'; textInput.focus(); return; }
+  const version = languageRequestVersion;
+  v2Busy = true;
+  translateBtn.disabled = true;
+  translateV2Btn.disabled = true;
+  status.textContent = 'Đang phân tích và đối chiếu bản dịch chuyên sâu...';
+  status.className = 'status';
+  try {
+    const response = await fetch('/api/translate/v2', {
+      method:'POST', headers:{'Content-Type':'application/json'},credentials:'same-origin',
+      body:JSON.stringify({text,targetLang:'zh',context:contextSelect.value})
+    });
+    const data = await response.json();
+    if (version !== languageRequestVersion || textInput.value.trim() !== text) return;
+    if (!response.ok || !data.success) throw new Error(data.message || 'Dịch chuyên sâu thất bại');
+    parseResult(data.result);
+    window.renderTranslationVocabulary?.([], '', 'zh');
+    if (data.needsReview) {
+      status.textContent = '⚠ Bản dịch V2 còn điểm cần kiểm tra: ' + (data.issues || []).slice(0,2).join('; ');
+      status.className = 'status error';
+    } else {
+      status.textContent = '✓ Dịch chuyên sâu V2 hoàn thành (AI kiểm định, không bảo đảm tuyệt đối)';
+      status.className = 'status success';
+    }
+    loadUsage();
+  } catch (error) {
+    if (version === languageRequestVersion) {
+      status.textContent = error.message || 'Dịch chuyên sâu thất bại';
+      status.className = 'status error';
+    }
+  } finally {
+    v2Busy = false;
+    translateV2Btn.disabled = false;
+    translateBtn.disabled = false;
+    refreshV2Button();
+  }
+});
 
 
 // =========================
@@ -1134,6 +1194,7 @@ loadUsage();
 // Ignore late API responses from the previous language; never show stale results.
 window.addEventListener('learning-language-change', () => {
   languageRequestVersion++;
+  refreshV2Button();
   translateBtn.disabled = false;
   translateBtn.classList.remove('loading');
   status.textContent = '';
