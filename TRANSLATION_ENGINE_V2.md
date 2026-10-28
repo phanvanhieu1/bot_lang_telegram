@@ -196,6 +196,21 @@ node scripts/smoke-translation-v2.js --mode=live --accept-paid=true --glossary=f
 node scripts/smoke-translation-v2.js --mode=live --accept-paid=true --glossary=fixture --limit=8
 ```
 
+### Verified live G01/G02 (2026-10-28)
+
+Owner-provided paid API report confirms G01 and G02 both returned
+`termMatchOK:true`, `status:PASS`, and zero issues. G01 applied the
+approved work meaning of `刷子`; G02 used the everyday brush meaning.
+Latency was 11.26 seconds for G01 and 7.66 seconds for G02. These two
+specific executions are verified; the broader holdout, staging DB, and
+human semantic review remain outstanding.
+
+**G08 expectation differs between mock and paid live mode.** Mock G08
+deliberately forces OpenAI to refuse the glossary even after repair and
+expects `REVIEW` with no applied terms. Real live G08 does not inject that
+failure and **must apply `刷子`**, so it expects the approved term just
+like G01. Do not interpret a correct G08 live translation as a test failure.
+
 No mock or synthetic fixture is automatically stored in production MongoDB.
 
 **Optional staging-only read from MongoDB** (never uses `MONGODB_URI`):
