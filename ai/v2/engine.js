@@ -52,8 +52,12 @@ function cleanTranslation(raw) {
   if(typeof value.translation!=='string'||!value.translation.trim()||
     value.translation.length>9000)throw safeError('V2_INVALID_TRANSLATION');
   return {translation:value.translation.trim(),
+    // Optional natural-language notes are not themselves evidence of an error.
+    // A model must explicitly identify a MATERIAL unresolved semantic choice
+    // before that warning can affect the translation's review status.
+    semanticReviewRequired:value.semanticReviewRequired===true,
     uncertainties:Array.isArray(value.uncertainties)?
-      value.uncertainties.filter(x=>typeof x==='string').slice(0,4):[]};
+      value.uncertainties.filter(x=>typeof x==='string').slice(0,3).map(x=>x.slice(0,180)):[]};
 }
 async function deepTranslate({text,context='auto',loadGlossary=async()=>[]},
   providers=createProviders()) {
@@ -76,11 +80,15 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[]},
       throw e;
     }
   }
-  const analyzing='Bạn là chuyên gia phân tích ngữ nghĩa Trung-Việt. KHÔNG dịch. '+coreRules+
-    ' Đọc câu theo ngữ cảnh người dùng. Đầu ra JSON: {"domain":"work|it|daily|mixed|unknown","intent":"...","tone":"...","facts":["..."],"terms":[{"source":"...","meaning":"..."}],"ambiguities":["..."]}. '+
-    'Nghĩa thuật ngữ chưa có bằng chứng chỉ là giả thuyết, không coi là từ điển.';
+  const analyzing='Bạn là chuyên gia phân tích ngữ nghĩa Trung-Việt; KHÔNG dịch. '+coreRules+
+    ' Trả JSON NGẮN, không Markdown: {"domain":"work|it|daily|mixed|unknown","intent":"...","tone":"...","facts":["..."],"terms":[{"source":"...","meaning":"..."}],"ambiguities":["..."]}. '+
+    'Intent tối đa 20 từ, tone tối đa 5 từ, facts tối đa 3 ý ngắn; terms tối đa 4 cụm cần lưu ý. '+
+    'Ambiguities tối đa 2, CHỈ ghi khi có ít nhất hai cách hiểu làm đổi ý hành động/chủ thể/phủ định mà không thể chọn trung tính. '+
+    'Không liệt kê chi tiết câu gốc không nói rõ (vật được chỉ, ngày giờ, loại đồ, ý định giả định). Không suy đoán ngữ cảnh. '+
+    'Không phân tích nghĩa của thuật ngữ như đã được xác nhận; nó chỉ là giả thuyết chờ đối chiếu DB.';
+  const analysisTokenLimit=Math.min(1200,Math.max(480,Math.ceil(sourceText.length*0.65)+200));
   const analyzed=await stage('analyzer','claude',()=>providers.claude(analyzing,
-    JSON.stringify({original:sourceText,context}),{maxOutputTokens:1200}));
+    JSON.stringify({original:sourceText,context}),{maxOutputTokens:analysisTokenLimit}));
   const frame=safeFrame(parseObject(analyzed.text));
 
   // DB lookup is performed AFTER the Claude analysis, but DB's confirmed
@@ -95,10 +103,15 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[]},
   const translating='Bạn là biên dịch viên Trung–Việt. '+coreRules+
     '\nSử dụng phân tích Claude để hiểu hành động và ý định nhưng không chấp nhận nghĩa thuật ngữ phỏng đoán nếu xung đột với danh sách đã được xác nhận.'+
     termPrompt+
-    '\nDịch toàn bộ câu gốc, giữ tự nhiên và sắc thái. JSON duy nhất: {"translation":"...","uncertainties":[]}.';
+    '\nDịch toàn bộ câu gốc tự nhiên, đủ ý. Đừng đoán thông tin gốc không nói. '+
+    'uncertainties chỉ ghi nếu có sự không rõ ràng ẢNH HƯỞNG ĐẾN NGHĨA CỐT LÕI, không ghi chi tiết còn thiếu vốn bình thường. '+
+    'semanticReviewRequired=true CHỈ nếu không thể dịch đúng mà không chọn một trong nhiều ý nghĩa xung đột về chủ thể/hành động/phủ định. '+
+    'Đã có nghĩa DB được xác nhận thì không nêu mơ hồ về nghĩa của thuật ngữ đó. '+
+    'JSON duy nhất: {"translation":"...","semanticReviewRequired":false,"uncertainties":[]}.';
   const jsonSchema={type:'object',additionalProperties:false,
-    properties:{translation:{type:'string'},uncertainties:{type:'array',items:{type:'string'}}},
-    required:['translation','uncertainties']};
+    properties:{translation:{type:'string'},semanticReviewRequired:{type:'boolean'},
+      uncertainties:{type:'array',items:{type:'string'}}},
+    required:['translation','semanticReviewRequired','uncertainties']};
   const userPayload=JSON.stringify({original:sourceText,context,
     sourceLanguage:direction.source,targetLanguage:direction.target,
     analysis:frame,
@@ -124,8 +137,12 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[]},
       ...missingProtected(sourceText,translated.translation).map(x=>'Có thể thiếu mã/số liệu: '+x)
     ];
   }
-  if(frame.ambiguities.length)issues.push('Câu gốc có nhiều cách hiểu; cần đối chiếu ngữ cảnh.');
-  if(translated.uncertainties.length)issues.push(...translated.uncertainties.map(x=>String(x).slice(0,180)));
+  // Analyst hypotheses do not automatically mean the translation is wrong.
+  // Preserve them for transparency; only verified constraints or a *material*
+  // unresolved semantic choice from the translator trigger REVIEW.
+  if(translated.semanticReviewRequired) {
+    issues.push('Câu có mơ hồ quan trọng ảnh hưởng nghĩa bản dịch; cần kiểm tra thủ công.');
+  }
   return {
     engine:ENGINE_VERSION,sourceLanguage:direction.source,
     targetLanguage:direction.target,translation:translated.translation,
@@ -133,6 +150,7 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[]},
     issues:[...new Set(issues)].slice(0,8),
     appliedTerms:termHighlights(translated.translation,glossary),
     analysis:{domain:frame.domain,intent:frame.intent,ambiguities:frame.ambiguities},
+    translationNotes:translated.uncertainties,
     usage:{stages,totalInputTokens:stages.reduce((n,x)=>n+(x.usage?.input||0),0),
       totalOutputTokens:stages.reduce((n,x)=>n+(x.usage?.output||0),0),
       providers:[...used]}
