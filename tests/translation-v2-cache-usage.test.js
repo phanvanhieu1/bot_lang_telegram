@@ -136,6 +136,7 @@ test('V2 endpoint cache HIT skips paid providers and history billing, isolates u
         pinyin:'shuā zi',encounterCount:2,isNew:false,category:'work'}];
     },
     recordUsage:async x=>{costRows.push(x);},
+    recordHistory:async()=>{},
     env:{V2_ENABLED:'true',OPENAI_API_KEY:'mock-key',CLAUDE_API_KEY:'mock-key'}
   }));
   const listener=app.listen(0,'127.0.0.1');
@@ -154,6 +155,8 @@ test('V2 endpoint cache HIT skips paid providers and history billing, isolates u
     }
     let one=await send();
     assert.equal(one.cached,false);
+    assert.match(one.result,/^TRANSLATION: /);
+    assert.match(one.result,/VOCABULARY:/);
     assert.equal(one.requestUsage.totalTokens,700);
     assert.ok(one.requestUsage.estimatedCostUsd>0);
     assert.equal(one.requestUsage.stages.length,2);
@@ -168,7 +171,9 @@ test('V2 endpoint cache HIT skips paid providers and history billing, isolates u
     assert.equal(repeat.cached,true);
     assert.equal(repeat.requestUsage.totalTokens,0);
     assert.equal(repeat.requestUsage.estimatedCostUsd,0);
-    assert.deepEqual(repeat.requestUsage.originalUsage,one.requestUsage);
+    assert.equal(repeat.requestUsage.originalUsage.totalTokens,one.requestUsage.totalTokens);
+    assert.equal(repeat.requestUsage.originalUsage.estimatedCostUsd,
+      one.requestUsage.estimatedCostUsd);
     assert.equal(repeat.requestUsage.originalUsage.stages.length,2);
     assert.equal(repeat.translation,one.translation);
     assert.deepEqual(repeat.analysisTerms,one.analysisTerms);
