@@ -350,6 +350,62 @@ node scripts/benchmark-translation-v2.js --ids=C09 --domain=work
 node scripts/benchmark-translation-v2.js --ids=F01,F02,F03,F04,F05 --domain=friend
 ```
 
+### Bidirectional personal glossary and Vietnamese input (2026-10-28)
+
+**Implemented in PR #5 only, not merged or deployed.**
+
+The glossary editor now lets the authenticated owner choose **Chinese → Vietnamese**
+or **Vietnamese → Chinese**. The optional **"Áp dụng cho cả hai chiều dịch"**
+checkbox explicitly approves using the same pair in reverse. This is
+important for polysemous terms: an existing Chinese → Vietnamese record
+will **remain one-way** until the owner intentionally opts in. No
+migration silently adds a reverse approval or inserts a second record.
+
+For example, one approved work entry:
+
+- Source Chinese: `刷子`
+- Meaning Vietnamese: `đường dây bào khuyến mãi`
+- Scope: `work`
+- Reverse approval: **checked by the owner**
+
+can match `刷子` on Chinese input or `đường dây bào khuyến mãi` on
+Vietnamese input. A reversed lookup swaps the term's source and
+translation **in memory**, without writing another MongoDB document.
+Owner, approval status, exact language direction, domain and longest
+phrase priority still apply. The same user-scoped resolver is used by
+V1 and V2; matching personalized terms bypass shared translation caches.
+
+V2 already detects Chinese input versus Vietnamese input; the
+Claude analysis now receives explicit source/target languages and the
+OpenAI prompt selects **natural Vietnamese** for Chinese input or
+**simplified Chinese** for Vietnamese input. The API also returns
+`sourceLanguage` and `targetLanguage` for display or client use.
+Offline test G09 exercises the reversed approved phrase and confirms
+that switching off the opt-in prevents reverse glossary application.
+
+**Staging database read check, no AI charges:**
+
+1. On an independently verified **staging MongoDB**, use a staging
+   user account to create the work term above in the glossary editor
+   and explicitly check the bidirectional option.
+2. Configure local `V2_TEST_MONGODB_URI` and
+   `V2_TEST_USER_ID` (staging user ObjectId), then explicitly set
+   `V2_ALLOW_STAGING_DB_READ=true`. Do not reuse the production URI.
+3. Run:
+
+```bash
+npm test
+node scripts/smoke-translation-v2.js --mode=mock --ids=G01,G09
+node scripts/verify-staging-terms.js
+```
+
+The staging checker uses read-only `find` queries for G01
+(Chinese → Vietnamese) and G09 (Vietnamese → Chinese), prints term
+matches and exits nonzero unless both expected mappings are present.
+It does **not** call paid providers, write to MongoDB or import fixture
+terms. The owner must configure independent staging credentials before
+a real DB pass can be claimed.
+
 ### Known limits
 
 - An exact phrase match can produce a REVIEW even if a valid synonym is used.
