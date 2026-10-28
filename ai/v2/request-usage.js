@@ -7,7 +7,8 @@ function summarizeV2Usage(usage,estimate=estimateUsage(usage)){
     return {role:x.role,provider:x.provider,model:x.model,
       inputTokens:Number(x.usage.input)||0,outputTokens:Number(x.usage.output)||0,
       estimatedKnownPaidUsd:cost.estimatedKnownPaidUsd,
-      pricingIncomplete:cost.pricingIncomplete};
+      pricingIncomplete:cost.pricingIncomplete,
+      ms:Number.isFinite(x.ms)&&x.ms>=0?x.ms:null};
   });
   const inputTokens=Number(usage?.totalInputTokens)||0;
   const outputTokens=Number(usage?.totalOutputTokens)||0;
@@ -16,8 +17,9 @@ function summarizeV2Usage(usage,estimate=estimateUsage(usage)){
     pricingIncomplete:estimate.pricingIncomplete,
     stages};
 }
-function cachedV2Usage(originalUsage=null){
+function cachedV2Usage(originalUsage=null,elapsedMs=null){
   return {cached:true,inputTokens:0,outputTokens:0,totalTokens:0,
+    elapsedMs,
     estimatedCostUsd:0,pricingIncomplete:false,stages:[],
     // Existing entries written before this feature have no historical costs.
     originalUsage:originalUsage&&typeof originalUsage==='object'?originalUsage:null};
