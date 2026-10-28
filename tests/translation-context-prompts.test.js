@@ -51,7 +51,7 @@ test('FREE Chinese and Vietnamese prompts preserve abbreviations, game operation
   assert.match(zh, /投注\/下注/);
   assert.match(zh, /bạn bè/);
   assert.match(zh, /IT\/backend\/dev/);
-  assert.match(zh, /Không biến câu yêu cầu thành câu tường thuật/);
+  assert.match(zh, /Lời chỉ đạo phải là yêu cầu, KHÔNG thành câu kể/);
   assert.match(zh, /TRANSLATION: <bản dịch tiếng Việt>/);
   const vi = buildFreePrompt('Lúc duyệt thấy hội viên còn cược được thì báo lại một tiếng.');
   assert.match(vi, /TRANSLATION: <bản dịch tiếng Trung giản thể>/);
