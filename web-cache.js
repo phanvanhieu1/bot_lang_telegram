@@ -4,7 +4,9 @@ const mongoose = require('mongoose');
 // Website cache is shared between signed-in accounts to avoid repeating
 // identical translations. Telegram now shares this MongoDB translation cache.
 const FREE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-const CACHE_KEY_VERSION = 1;
+// Bump after prompt semantics change to avoid replaying stale V1 translations.
+// No existing cached MongoDB documents are deleted.
+const CACHE_KEY_VERSION = 2;
 
 const webTranslationCacheSchema = new mongoose.Schema({
   key: { type: String, required: true, unique: true },
