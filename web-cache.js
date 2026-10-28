@@ -51,7 +51,7 @@ function hashKey(parts) {
 function freeKey(text, lang = 'zh') {
   const normalizedText = String(text).trim().replace(/\s+/g, ' ');
   return lang === 'zh'
-    ? hashKey(['free', normalizedText]) // preserve existing Chinese cache entries
+    ? hashKey(['free', normalizedText]) // keep Chinese cache key shape within this revision
     : hashKey(['free', lang, normalizedText]);
 }
 
