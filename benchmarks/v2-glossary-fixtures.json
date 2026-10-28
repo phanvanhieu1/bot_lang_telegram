@@ -159,6 +159,7 @@
         }
       ],
       "plainTranslation": "Đây là bàn chải à?",
+      "verifiedTranslation": "Đây có phải là đường dây bào khuyến mãi không?",
       "forceWrong": true,
       "repairWrong": true,
       "expectTerms": [],
