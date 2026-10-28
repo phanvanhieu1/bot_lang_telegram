@@ -6,7 +6,7 @@ const crypto=require('node:crypto');
 const mongoose=require('mongoose');
 const Glossary=require('../terminology/model');
 const {ENGINE_VERSION,detectDirection}=require('./engine');
-const {DEFAULTS}=require('./providers');
+const {getV2ModelSettings}=require('./providers');
 
 const TTL_MS=14*24*60*60*1000;
 const schema=new mongoose.Schema({
@@ -38,11 +38,11 @@ async function signatureForOwner(owner,GlossaryModel=Glossary){
 function keyForRequest({owner,text,context,signature,env=process.env}){
   if(!owner||typeof text!=='string'||!signature)throw Error('V2_CACHE_INVALID_KEY');
   const direction=detectDirection(text);
+  const {openaiModel,claudeModel,openaiEffort,claudeEffort}=getV2ModelSettings(env);
   return digest([
-    'v2-cache-1',String(owner),text.trim(),context,
+    'v2-cache-2',String(owner),text.trim(),context,
     direction.source,direction.target,ENGINE_VERSION,
-    env.V2_OPENAI_MODEL||DEFAULTS.openai,
-    env.V2_CLAUDE_MODEL||DEFAULTS.claude,signature
+    openaiModel,claudeModel,openaiEffort,claudeEffort,signature
   ]);
 }
 async function getCached({owner,key},CacheModel=Model){
