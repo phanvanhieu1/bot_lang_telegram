@@ -149,10 +149,14 @@ test('V2 endpoint cache HIT skips paid providers and history billing, isolates u
     assert.equal(one.requestUsage.totalTokens,700);
     assert.ok(one.requestUsage.estimatedCostUsd>0);
     assert.equal(one.requestUsage.stages.length,2);
+    assert.ok(one.requestUsage.stages[0].estimatedKnownPaidUsd>0);
+    assert.ok(one.requestUsage.stages[1].estimatedKnownPaidUsd>0);
     let repeat=await send();
     assert.equal(repeat.cached,true);
     assert.equal(repeat.requestUsage.totalTokens,0);
     assert.equal(repeat.requestUsage.estimatedCostUsd,0);
+    assert.deepEqual(repeat.requestUsage.originalUsage,one.requestUsage);
+    assert.equal(repeat.requestUsage.originalUsage.stages.length,2);
     assert.equal(repeat.translation,one.translation);
     assert.equal(translations,1);
     assert.equal(costRows.length,1);
