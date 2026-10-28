@@ -97,6 +97,64 @@ Offline tests cover owner scoping, domain matching, longest phrase, metadata
 spans, cache isolation, Claude/DB conflict handling, structured output,
 OpenAI correction and clean failure on missing DB/provider.
 
+## Integration smoke: glossary and live provider compatibility
+
+The legacy `benchmark-translation-v2.js` benchmark intentionally tests
+general semantics **without user glossary data**. Do NOT use it as proof that
+MongoDB terminology overrides Claude.
+
+The dedicated smoke runner covers eight synthetic cases including an
+AI interpretation of `刷子` as `bàn chải`, an approved workplace meaning
+`đường dây bào khuyến mãi`, a normal shopping context, long-phrase
+precedence, IT context and an OpenAI translation that refuses the term.
+
+```bash
+# 1. No database, no API key, no network requests:
+node scripts/smoke-translation-v2.js --dry-run
+node scripts/smoke-translation-v2.js --mode=mock
+# Inspect the private JSON saved under benchmarks/results/
+
+# 2. Paid live provider calls, OPT-IN ONLY, using synthetic glossary records:
+# Keep your existing OPENAI_API_KEYS and CLAUDE_API_KEY in local .env
+node scripts/smoke-translation-v2.js --mode=live --accept-paid=true --glossary=fixture --ids=G01,G02
+
+# 3. Expand the live synthetic test after verifying actual costs:
+node scripts/smoke-translation-v2.js --mode=live --accept-paid=true --glossary=fixture --limit=8
+```
+
+No mock or synthetic fixture is automatically stored in production MongoDB.
+
+**Optional staging-only read from MongoDB** (never uses `MONGODB_URI`):
+Set `V2_TEST_MONGODB_URI` to an independently verified **staging** database,
+`V2_TEST_USER_ID` to an existing staging user ObjectId, and
+`V2_ALLOW_STAGING_DB_READ=true`. Pre-populate the *staging* glossary through
+the normal authenticated UI; the smoke CLI does not seed or modify data.
+
+```bash
+node scripts/smoke-translation-v2.js --mode=live --accept-paid=true --glossary=db --ids=G01
+```
+
+Do not set the staging read flag against production. A DB-smoke result may
+have zero matches until you add the exact confirmed test term to that
+staging user's glossary. Verify the `actualTerms` array in the report.
+
+The run always writes a private JSON report to ignored
+`benchmarks/results/` with the translation, status, matched terms,
+per-provider timing/tokens, and warnings. The mock result validates pipeline
+plumbing, **not** linguistic quality. Live results still need human judgment.
+Paid runs refuse to start unless both API keys are configured and
+`--accept-paid=true` is supplied. Do not paste keys into chat or GitHub.
+
+### Known limits
+
+- An exact phrase match can produce a REVIEW even if a valid synonym is used.
+- The automatic status checks term and code consistency, not full semantic
+  correctness. Human review of nuanced instructions and negation is required.
+- Provider model availability and account-level budgets are not verified until
+  the owner's environment makes live calls.
+- Never merge or deploy V2 until the synthetic paid smoke and production-like
+  staging tests pass.
+
 **Real provider calls and translation quality are not yet verified.**
 On a staging VPS with your keys, first run the limited synthetic holdout:
 
