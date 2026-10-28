@@ -1,6 +1,6 @@
 'use strict';
 // Opt-in, billable live test. Does not require website, DB or PRO sessions.
-require('dotenv').config();
+require('dotenv').config({quiet:true});
 const fs=require('node:fs');
 const path=require('node:path');
 const {deepTranslate}=require('../ai/v2/engine');
