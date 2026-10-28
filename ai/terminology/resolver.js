@@ -10,8 +10,12 @@ function normalizeDomain(value) {
 }
 function contextDomain(context, analyzed) {
   if(context==='friend') return 'daily';
-  if(context==='colleague'||context==='superior') return 'work';
-  return normalizeDomain(analyzed);
+  const domain=normalizeDomain(analyzed);
+  // Context describes the addressee, not always the topic: an IT message can
+  // be to a colleague. Trust Claude's IT/domain analysis when explicit.
+  if(domain!=='unknown')return domain;
+  if(context==='colleague'||context==='superior')return 'work';
+  return 'unknown';
 }
 function matchingTerm(text,term) {
   const source=String(term||'').trim();
