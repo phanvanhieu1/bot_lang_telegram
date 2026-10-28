@@ -77,6 +77,12 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[]},
       return r;
     }catch(e) {
       stages.push({role,provider,error:String(e.code||'V2_PROVIDER_ERROR'),ms:Date.now()-at});
+      if(e && typeof e==='object' && !e.diagnostics){
+        e.diagnostics={stage:role,attempts:1,stages:stages.map(x=>({
+          role:x.role,provider:x.provider,model:x.model,ms:x.ms,
+          usage:x.usage||{input:0,output:0}
+        }))};
+      }
       throw e;
     }
   }
@@ -151,8 +157,22 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[]},
     sourceLanguage:direction.source,targetLanguage:direction.target,
     analysis:frame,
     approvedTerminology:glossary.map(t=>({source:t.source,meaning:t.translation,domain:t.domain}))});
-  let translated=cleanTranslation((await stage('translator','openai',()=>
-    providers.openai(translating,userPayload,{maxOutputTokens:1500,jsonSchema}))).text);
+  const modelTranslation=await stage('translator','openai',()=>
+    providers.openai(translating,userPayload,{maxOutputTokens:1500,jsonSchema}));
+  let translated;
+  try{
+    if(modelTranslation.responseStatus==='incomplete')
+      throw safeError('V2_OPENAI_TRANSLATION_INCOMPLETE');
+    translated=cleanTranslation(modelTranslation.text);
+  }catch(error){
+    const failed=safeError(error?.code==='V2_OPENAI_TRANSLATION_INCOMPLETE'
+      ?'V2_OPENAI_TRANSLATION_INCOMPLETE':'V2_OPENAI_TRANSLATION_INVALID_JSON');
+    failed.diagnostics={stage:'openai_translation',attempts:1,
+      lastError:error?.code||'UNKNOWN',
+      stages:stages.map(x=>({role:x.role,provider:x.provider,model:x.model,
+        ms:x.ms,usage:x.usage||{input:0,output:0}}))};
+    throw failed;
+  }
   let issues=[
     ...validateAppliedTerms(translated.translation,glossary).map(x=>'Thuật ngữ chưa được áp dụng: '+x),
     ...missingProtected(sourceText,translated.translation).map(x=>'Có thể thiếu mã/số liệu: '+x)
