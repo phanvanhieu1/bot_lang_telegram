@@ -21,7 +21,7 @@ different meaning proposed by Claude. OpenAI receives original source text,
 Claude analysis and the selected mandatory glossary mappings, and returns a
 structured translation. Code validates required phrases and protected numeric
 or code tokens. A mismatch triggers at most ONE targeted OpenAI correction;
-any unresolved mismatch or ambiguity is displayed as `REVIEW`.
+unresolved glossary/numeric mismatches or **material** ambiguity that could alter the core meaning are displayed as `REVIEW`. Ordinary omitted details (such as the exact type of an object) remain advisory notes.
 
 ### Context and ambiguity
 
@@ -140,8 +140,11 @@ staging user's glossary. Verify the `actualTerms` array in the report.
 
 The run always writes a private JSON report to ignored
 `benchmarks/results/` with the translation, status, matched terms,
-per-provider timing/tokens, and warnings. The mock result validates pipeline
-plumbing, **not** linguistic quality. Live results still need human judgment.
+per-provider timing/tokens, and warnings. The mock result validates pipeline plumbing, **not** linguistic quality.
+In live runs, `plumbingOK` is deliberately null rather than an automatic PASS.
+`termMatchOK` evaluates expected glossary phrases only; the summary reports
+`liveTermMatches` and `semanticQualityReviewed:false`. Actual translations
+still require human judgment.
 Paid runs refuse to start unless both API keys are configured and
 `--accept-paid=true` is supplied. Do not paste keys into chat or GitHub.
 
