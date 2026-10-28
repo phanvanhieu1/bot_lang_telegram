@@ -38,11 +38,11 @@ async function signatureForOwner(owner,GlossaryModel=Glossary){
 function keyForRequest({owner,text,context,signature,env=process.env}){
   if(!owner||typeof text!=='string'||!signature)throw Error('V2_CACHE_INVALID_KEY');
   const direction=detectDirection(text);
-  const {openaiModel,claudeModel,openaiEffort,claudeEffort}=getV2ModelSettings(env);
+  const {openaiModel,claudeModel,openaiEffort,claudeEffort,claudeThinking}=getV2ModelSettings(env);
   return digest([
-    'v2-cache-2',String(owner),text.trim(),context,
+    'v2-cache-3',String(owner),text.trim(),context,
     direction.source,direction.target,ENGINE_VERSION,
-    openaiModel,claudeModel,openaiEffort,claudeEffort,signature
+    openaiModel,claudeModel,openaiEffort,claudeEffort,claudeThinking,signature
   ]);
 }
 async function getCached({owner,key},CacheModel=Model){
