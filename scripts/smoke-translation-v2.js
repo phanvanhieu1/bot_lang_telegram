@@ -17,7 +17,7 @@ function option(args,name,fallback) {
 function select(args) {
   const ids=option(args,'ids','').split(',').filter(Boolean);
   if(ids.some(id=>!cases.some(c=>c.id===id)))throw Error('UNKNOWN_GLOSSARY_CASE');
-  const count=Number(option(args,'limit','8'));
+  const count=Number(option(args,'limit',String(cases.length)));
   if(!Number.isInteger(count)||count<1||count>cases.length)throw Error('INVALID_LIMIT');
   return cases.filter(c=>!ids.length||ids.includes(c.id)).slice(0,count);
 }
