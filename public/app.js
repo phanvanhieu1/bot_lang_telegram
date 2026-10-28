@@ -552,6 +552,7 @@ async function translate() {
   window.displayAppliedTerms?.([]);
   window.displayTermWarning?.([]);
   window.renderRequestUsage?.(null);
+  window.renderV2ClaudeTerms?.([]);
   pronunciation.textContent = '';
 vocabulary.textContent = '';
   window.renderTranslationVocabulary?.([], '', selectedLang);
@@ -798,10 +799,13 @@ translateV2Btn.addEventListener('click', async () => {
   window.displayAppliedTerms?.([]);
   window.displayTermWarning?.([]);
   window.renderRequestUsage?.(null);
+  window.renderV2ClaudeTerms?.([]);
+  window.renderTranslationVocabulary?.([], '', 'zh');
   try {
     const response = await fetch('/api/translate/v2', {
       method:'POST', headers:{'Content-Type':'application/json'},credentials:'same-origin',
-      body:JSON.stringify({text,targetLang:'zh',context:contextSelect.value})
+      body:JSON.stringify({text,targetLang:'zh',context:contextSelect.value,
+        vocabulary:vocabularyToggle.checked})
     });
     const data = await response.json();
     if (version !== languageRequestVersion || textInput.value.trim() !== text) return;
@@ -817,7 +821,13 @@ translateV2Btn.addEventListener('click', async () => {
     window.displayAppliedTerms?.(data.appliedTerms || []);
     window.renderRequestUsage?.(data.requestUsage||null,'v2');
     window.displayTermWarning?.((data.issues||[]).filter(x=>x.includes('Thuật ngữ')));
-    window.renderTranslationVocabulary?.([], '', 'zh');
+    const cards=vocabularyToggle.checked&&Array.isArray(data.vocabularyItems)
+      ? data.vocabularyItems:[];
+    window.renderTranslationVocabulary?.(
+      cards,vocabularyToggle.checked?(data.vocabularyError||''):'','zh');
+    window.renderV2ClaudeTerms?.(
+      vocabularyToggle.checked?(data.analysisTerms||[]):[],
+      data.sourceLanguage||'zh',cards.length>0);
     const direction = data.sourceLanguage === 'vi' && data.targetLanguage === 'zh'
       ? 'Việt → Trung' : data.sourceLanguage === 'zh' && data.targetLanguage === 'vi'
         ? 'Trung → Việt' : 'Trung ↔ Việt';
@@ -1231,6 +1241,7 @@ window.addEventListener('learning-language-change', () => {
   window.displayTermWarning?.([]);
   window.displayAppliedTerms?.([]);
   window.renderRequestUsage?.(null);
+  window.renderV2ClaudeTerms?.([]);
   translation.innerHTML = '<div class="translation-placeholder"><span class="translation-placeholder-icon">文</span><p>Bản dịch sẽ xuất hiện tại đây</p></div>';
   copyBtn.hidden = true;
   document.getElementById('outputSpeakBtn').hidden = true;
