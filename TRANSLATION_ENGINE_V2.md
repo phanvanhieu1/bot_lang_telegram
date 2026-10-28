@@ -574,3 +574,51 @@ The interface still reports cache HIT/MISS, per-stage token usage,
 estimated costs, and measured elapsed time. For comparison, translate a
 new sentence or one that is a cache MISS and compare the two models'
 reported token counts; no paid benchmark is run by the project CI.
+
+## V2 Claude vocabulary in translation details (2026-10-29)
+
+V2 engine `v2.2.0` now exposes `analysisTerms`, derived from the *existing*
+Claude semantic analysis response (up to 8 grounded, deduplicated terms).
+It also returns `vocabularyItems` and `vocabularyError` matching V1's
+web vocabulary card contract. No extra Claude, OpenAI or FREE-provider
+request is required to produce or persist the vocabulary.
+
+For **Chinese → Vietnamese**, when the existing `Từ vựng` switch is ON,
+source-grounded Chinese terms are passed to the **same MongoDB study
+resolver V1 uses**, with existing Pinyin, saved user-corrected meaning,
+frequency, manual edits, and deduplication. Confirmed personal terminology
+takes precedence over unconfirmed model guesses. Names, numbers, URLs and
+terms not found in the source are rejected by the existing V1 parser.
+
+For **Vietnamese → Chinese**, Claude's extracted *Vietnamese* source
+expressions can be shown as **unpersisted suggestions** in the same
+translation details section. They are intentionally NOT written into the
+Chinese vocabulary database or represented as Chinese words. This
+direction can be expanded later if a validated Chinese-target extraction
+source is added.
+
+The existing `Từ vựng` checkbox also controls V2 collection. OFF means
+no vocabulary cards, no study DB write/counter increment, but translation
+and terminology matching continue. A failed vocabulary DB write does not
+invalidate a successful translation. V2 cache entries store `analysisTerms`
+and can regenerate current Mongo-backed vocabulary details on cache HIT
+without any new AI calls. Cache key version follows engine `v2.2.0`, so
+older V2 results without Claude term details cannot mask the new display.
+
+The translation details panel additionally exposes the already-returned
+Claude intent, resolved domain and up to three relevant ambiguity notes,
+always identified as analysis rather than a fully verified semantic audit.
+
+Suggested manual browser checks:
+1. Enable `Từ vựng`, translate a new Chinese sentence with meaningful
+   words, confirm the three familiar V1 groups show MongoDB entries,
+   Pinyin and actual encounter counts, plus the V2 context.
+2. Repeat the sentence to get a V2 cache HIT; the details remain visible
+   with no new model token charge.
+3. Turn `Từ vựng` OFF, translate another new sentence, and confirm no
+   study collection occurs. Turn it back ON, translate again and ensure
+   the matching vocabulary cards appear without invalidating V2 cache.
+4. Translate a Vietnamese sentence and confirm Claude's Vietnamese terms
+   are labeled as *suggestions, not saved Chinese vocabulary*.
+5. Test V1 PRO and V1 FREE buttons: they must not retain stale Claude
+   terms, and the old vocabulary engine must remain unchanged.
