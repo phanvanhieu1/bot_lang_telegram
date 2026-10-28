@@ -563,7 +563,8 @@ vocabulary.textContent = '';
   translatorMode === 'free'
     ? {
         text,
-        targetLang: selectedLang
+        targetLang: selectedLang,
+        context: contextSelect.value
       }
     : {
         text,
