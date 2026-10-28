@@ -7,6 +7,16 @@ const {deepTranslate}=require('../ai/v2/engine');
 const fixture=require('../benchmarks/v2-holdout.json');
 
 const args=process.argv.slice(2);
+// The holdout's domain is a human-defined category, not a model output.
+// Mixed work/IT cases are valid; a work/IT sentence classified as daily
+// needs human review even when the wording passes model-side checks.
+function domainReviewSuggested(fixtureDomain,resolvedDomain) {
+  if(fixtureDomain==='work'||fixtureDomain==='it')
+    return resolvedDomain==='daily'||resolvedDomain==='unknown';
+  if(fixtureDomain==='friend')return resolvedDomain!=='daily';
+  return false;
+}
+
 function flag(name,defaultValue) {
   const value=args.find(x=>x.startsWith('--'+name+'='));
   return value?value.slice(name.length+3):defaultValue;
@@ -44,7 +54,9 @@ async function main(){
         const result=await deepTranslate({text:c.source,context:c.domain==='friend'?'friend':'auto'});
         reports.push({id:c.id,domain:c.domain,source:c.source,checks:c.checks,trial,
           translation:result.translation,status:result.status,
-          issues:result.issues,analysis:result.analysis,usage:result.usage,
+          issues:result.issues,analysis:result.analysis,
+          domainReviewSuggested:domainReviewSuggested(c.domain,result.analysis?.resolvedDomain),
+          usage:result.usage,
           latencyMs:Date.now()-start});
         console.log(c.id,'trial='+trial,result.status,'translation='+result.translation);
       }catch(error){
@@ -61,6 +73,8 @@ async function main(){
   console.log(JSON.stringify({file,records:reports.length,
     pass:reports.filter(x=>x.status==='PASS').length,
     needsReview:reports.filter(x=>x.status==='REVIEW').length,
+    domainReviewCount:reports.filter(x=>x.domainReviewSuggested).length,
     errors:reports.filter(x=>x.errorCode).length},null,2));
 }
 if(require.main===module)main().catch(e=>{console.error('Benchmark:',String(e?.code||e.message||e).slice(0,100));process.exitCode=1;});
+module.exports={domainReviewSuggested};
