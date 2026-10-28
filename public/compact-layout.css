@@ -361,3 +361,7 @@ html[data-theme] #openPracticeBtn svg{
 .term-warning{font-size:12px;color:#b45309;margin:6px 0}
 .term-vocab-add{font-size:11px;border:1px solid #93c5fd;background:transparent;color:#2563eb;border-radius:7px;padding:4px 7px;cursor:pointer}
 @media(max-width:580px){.term-editor form{grid-template-columns:1fr}.term-list-item{flex-wrap:wrap}}
+
+/* Explicit approval required before applying a personal term in reverse. */
+.term-editor .term-two-way{grid-column:1/-1;display:flex;gap:8px;align-items:flex-start;line-height:1.45;cursor:pointer}
+.term-editor .term-two-way input[type="checkbox"]{width:auto;min-width:16px;height:16px;flex:none;margin:1px 0 0;accent-color:#2563eb}
