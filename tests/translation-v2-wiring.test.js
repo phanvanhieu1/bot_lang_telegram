@@ -101,6 +101,24 @@ test('Glossary editor exposes both source directions and explicit reversal appro
   assert.match(model,/bidirectional:\{type:Boolean,default:false\}/);
 });
 
+test('Staging DB verification requires explicit read-only config and never accepts the production URI',()=>{
+  const {requireStagingConfig}=require('../scripts/verify-staging-terms');
+  const good={V2_ALLOW_STAGING_DB_READ:'true',
+    V2_TEST_MONGODB_URI:'mongodb://localhost:27017/test-translation',
+    MONGODB_URI:'mongodb://localhost:27017/prod-translation',
+    V2_TEST_USER_ID:'684000000000000000000001'};
+  assert.deepEqual(requireStagingConfig(good),{
+    uri:good.V2_TEST_MONGODB_URI,user:good.V2_TEST_USER_ID
+  });
+  assert.throws(()=>requireStagingConfig({...good,V2_ALLOW_STAGING_DB_READ:'false'}),
+    /STAGING_DB_CONFIG_REQUIRED/);
+  assert.throws(()=>requireStagingConfig({...good,
+    V2_TEST_MONGODB_URI:good.MONGODB_URI}),/STAGING_URI_MATCHES_PRODUCTION/);
+  assert.throws(()=>requireStagingConfig({...good,
+    V2_TEST_USER_ID:'invalid'}),/STAGING_DB_CONFIG_REQUIRED/);
+  assert.match(read('scripts/verify-staging-terms.js'),/autoCreate:false/);
+});
+
 test('Private results are ignored by git',()=>{
   assert.match(read('.gitignore'),/benchmarks\/results\//);
 });
