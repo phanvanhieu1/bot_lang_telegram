@@ -365,3 +365,8 @@ html[data-theme] #openPracticeBtn svg{
 /* Explicit approval required before applying a personal term in reverse. */
 .term-editor .term-two-way{grid-column:1/-1;display:flex;gap:8px;align-items:flex-start;line-height:1.45;cursor:pointer}
 .term-editor .term-two-way input[type="checkbox"]{width:auto;min-width:16px;height:16px;flex:none;margin:1px 0 0;accent-color:#2563eb}
+
+/* Clear, compact display of the user's confirmed terms actually applied. */
+#termAppliedSummary[hidden]{display:none!important}
+.term-applied-summary{font-size:12px;line-height:1.5;color:var(--ui-muted,#526174);
+  margin:4px 0;overflow-wrap:anywhere}
