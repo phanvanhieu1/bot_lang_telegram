@@ -61,6 +61,7 @@ function createV2Router({ translate = deepTranslate, env = process.env } = {}) {
         translation:translated.translation,
         status:translated.status,needsReview:translated.needsReview,
         issues:translated.issues,analysis:translated.analysis,
+        translationNotes:translated.translationNotes||[],
         appliedTerms:translated.appliedTerms||[],
         sourceLanguage:translated.sourceLanguage,
         usage:{...translated.usage,...estimate}, cached:false
