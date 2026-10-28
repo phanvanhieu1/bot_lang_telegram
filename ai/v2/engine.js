@@ -112,7 +112,8 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[]},
   // the analysis ONCE with a larger budget, never the whole translation.
   const analysisTokenLimit=Math.min(1300,Math.max(800,Math.ceil(sourceText.length*0.9)+300));
   const analysisRetryLimit=Math.min(2200,Math.max(1600,analysisTokenLimit*2));
-  const analyzerInput=JSON.stringify({original:sourceText,context});
+  const analyzerInput=JSON.stringify({original:sourceText,context,
+    sourceLanguage:direction.source,targetLanguage:direction.target});
   const isMalformed=(e)=>['V2_INVALID_AGENT_JSON','V2_INVALID_ANALYSIS','V2_CLAUDE_TRUNCATED'].includes(e?.code);
   async function analyze(role,limit,retry=false){
     const result=await stage(role,'claude',()=>providers.claude(
@@ -165,11 +166,14 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[]},
     terms:frame.terms.filter(t=>!authoritativeSources.has(t.source.trim().toLowerCase()))
   };
   const termPrompt=glossaryInstructions(glossary);
-  const translating='Bạn là biên dịch viên Trung–Việt. '+coreRules+
+  const outputRules=direction.target==='zh'
+    ?'Dịch sang tiếng Trung giản thể tự nhiên, đúng ngữ pháp và sắc thái. Không viết phần dịch bằng tiếng Việt; giữ nguyên thuật ngữ tiếng Trung đã xác nhận. '
+    :'Dịch sang tiếng Việt tự nhiên, đúng ngữ pháp và sắc thái. Diễn đạt tiếng Việt mạch lạc: tránh xếp chồng phó từ chỉ thời và thể gây gượng; khi một việc đã bắt đầu và vẫn tiếp diễn, giữ đúng cả hai ý bằng cấu trúc tự nhiên. ';
+  const translating='Bạn là biên dịch viên tiếng Trung và tiếng Việt. '+coreRules+
     '\nSử dụng phân tích Claude để hiểu hành động và ý định nhưng không chấp nhận nghĩa thuật ngữ phỏng đoán nếu xung đột với danh sách đã được xác nhận.'+
     termPrompt+
     '\nDịch toàn bộ câu gốc tự nhiên, đủ ý. Đừng đoán thông tin gốc không nói. '+
-    'Diễn đạt tiếng Việt mạch lạc: tránh xếp chồng phó từ chỉ thời và thể gây gượng; khi một việc đã bắt đầu và vẫn tiếp diễn, giữ đúng cả hai ý bằng cấu trúc tự nhiên. '+
+    outputRules+
     'uncertainties chỉ ghi nếu có sự không rõ ràng ẢNH HƯỞNG ĐẾN NGHĨA CỐT LÕI, không ghi chi tiết còn thiếu vốn bình thường. '+
     'semanticReviewRequired=true CHỈ nếu không thể dịch đúng mà không chọn một trong nhiều ý nghĩa xung đột về chủ thể/hành động/phủ định. '+
     'Đã có nghĩa DB được xác nhận thì không nêu mơ hồ về nghĩa của thuật ngữ đó. '+
