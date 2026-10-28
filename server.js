@@ -25,6 +25,7 @@ const connectDatabase = require('./config/database');
 const userRoutes = require('./modules/users/user.routes');
 const apiMonitoringRoutes = require('./api-monitoring/router');
 const telegramLinkRoutes = require('./telegram-sync/routes');
+const { createV2Router } = require('./ai/v2/routes');
 const { startQuotaPolling } = require('./api-monitoring/quotas');
 const { addUsage, getUsageStats } = require('./usage');
 const {
@@ -185,6 +186,8 @@ app.use('/api/vocabulary', vocabularyRoutes);
 app.use('/api/admin/users', userRoutes);
 app.use('/api/monitoring', apiMonitoringRoutes);
 app.use('/api/telegram', telegramLinkRoutes);
+// V2 is separately gated and disabled by default. The legacy /api/translate remains unchanged.
+app.use('/api/translate/v2', createV2Router());
 app.use('/auth', googleAuthRoutes);
 
 app.post('/api/logout', (req, res) => {
