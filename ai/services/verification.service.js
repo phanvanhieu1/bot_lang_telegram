@@ -1,6 +1,7 @@
 const {
   getRandomOpenAIClient
 } = require('../providers/openai.provider');
+const { DOMAIN_CONTEXT_RULES, audienceGuidance } = require('../prompts/context.rules');
 
 async function verifyTranslation(
   original,
@@ -32,6 +33,9 @@ ${translation}
 
 NGỮ CẢNH GIAO TIẾP:
 ${contextName}
+${audienceGuidance(context)}
+
+${DOMAIN_CONTEXT_RULES}
 
 Hãy kiểm tra nghiêm ngặt xem BẢN DỊCH có giữ nguyên ý nghĩa của NGUYÊN VĂN hay không.
 
@@ -44,6 +48,9 @@ Hãy kiểm tra nghiêm ngặt xem BẢN DỊCH có giữ nguyên ý nghĩa củ
 - Thời gian, ngày tháng, con số, số lượng có đúng không.
 - Mức độ chắc chắn có bị thay đổi không.
 - Yêu cầu, mệnh lệnh, đề nghị hoặc câu hỏi có bị làm mạnh hơn hoặc nhẹ đi không.
+- Có bỏ sót mệnh đề điều kiện hoặc động từ yêu cầu cuối câu Trung (ví dụ 说下, 反馈, 处理下) không.
+- Có hiểu nhầm thuật ngữ vận hành game, giao dịch, quay thưởng, hoặc IT thành nghĩa đời thường (và ngược lại) khi ngữ cảnh đã rõ không.
+- Không kết luận thiếu nội dung nếu nguyên văn vốn lược bỏ chủ thể hoặc mơ hồ; chỉ chấm theo thông tin hiện có.
 - Cách xưng hô và mức độ lịch sự có phù hợp với ngữ cảnh giao tiếp không.
 
 Không đánh dấu lỗi chỉ vì:
