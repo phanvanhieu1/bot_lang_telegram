@@ -26,6 +26,58 @@ function providerSample({domain,intent,ambiguities,translation,translationNotes=
     }
   };
 }
+// Replay of owner-supplied G03-G08 paid-provider outputs, without billable calls.
+// These fixtures test term priority and semantic guardrails, not new model quality.
+const liveFixtureCases=require('../benchmarks/v2-glossary-fixtures.json').cases;
+const liveSnapshots=[
+  {id:'G03',domain:'work',expectedTerms:['刷子'],
+    translation:'Mấy hội viên này có phải là đường dây bào khuyến mãi không? Đối chiếu bản ghi hoạt động trước đã.'},
+  {id:'G04',domain:'daily',expectedTerms:[],
+    translation:'Đây có phải là bàn chải không?'},
+  {id:'G05',domain:'it',expectedTerms:[],
+    translation:'API trả về 403, không phải 401.'},
+  {id:'G06',domain:'work',expectedTerms:['这笔出款'],
+    translation:'Tạm thời đừng xử lý khoản chi tiền này.'},
+  {id:'G07',domain:'it',expectedTerms:['刷子'],
+    translation:'Gửi cho tôi log của module Brush.'},
+  {id:'G08',domain:'work',expectedTerms:['刷子'],
+    translation:'Đây có phải là đường dây bào khuyến mãi không?'}
+];
+test('G03-G08 paid responses replay with matching context and terminology',async()=>{
+  for(const snapshot of liveSnapshots){
+    const c=liveFixtureCases.find(x=>x.id===snapshot.id);
+    assert.ok(c,snapshot.id);
+    const approvals=c.dictionary.map((t,index)=>({
+      ...t,_id:String(index+1).padStart(24,'0'),
+      status:'approved',sourceLang:'zh',targetLang:'vi',priority:100,version:1
+    }));
+    const calls=[];
+    const providers={
+      claude:async()=>{
+        calls.push('claude');
+        return {text:JSON.stringify({domain:snapshot.domain,
+          intent:'Replay bản phân tích đã kiểm tra',tone:'neutral',
+          facts:[],terms:[],ambiguities:[]}),
+          model:'claude-replay',usage:{input:1,output:1}};
+      },
+      openai:async()=>{
+        calls.push('openai');
+        return {text:JSON.stringify({translation:snapshot.translation,
+          semanticReviewRequired:false,uncertainties:[]}),
+          model:'openai-replay',usage:{input:1,output:1}};
+      }
+    };
+    const result=await deepTranslate({text:c.source,context:c.context,
+      loadGlossary:(source,opts)=>Promise.resolve(resolveTerms(source,approvals,opts))
+    },providers);
+    assert.equal(result.status,'PASS',snapshot.id+': '+JSON.stringify(result.issues));
+    assert.deepEqual(result.issues,[],snapshot.id);
+    assert.equal(result.analysis.resolvedDomain,snapshot.domain,snapshot.id);
+    assert.deepEqual(result.appliedTerms.map(t=>t.source),snapshot.expectedTerms,snapshot.id);
+    assert.deepEqual(calls,['claude','openai'],snapshot.id);
+  }
+});
+
 test('G01 paid output: dictionary resolves terminology even if Claude lists harmless ambiguities',async()=>{
   const providers=providerSample({
     domain:'work',
