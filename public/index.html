@@ -265,9 +265,11 @@
 <span class="spinner" id="loadingSpinner"></span>
 </button>
 <button id="translateV2Btn" class="translate-v2-button" type="button" hidden
-  title="Dịch chuyên sâu bằng nhiều AI; chỉ chạy khi bạn bấm"
-  aria-label="Dịch chuyên sâu V2 bằng nhiều AI">Dịch chuyên sâu V2</button>
-</div><div class="translator-mode-switch hidden">
+  title="Dịch V2 bằng Claude và OpenAI; chỉ chạy khi bạn bấm"
+  aria-label="Dịch V2">Dịch V2</button>
+</div>
+<p id="translationCostSnapshot" class="translation-cost-snapshot" role="status" aria-live="polite" hidden></p>
+<div class="translator-mode-switch hidden">
 <button class="mode-btn" id="freeModeBtn" type="button">
     FREE
   </button>
@@ -313,6 +315,11 @@
   <table><thead><tr><th scope="col">Nhà cung cấp / Model</th><th scope="col">Input</th><th scope="col">Output</th><th scope="col">USD ước tính</th></tr></thead>
     <tbody id="requestUsageRows"></tbody></table>
   <p id="requestUsageNote" class="request-usage-note"></p>
+  <section id="cacheOriginPanel" class="cache-origin-panel" hidden aria-label="Chi phí lần tạo cache">
+    <strong>Chi phí lần đầu tạo cache (lịch sử)</strong>
+    <table><thead><tr><th scope="col">Nhà cung cấp / Model</th><th scope="col">Input</th><th scope="col">Output</th><th scope="col">USD ước tính</th></tr></thead>
+      <tbody id="cacheOriginRows"></tbody></table>
+  </section>
 </section>
 <div class="details-content">
 <div class="translation-extras">
