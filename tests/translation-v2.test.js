@@ -175,3 +175,49 @@ test('Input and provider schema failures are bounded',async()=>{
   assert.equal(outputText({output_text:' Xin chào '}),'Xin chào');
   assert.deepEqual(Object.keys(createProviders({})).sort(),['claude','deepl','groq','openai','openrouter']);
 });
+
+test('Vietnamese to Chinese uses reversed approved term and Chinese-only translator instructions',async()=>{
+  const input='Đây có phải là đường dây bào khuyến mãi không?';
+  const calls=[];
+  const providers={
+    claude:async(_system,payload)=>{
+      calls.push({role:'claude',payload:JSON.parse(payload)});
+      return {text:JSON.stringify({domain:'work',
+        intent:'Hỏi xác nhận một nhóm',tone:'neutral',
+        facts:[],terms:[],ambiguities:[]}),model:'claude-test',
+        usage:{input:1,output:1}};
+    },
+    openai:async(system,payload)=>{
+      calls.push({role:'openai',system,payload:JSON.parse(payload)});
+      return {text:JSON.stringify({translation:'这是刷子吗？',
+        semanticReviewRequired:false,uncertainties:[]}),model:'openai-test',
+        usage:{input:1,output:1}};
+    }
+  };
+  const approved=term({bidirectional:true});
+  const result=await deepTranslate({text:input,context:'colleague',
+    loadGlossary:async(source,opts)=>resolveTerms(source,[approved],opts)
+  },providers);
+  assert.equal(result.sourceLanguage,'vi');
+  assert.equal(result.targetLanguage,'zh');
+  assert.equal(result.status,'PASS');
+  assert.equal(result.translation,'这是刷子吗？');
+  assert.deepEqual(result.appliedTerms.map(t=>t.source),['đường dây bào khuyến mãi']);
+  assert.equal(calls[0].payload.sourceLanguage,'vi');
+  assert.equal(calls[0].payload.targetLanguage,'zh');
+  assert.equal(calls[1].payload.sourceLanguage,'vi');
+  assert.deepEqual(calls[1].payload.approvedTerminology.map(x=>x.meaning),['刷子']);
+  assert.match(calls[1].system,/Dịch sang tiếng Trung giản thể/);
+  assert.doesNotMatch(calls[1].system,/Diễn đạt tiếng Việt mạch lạc/);
+});
+test('Vietnamese input without two-way approval does not inherit unapproved reverse meaning',async()=>{
+  const m=mocked({translation:'这是一个团体吗？'});
+  const result=await deepTranslate({
+    text:'Đây có phải là đường dây bào khuyến mãi không?',
+    context:'colleague',
+    loadGlossary:async(source,opts)=>resolveTerms(source,[term()],opts)
+  },m.providers);
+  assert.equal(result.status,'PASS');
+  assert.deepEqual(result.appliedTerms,[]);
+  assert.equal(JSON.parse(m.calls[1].input).approvedTerminology.length,0);
+});
