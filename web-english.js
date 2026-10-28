@@ -219,4 +219,4 @@ async function evaluateEnglish(text) {
   return { content: response.choices[0].message.content.trim(), usage: response.usage };
 }
 
-module.exports = { translateEnglishFree, translateEnglishPro, evaluateEnglish };
+module.exports = { translateEnglishFree, translateEnglishPro, evaluateEnglish, buildEnglishPrompt: prompt };
