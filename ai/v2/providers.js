@@ -57,14 +57,18 @@ function createProviders(env = process.env) {
 
   async function openai(system, user, meta={}) {
     if (!openaiKey) throw safeError('V2_MISSING_OPENAI_KEY');
-    const data = await postJson('https://api.openai.com/v1/responses', {
-      authorization: 'Bearer ' + openaiKey
-    }, {
+    const body = {
       model: openaiModel, instructions: system,
       input: [{role:'user',content:[{type:'input_text',text:user}]}],
-      max_output_tokens: meta.maxOutputTokens || 2400,
-      reasoning: { effort: 'medium' }
-    }, 90000);
+      max_output_tokens: meta.maxOutputTokens || 2400
+    };
+    // GPT-4o/4.1 do not accept a reasoning.effort override.
+    if (/^(gpt-[56]|o[1-9])/.test(openaiModel)) {
+      body.reasoning = { effort: 'medium' };
+    }
+    const data = await postJson('https://api.openai.com/v1/responses', {
+      authorization: 'Bearer ' + openaiKey
+    }, body, 90000);
     const text = outputText(data);
     if (!text) throw safeError('V2_OPENAI_EMPTY');
     return {
