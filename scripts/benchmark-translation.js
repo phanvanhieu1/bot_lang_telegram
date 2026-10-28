@@ -47,7 +47,8 @@ function promptFor(variant, mode, item, old) {
   if (mode === 'free') return free(item.source);
   return pro(item.source, 'zh', mode === 'pro-fast', {
     context: item.context || 'auto',
-    backTranslation: true,
+    // Match /api/translate: Chinese -> Vietnamese does NOT request reverse text.
+    backTranslation: !/[\u3400-\u9FFF]/u.test(item.source) && mode !== 'pro-fast',
     vocabulary: mode !== 'pro-fast'
   });
 }
@@ -241,4 +242,4 @@ async function main() {
 if (require.main === module) {
   main().catch(error=>{console.error('Benchmark failed:',String(error?.code||error?.message||error).slice(0,120));process.exitCode=1;});
 }
-module.exports={translationFrom,requestSpec,chosenModel,evaluateVariant};
+module.exports={translationFrom,requestSpec,chosenModel,evaluateVariant,audit,promptFor};
