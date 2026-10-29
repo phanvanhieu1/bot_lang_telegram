@@ -657,7 +657,7 @@ app.post(
         if (text.length > 2000) {
           return res.status(400).json({ success: false, message: 'Nội dung quá dài' });
         }
-        const en = await translateEnglishFree(text.trim());
+        const en = await translateEnglishFree(text.trim(),{context:freeContext});
         await addHistory({
           userId: req.user._id,
           text: text.trim(),
