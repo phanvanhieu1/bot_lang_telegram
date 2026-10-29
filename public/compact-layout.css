@@ -481,3 +481,6 @@ html[data-theme] #saveTranslationBtn:disabled{opacity:.5;cursor:wait}
 .history-item.saved-history-item{position:relative;padding-right:38px}
 .history-item .saved-history-marker{position:absolute;right:12px;top:50%;
   transform:translateY(-50%);color:#eab308;font-size:20px;line-height:1}
+
+/* Keep the history-only destructive action out of Saved view. */
+.clear-history-btn[hidden]{display:none!important}
