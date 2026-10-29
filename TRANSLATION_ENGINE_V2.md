@@ -872,3 +872,44 @@ vocabulary encounter increases. Confirm history list JSON never contains
 raw prompts; manually request another user's history item ID and expect
 404. Check old history entries show available original fields without
 invented usage figures. Verify browser reload still allows playback.
+
+## V1: approved terminology detection in AUTO (2026-10-30)
+
+V1 Chinese FREE/PRO uses the SAME owner-scoped, approved-only, direction-aware
+MongoDB matcher as V2: `lookupUserTerms` / `resolveTerms`.
+It now opts in via `v1AutoCandidates:true` **only for the V1 pipeline**.
+The existing V2 strict behavior and its Claude-resolved `domain` are unchanged.
+
+When the user explicitly selects **Đồng nghiệp**, **Cấp trên**, or **Bạn bè**,
+the matcher continues to apply only domain-eligible mandatory terminology.
+When the user selects **Tự động**, V1 now detects exact source spans of approved
+terms across domains *without an extra AI analyzer* and includes them in
+GPT/Groq/OpenRouter prompts as **conditional terminology hints** with the
+approved meanings and individual domains. GPT chooses the appropriate
+meaning in the **same translation request** based on the original sentence.
+For example `澎湃 → PP (work)` is offered for
+`澎湃那边的订单有没有暂停`, so V1 GPT can output
+"Đơn hàng bên PP có bị tạm dừng không?" instead of "Pengpai".
+
+A conditional AUTO hint is not a mandatory translation for sentences such
+as `情绪澎湃` where literal "dâng trào" is correct. In AUTO, multiple
+approved meanings of the **same source span** may be passed to GPT for
+contextual selection; universally applicable `domain:any` meanings take
+precedence over domain-specific hints. Conditional hints do not generate
+false "unapplied mandatory terminology" warnings. True mandatory terms still
+generate warnings when missing from the translated output.
+
+Privacy and correctness invariants are preserved: glossary lookup remains
+scoped to the signed-in owner and valid source direction; only approved
+entries are used; Latin word boundaries, longest-span preference and reverse
+opt-in are preserved. If a V1 match exists, the shared global translation
+cache is bypassed to avoid mixing users' personal terminology. V1 FREE may
+fall back from Groq to OpenRouter, but never silently to DeepL for a
+matched glossary whose prompt hints cannot be enforced. The V1 inspector
+shows these exact glossary suggestions under the system prompt.
+
+This adds **zero extra model calls**. A matching glossary does add prompt
+tokens, and a new V1 translation can still be contextually wrong if the
+single GPT call selects the wrong sense. Unlike V2, V1 does not use Claude
+to establish a topic before selecting the glossary scope, and it does not
+automatically claim high-confidence application of advisory hints.
