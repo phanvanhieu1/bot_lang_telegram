@@ -686,7 +686,11 @@ app.post(
         context:['auto','friend','colleague','superior'].includes(freeContext)?freeContext:'auto',
         sourceLang:freeIsChinese?'zh':'vi',
         targetLang:freeIsChinese?'vi':'zh'});
-      const result = await translateFree(text.trim(),{terms:freeTerms});
+      const result = await translateFree(text.trim(),{
+         terms:freeTerms,
+         context:['auto','friend','colleague','superior'].includes(freeContext)
+           ?freeContext:'auto'
+       });
 
       const inputIsChinese =
   containsChinese(text);
