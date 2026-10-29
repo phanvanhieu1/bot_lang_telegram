@@ -109,7 +109,8 @@ function createV2Router({translate=deepTranslate,env=process.env,cache=v2Cache,
         // This optional check is a THIRD paid call, never hidden as free.
         const start=Date.now();
         try{
-          const checked=await verify(original,translated.translation,context);
+          const checked=await verify(original,translated.translation,context,
+            inspectAI?{onInspect:stage=>trace.push(stage)}:null);
           const value=checked?.verification||{};
           if(!['PASS','WARNING','FAIL'].includes(value.status))throw Error('Invalid verification');
           verified={translation:translated.translation,
@@ -199,7 +200,7 @@ function createV2Router({translate=deepTranslate,env=process.env,cache=v2Cache,
           // them in Mongo, history or server logs; no provider API keys.
           stages:trace,
           notice:translationCached
-            ?'Bản dịch lấy từ cache; lượt này không gọi Claude/GPT để tạo bản dịch. Chạy mới nếu cần xem các request thực tế (phát sinh phí API).'
+            ?'Bản dịch lấy từ cache, không gọi lại Claude/GPT để dịch. Nếu có kiểm chứng mới, request đó vẫn hiển thị bên dưới. Chạy mới để xem đầy đủ luồng dịch sẽ phát sinh phí API.'
             :'Đây là payload và JSON do nhà cung cấp trả về, không bao gồm suy luận nội bộ ẩn.'
         }}:{})
       });
