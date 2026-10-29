@@ -19,17 +19,21 @@ test('V2 routing is feature-flagged, PRO-only and does not replace original V1 r
   assert.match(routing,/loadGlossary:\(source,opts\)=>lookupUserTerms/);
 });
 
-test('V2 button is separate, initially hidden and never auto-triggers on old translate',()=>{
+test('One Dịch button dispatches to chosen V1/V2 and V2 remains gated',()=>{
   const html=read('public/index.html');
   const js=read('public/app.js');
   const css=read('public/compact-layout.css');
   assert.match(html, /id="translateBtn"/);
-  assert.match(html, /id="translateV2Btn"[^>]*hidden/);
+  assert.doesNotMatch(html, /id="translateV2Btn"/);
+  assert.match(html, /id="translationEnginePicker"/);
+  assert.match(html, /name="translationEngine" value="v1"/);
+  assert.match(html, /name="translationEngine" value="v2"/);
   assert.match(js,/translateBtn\.addEventListener\('click', translate\)/);
-  assert.match(js,/translateV2Btn\.addEventListener\('click'/);
+  assert.match(js,/selectedEngine\(\)==='v2'/);
+  assert.match(js,/async function translateV2\(/);
   assert.match(js,/fetch\('\/api\/translate\/v2'/);
   assert.match(js,/\/api\/translate\/v2\/status/);
-  assert.match(css,/#translateV2Btn\[hidden\]/);
+  assert.match(css, /\.translation-engine-picker\[hidden\]/);
   assert.match(js,/v2Busy/);
 });
 
