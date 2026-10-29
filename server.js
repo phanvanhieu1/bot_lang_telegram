@@ -816,6 +816,7 @@ const pronunciation =
 
 // Translation API
 app.post('/api/translate',requirePro, async (req, res) => {
+  const requestStarted=Date.now();
   try {
     const { text,
       targetLang = 'zh',
@@ -824,8 +825,24 @@ app.post('/api/translate',requirePro, async (req, res) => {
       pronunciation = true,
       vocabulary = true,
       verification = false,
-      context = 'auto'
-     } = req.body;
+      context = 'auto',
+      inspectAI = false,
+      forceRefresh = false
+     } = req.body || {};
+    if(typeof inspectAI!=='boolean'||typeof forceRefresh!=='boolean'||
+       (forceRefresh&&!inspectAI)){
+      return res.status(400).json({success:false,
+        message:'Chỉ được chạy lại GPT khi đã bật Xem luồng GPT (V1).'});
+    }
+    const trace=[];
+    const onInspect=inspectAI?stage=>trace.push(stage):null;
+    const inspectionFor=cacheHit=>inspectAI?{inspection:{
+      cacheHit,stages:trace,
+      notice:cacheHit
+        ?'Bản dịch lấy từ cache; lượt này không gọi GPT để dịch. Chạy mới để xem toàn bộ prompt và phản hồi sẽ phát sinh phí API.'
+        :'Đây là prompt, payload và phản hồi GPT thực tế của lượt này; không gồm suy luận nội bộ ẩn.'
+    }}:{};
+
 
     if (typeof text !== 'string' || !text.trim()) {
       return res.status(400).json({
@@ -842,7 +859,8 @@ app.post('/api/translate',requirePro, async (req, res) => {
         return res.status(400).json({ success: false, message: 'Nội dung quá dài' });
       }
       const en = await translateEnglishPro(text.trim(), {
-        backTranslation, vocabulary, verification, context
+        backTranslation, vocabulary, verification, context,
+        inspectStage:onInspect,forceRefresh
       });
       const tokens = en.usage?.total_tokens || 0;
       if (tokens > 0) {
@@ -875,7 +893,10 @@ app.post('/api/translate',requirePro, async (req, res) => {
         cached: en.cached,
         sourceLanguage: en.parsed.sourceLanguage,
         usage: en.usage,
-        requestUsage:proRequestUsage(en.usage,en.cached)
+        requestUsage:{...proRequestUsage(en.usage,en.cached,trace),
+          elapsedMs:Date.now()-requestStarted},
+        ...inspectionFor(!trace.some(stage=>
+          stage.role==='translator'||stage.role==='supplement'))
       });
     }
 
@@ -892,7 +913,7 @@ const shouldBackTranslate =
 
   // Bypass global shared cache when per-user terminology was matched;
   // never read or persist customized translations in the shared cache.
-  const cachedData = appliedTerms.length ? null : await getWebCachedText(
+  const cachedData = appliedTerms.length||forceRefresh ? null : await getWebCachedText(
   text.trim(),targetLang,fastMode,context
 );
 
@@ -930,7 +951,8 @@ if (hasMissingData) {
       vocabulary: missing.vocabulary,
       existingTranslation: cachedData?.translation || null,
       terms:appliedTerms,
-      context
+      context,
+      inspectStage:onInspect
     }
   );
 }
@@ -1035,7 +1057,8 @@ if (
   const verificationResult = await verifyTranslation(
     inputText,
     finalCache.translation,
-    context
+    context,
+    onInspect?{onInspect}:null
   );
 
   verificationUsage = verificationResult.usage;
@@ -1164,7 +1187,9 @@ res.json({
   vocabularyError:personal.error,
   cached: !result && !verificationUsage,
   usage,
-  requestUsage:proRequestUsage(usage,!result && !verificationUsage),
+  requestUsage:{...proRequestUsage(usage,!result && !verificationUsage,trace),
+    elapsedMs:Date.now()-requestStarted},
+  ...inspectionFor(!result),
   appliedTerms:termHighlights(finalCache.translation||'',appliedTerms),
   terminologyWarnings:validateAppliedTerms(finalCache.translation||'',appliedTerms)
 });
