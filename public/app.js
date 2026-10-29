@@ -40,6 +40,71 @@ const clearHistoryBtn = document.getElementById('clearHistoryBtn');
 const logoutBtn = document.getElementById('logoutBtn');
 
 let historyData = [];
+let savedData = [];
+let sidebarView='history';
+let historyDetailLoad=0;
+const savedBtn=document.getElementById('savedBtn');
+const saveTranslationBtn=document.getElementById('saveTranslationBtn');
+const historySidebarTitle=document.getElementById('historySidebarTitle');
+let activeHistoryId=null,activeSavedId=null,activeTranslationSource='';
+let savedActionBusy=false,favoriteVersion=0;
+function setSaveState({historyId=null,savedId=null,source=''}={}){
+  favoriteVersion++;
+  activeHistoryId=historyId;
+  activeSavedId=savedId;
+  activeTranslationSource=source;
+  const visible=Boolean((historyId||savedId)&&translation.textContent.trim());
+  saveTranslationBtn.hidden=!visible;
+  saveTranslationBtn.disabled=savedActionBusy;
+  saveTranslationBtn.setAttribute('aria-pressed',String(Boolean(savedId)));
+  saveTranslationBtn.title=savedId?'Bỏ lưu bản dịch':'Lưu bản dịch';
+  saveTranslationBtn.setAttribute('aria-label',saveTranslationBtn.title);
+}
+async function syncSavedState(historyId,version){
+  if(!historyId)return;
+  try{
+    const response=await fetch('/api/saved/status/'+encodeURIComponent(historyId),{
+      credentials:'same-origin',cache:'no-store'});
+    if(!response.ok)return;
+    const data=await response.json();
+    if(version===favoriteVersion&&activeHistoryId===historyId){
+      setSaveState({historyId,savedId:data.savedId||null,
+        source:activeTranslationSource});
+    }
+  }catch(_){}
+}
+saveTranslationBtn.addEventListener('click',async()=>{
+  if(savedActionBusy||!translation.textContent.trim())return;
+  if(textInput.value.trim()!==activeTranslationSource)return;
+  const id=activeHistoryId,existing=activeSavedId;
+  if(!id&&!existing)return;
+  savedActionBusy=true;
+  saveTranslationBtn.disabled=true;
+  const version=favoriteVersion;
+  try{
+    const response=await fetch(existing
+      ?'/api/saved/'+encodeURIComponent(existing):'/api/saved',{
+      method:existing?'DELETE':'POST',credentials:'same-origin',
+      headers:{'Content-Type':'application/json'},
+      body:existing?undefined:JSON.stringify({historyId:id})});
+    const data=await response.json();
+    if(!response.ok||!data.success)
+      throw new Error(data.message||'Không thể cập nhật mục đã lưu');
+    if(version!==favoriteVersion)return;
+    setSaveState({historyId:id,savedId:existing?null:data.item.id,
+      source:activeTranslationSource});
+    status.textContent=existing?'✓ Đã bỏ lưu bản dịch':'★ Đã lưu bản dịch';
+    status.className='status success';
+    // Refresh the saved list on next open, never a second translation.
+    savedData=[];
+  }catch(error){
+    status.textContent=error.message||'Không thể cập nhật mục đã lưu';
+    status.className='status error';
+  }finally{
+    savedActionBusy=false;
+    saveTranslationBtn.disabled=false;
+  }
+});
 let historyDetailLoad=0;
 let languageRequestVersion = 0;
 const historyReplayNotice=document.getElementById('historyReplayNotice');
