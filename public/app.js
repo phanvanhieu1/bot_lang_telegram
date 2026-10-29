@@ -1249,6 +1249,13 @@ async function openHistoryDetail(item){
     // The current history sidebar is already scoped to the learning language.
     if(historicalLang!==targetLang.value)return;
     const options=detail?.options||null;
+    if(!options){
+      // Old rows only have the labeled result. Reveal the fields they contain
+      // instead of hiding verification/vocabulary with unrelated new settings.
+      verificationToggle.checked=/VERIFICATION:\s*\{/i.test(saved.result||'');
+      vocabularyToggle.checked=/VOCABULARY:/i.test(saved.result||'');
+      backTranslationToggle.checked=/BACK_TRANSLATION:/i.test(saved.result||'');
+    }
     if(options&&translatorMode==='pro'){
       for(const [control,value] of [
         [backTranslationToggle,options.backTranslation],
@@ -1299,8 +1306,12 @@ async function openHistoryDetail(item){
           'Luồng prompt/phản hồi AI không được lưu cho lượt dịch này.'
         :'Bản ghi cũ: chưa lưu thông số token và luồng AI.'
     };
-    window.renderV2Inspection?.(archivedInspection,
-      historicalEngine==='v2'?'v2':'v1');
+    if(historicalEngine==='free'){
+      window.renderV2Inspection?.(null,'v1');
+    }else{
+      window.renderV2Inspection?.(archivedInspection,
+        historicalEngine==='v2'?'v2':'v1');
+    }
     if(historicalLang==='en'){
       window.dispatchEvent(new CustomEvent('translation-finished',{
         detail:{sourceLanguage:payload.sourceLanguage}
@@ -1372,11 +1383,11 @@ function renderHistory(items) {
     element.innerHTML = `
       <div class="history-item-top">
         <span class="history-item-lang">
-          ${langNames[item.targetLang] || item.targetLang}
+          ${langNames[item.learningLang||item.targetLang] || item.targetLang}
         </span>
 
         <span class="history-item-time">
-          ${time}
+          ${item.engine==='v2'?'V2 · ':item.engine==='v1'?'V1 · ':item.engine==='free'?'FREE · ':''}${time}
         </span>
       </div>
 
