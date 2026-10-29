@@ -113,7 +113,7 @@ async function translateEnglishFree(text,options={}) {
 
 async function translateEnglishPro(text, options = {}) {
   const context = normalizeContext(options.context);
-  const cached = await getWebCachedText(text, 'en', false, context);
+  const cached = options.forceRefresh?null:await getWebCachedText(text, 'en', false, context);
   const wantVocabulary = options.vocabulary !== false;
   const wantBack = options.backTranslation !== false;
   const wantVerification = options.verification === true;
@@ -124,12 +124,23 @@ async function translateEnglishPro(text, options = {}) {
   let usage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
   let cachedTranslation = Boolean(cacheReady);
   if (!cacheReady) {
-    const response = await getRandomOpenAIClient().chat.completions.create({
-      model: 'gpt-4o',
-      messages: [{ role: 'user', content: prompt(text, { vocabulary: wantVocabulary, context }) }],
-      temperature: 0.2
+    const userPrompt=prompt(text,{vocabulary:wantVocabulary,context});
+    const startedAt=Date.now();
+    const response=await getRandomOpenAIClient().chat.completions.create({
+      model:'gpt-4o',
+      messages:[{role:'user',content:userPrompt}],
+      temperature:0.2
     });
-    result = parseEnglish(response.choices[0]?.message?.content || '');
+    const rawOutput=response.choices[0]?.message?.content||'';
+    result=parseEnglish(rawOutput);
+    if(typeof options.inspectStage==='function'){
+      options.inspectStage({role:'translator',provider:'openai',
+        model:response.model||'gpt-4o',system:'',
+        input:JSON.stringify([{role:'user',content:userPrompt}]),
+        rawOutput,ms:Date.now()-startedAt,
+        usage:{input:response.usage?.prompt_tokens||0,
+          output:response.usage?.completion_tokens||0}});
+    }
     usage = response.usage || usage;
     cachedTranslation = false;
     try {
@@ -150,7 +161,9 @@ async function translateEnglishPro(text, options = {}) {
     if (cached?.verification?.translation === result.translation) {
       verification = cached.verification;
     } else {
-      const checked = await verifyTranslation(text, result.translation, context);
+      const checked = await verifyTranslation(text,result.translation,context,
+        typeof options.inspectStage==='function'
+          ?{onInspect:options.inspectStage}:null);
       verification = { translation: result.translation, ...checked.verification };
       usage = {
         prompt_tokens: (usage.prompt_tokens || 0) + (checked.usage?.prompt_tokens || 0),
