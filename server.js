@@ -31,6 +31,7 @@ const {lookupUserTerms,termHighlights,validateAppliedTerms}=require('./ai/termin
 const { startQuotaPolling } = require('./api-monitoring/quotas');
 const { addUsage, getUsageStats } = require('./usage');
 const { proRequestUsage,freeRequestUsage } = require('./translation-request-usage');
+const {historySnapshot}=require('./history-snapshot');
 const {
   translateFull,
   evaluateChinese,
@@ -45,6 +46,7 @@ const {
 const {
   addHistory,
   getHistory,
+  getHistoryDetail,
   clearHistory
 } = require('./history');
 
@@ -658,14 +660,7 @@ app.post(
           return res.status(400).json({ success: false, message: 'Nội dung quá dài' });
         }
         const en = await translateEnglishFree(text.trim(),{context:freeContext});
-        await addHistory({
-          userId: req.user._id,
-          text: text.trim(),
-          targetLang: en.parsed.sourceLanguage === 'en' ? 'vi' : 'en',
-          learningLang: 'en',
-          result: en.content
-        });
-        return res.json({
+        const responseBody={
           success: true,
           mode: 'free',
           provider: en.provider,
@@ -678,7 +673,14 @@ app.post(
           },
           rateLimit: en.rateLimit,
           requestUsage:freeRequestUsage(en)
-        });
+        };
+        await addHistory({userId:req.user._id,text:text.trim(),
+          targetLang:en.parsed.sourceLanguage==='en'?'vi':'en',
+          learningLang:'en',result:en.content,
+          details:historySnapshot({engine:'free',context:freeContext,
+            options:{backTranslation:true,pronunciation:false,vocabulary:false},
+            response:responseBody})});
+        return res.json(responseBody);
       }
 
       const freeIsChinese=containsChinese(text.trim());
@@ -703,19 +705,12 @@ const chineseText =
 const pronunciation =
   generatePinyin(chineseText);
 
-      await addHistory({
-        userId: req.user._id,
-        text: text.trim(),
-        targetLang: inputIsChinese ? 'vi' : 'zh',
-        learningLang: 'zh',
-        result: [
-          `TRANSLATION: ${result.parsed.translation || ''}`,
-          `BACK_TRANSLATION: ${result.parsed.backTranslation || ''}`,
-          `PRONUNCIATION: ${pronunciation || ''}`
-        ].join('\n')
-      });
-
-      return res.json({
+      const resultText=[
+        `TRANSLATION: ${result.parsed.translation || ''}`,
+        `BACK_TRANSLATION: ${result.parsed.backTranslation || ''}`,
+        `PRONUNCIATION: ${pronunciation || ''}`
+      ].join('\n');
+      const responseBody={
   success: true,
   mode: 'free',
   provider: result.provider,
@@ -735,7 +730,14 @@ const pronunciation =
   requestUsage:freeRequestUsage(result),
   appliedTerms:termHighlights(result.parsed.translation,freeTerms),
   terminologyWarnings:validateAppliedTerms(result.parsed.translation,freeTerms)
-});
+};
+      await addHistory({userId:req.user._id,text:text.trim(),
+        targetLang:inputIsChinese?'vi':'zh',learningLang:'zh',
+        result:resultText,details:historySnapshot({
+          engine:'free',context:freeContext,
+          options:{backTranslation:true,pronunciation:true,vocabulary:false},
+          response:{...responseBody,result:resultText}})});
+      return res.json(responseBody);
 
     } catch (error) {
   console.error(
@@ -872,13 +874,6 @@ app.post('/api/translate',requirePro, async (req, res) => {
             (en.usage?.completion_tokens || 0) * 10) / 1_000_000
         });
       }
-      await addHistory({
-        userId: req.user._id,
-        text: text.trim(),
-        targetLang: en.parsed.sourceLanguage === 'en' ? 'vi' : 'en',
-        learningLang: 'en',
-        result: en.content
-      });
       const personal=vocabulary
         ? await personalVocabularyCards({
           userId:req.user._id,language:'en',
@@ -886,7 +881,7 @@ app.post('/api/translate',requirePro, async (req, res) => {
           vocabulary:en.parsed.vocabulary || ''
         })
         : {items:[],error:null};
-      return res.json({
+      const responseBody={
         success: true,
         result: en.content,
         vocabularyItems:personal.items,
@@ -898,7 +893,14 @@ app.post('/api/translate',requirePro, async (req, res) => {
           elapsedMs:Date.now()-requestStarted},
         ...inspectionFor(!trace.some(stage=>
           stage.role==='translator'||stage.role==='supplement'))
-      });
+      };
+      await addHistory({userId:req.user._id,text:text.trim(),
+        targetLang:en.parsed.sourceLanguage==='en'?'vi':'en',
+        learningLang:'en',result:en.content,
+        details:historySnapshot({engine:'v1',context,
+          options:{backTranslation,pronunciation:false,vocabulary,verification,inspectAI},
+          response:responseBody})});
+      return res.json(responseBody);
     }
 
     const inputText = text.trim();
@@ -1116,14 +1118,6 @@ if (hasValidVerification) {
   )}`;
 }
 
-await addHistory({
-  userId: req.user._id,
-  text: text.trim(),
-  targetLang,
-  learningLang: 'zh',
-  result: responseContent
-});
-
 let usage = {
   promptTokens: 0,
   completionTokens: 0,
@@ -1181,7 +1175,7 @@ const personal=vocabulary
   })
   : {items:[],error:null};
 
-res.json({
+const responseBody={
   success: true,
   result: responseContent,
   vocabularyItems:personal.items,
@@ -1193,8 +1187,13 @@ res.json({
   ...inspectionFor(!result),
   appliedTerms:termHighlights(finalCache.translation||'',appliedTerms),
   terminologyWarnings:validateAppliedTerms(finalCache.translation||'',appliedTerms)
-});
-
+};
+await addHistory({userId:req.user._id,text:text.trim(),targetLang,
+  learningLang:'zh',result:responseContent,
+  details:historySnapshot({engine:'v1',context,
+    options:{backTranslation,pronunciation,vocabulary,verification,inspectAI},
+    response:responseBody})});
+return res.json(responseBody);
 
   } catch (error) {
   console.error('Translation error:', error);
@@ -1230,6 +1229,21 @@ app.get('/api/history', requireAuth, async (req, res) => {
       success: false,
       message: 'Không thể tải lịch sử'
     });
+  }
+});
+
+// Detail is fetched on click, never sent in the searchable list.
+app.get('/api/history/:id',requireAuth,async(req,res)=>{
+  try{
+    const item=await getHistoryDetail(req.user._id,req.params.id);
+    res.set('Cache-Control','private, no-store');
+    if(!item)return res.status(404).json({success:false,
+      message:'Không tìm thấy bản dịch trong lịch sử'});
+    return res.json({success:true,item});
+  }catch(error){
+    console.error('History detail unavailable');
+    return res.status(500).json({success:false,
+      message:'Không thể mở chi tiết bản dịch'});
   }
 });
 
