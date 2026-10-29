@@ -119,7 +119,8 @@ test('history UI requests only owner-checked detail and does not call translatio
     app.indexOf('function renderHistory('));
   assert.match(server,/app\.get\('\/api\/history\/:id',requireAuth/);
   assert.match(server,/getHistoryDetail\(req\.user\._id,req\.params\.id\)/);
-  assert.match(detail,/fetch\('\/api\/history\/'\+encodeURIComponent\(item\.id\)/);
+  assert.match(detail,/source==='saved'\?'\/api\/saved\/':'\/api\/history\/'/);
+  assert.match(detail,/encodeURIComponent\(item\.id\)/);
   assert.doesNotMatch(detail,/fetch\('\/api\/translate/);
   assert.match(detail,/parseResult\(archivedResult\)/);
   assert.match(detail,/renderTranslationVocabularySnapshot/);
