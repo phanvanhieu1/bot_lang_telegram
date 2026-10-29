@@ -913,3 +913,41 @@ tokens, and a new V1 translation can still be contextually wrong if the
 single GPT call selects the wrong sense. Unlike V2, V1 does not use Claude
 to establish a topic before selecting the glossary scope, and it does not
 automatically claim high-confidence application of advisory hints.
+
+## Saved translations / yellow star (2026-10-30)
+
+- The output pane now contains a star button (`#saveTranslationBtn`) alongside
+  copy/audio controls. A new translation receives a server-created `historyId`
+  in the V1 FREE/PRO and V2 API response. After translation, press the star
+  to bookmark that exact history result; it turns yellow (`aria-pressed=true`).
+  Pressing again deletes the bookmark and returns it to an outline.
+- The **Đã lưu** launcher is now enabled. It shares the familiar History drawer
+  layout, but shows saved items, search and their original language/engine;
+  it does not show the history-only Delete button. Clicking a saved item
+  replays the whole output and archived metadata (translation, backtranslation,
+  Pinyin, learning words, verification, inspector if opted in, token counts,
+  model, cost and elapsed time), with NO translation API/provider call.
+  The star is immediately yellow when a saved item is opened. Opening an
+  ordinary history item queries the bookmark status and restores the star.
+- Bookmarks are **copies**, stored in an independent `saved_translations`
+  MongoDB collection with a unique compound index `(owner, historyId)`.
+  Consequently they survive history retention pruning and clearing history.
+  Saving is idempotent and cannot duplicate the same history event; different
+  translation events can be bookmarked separately even for identical text.
+- `GET /api/saved` lists summaries without raw system/user prompts;
+  `GET /api/saved/:id` replays its owner-only full snapshot;
+  `GET /api/saved/status/:historyId` returns current star status;
+  `POST /api/saved` accepts only `{historyId}` and **fetches original
+  history from the authenticated user's account**, rather than trusting
+  client-provided text or AI transcript; `DELETE /api/saved/:id` removes
+  only that account's bookmark. Writes enforce same-origin headers.
+  Saved GET requests use `private, no-store`.
+- Old history records without modern metadata can still be bookmarked;
+  the saved copy contains only data that was originally stored. Raw AI traces
+  from V1/V2 are archived only if the user opted into inspection during
+  the original translation; no traces are fabricated later.
+- UI safety: the star is hidden until a persisted translation is available,
+  is cleared when the source is edited/new translation starts, and restores
+  after opening saved/history. Translations that could not persist history
+  cannot be bookmarked until history persistence succeeds. All saved
+  create/delete/read operations are ordinary MongoDB calls, not GPT calls.
