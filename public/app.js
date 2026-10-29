@@ -141,9 +141,8 @@ function refreshV2Button(){
   engineV1.checked=!engineV2.checked;
   if(v2InspectLabel)v2InspectLabel.hidden=!(eligible&&selectedEngine()==='v2');
   if(v1InspectLabel)v1InspectLabel.hidden=!(translatorMode==='pro'&&selectedEngine()==='v1');
-  // Both modes use the same details panel, but never mix traces.
-  if(selectedEngine()!=='v2'&&selectedEngine()!=='v1')
-    window.renderV2Inspection?.(null);
+  // FREE mode must not retain any previously visible private GPT prompts.
+  if(translatorMode!=='pro')window.renderV2Inspection?.(null);
 }
 for(const radio of [engineV1,engineV2]){
   radio.addEventListener('change',()=>{
