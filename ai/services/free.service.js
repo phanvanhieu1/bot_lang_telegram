@@ -315,7 +315,7 @@ async function translateFree(text,options={}) {
   // DeepL cannot receive required glossary instructions; never silently
   // ignore approved user terminology during fallback.
   if(terms.length||context!=='auto'){
-    const e=new Error('Glossary or explicit context cannot be enforced with DeepL');
+    const e=new Error('Glossary cannot be enforced with DeepL; explicit context also requires prompt-capable AI');
     e.code='TERMINOLOGY_REQUIRED';throw e;
   }
   const result = await runDeepLPipeline(text);
