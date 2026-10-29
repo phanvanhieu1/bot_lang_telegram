@@ -834,6 +834,7 @@ app.post('/api/translate',requirePro, async (req, res) => {
       return res.status(400).json({success:false,
         message:'Chỉ được chạy lại GPT khi đã bật Xem luồng GPT (V1).'});
     }
+    if(inspectAI)res.set('Cache-Control','private, no-store');
     const trace=[];
     const onInspect=inspectAI?stage=>trace.push(stage):null;
     const inspectionFor=cacheHit=>inspectAI?{inspection:{
