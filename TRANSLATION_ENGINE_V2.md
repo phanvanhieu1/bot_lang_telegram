@@ -672,3 +672,51 @@ both V1 and V2, translate Chinese → Vietnamese and Vietnamese → Chinese,
 then compare the four existing output areas, vocabulary cards, history
 and usage table. Repeat once to test V2 cache HIT and verify that the
 independent check costs no additional tokens when already cached.
+
+## Opt-in V2 Claude/GPT request and response inspector (2026-10-29)
+
+For PRO/Admin text translation on the Chinese learning tab only, the
+checkbox **Xem luồng Claude → GPT (V2)** (unchecked by default) reveals a
+collapsible, text-only section **Luồng xử lý AI · V2**. This is a testing
+aid and does not change the regular V1/V2 translation results.
+
+On a **cache MISS**, the response includes `inspection.stages` when
+`inspectAI:true`. Each stage contains the *actual* system prompt, user
+payload, returned model text, role, provider, model name, token counts
+and elapsed time. Relevant stages are Claude analyzer, Claude retry if
+needed, GPT translator, GPT targeted repair if needed, and optional
+GPT-4o verifier when the V1 verification switch is ON. The UI formats
+JSON for reading, shows each stage in an expandable block and offers a
+copy button. This does **not** expose hidden model reasoning tokens,
+API keys, authorization headers, or unrequested provider metadata.
+
+**No raw prompt/response trace is stored in V2 Mongo cache, translation
+history, user usage ledger, localStorage, or server logs.** It is sent
+only as part of the current authenticated V2 response when the checkbox
+is enabled. The user should consider their input and confirmed custom
+glossary private when copying the trace elsewhere.
+
+On a **cache HIT**, the API does not invent a Claude/GPT exchange.
+The panel explains why no fresh model traffic exists and displays
+**Chạy lại để xem AI (phát sinh phí API)**, an explicit button for a
+new paid translation. Only this button sets `forceRefresh:true`;
+`forceRefresh:true` without `inspectAI:true` is rejected with 400.
+The new result is written to the existing per-user V2 PASS cache as
+normal. No paid request happens just by enabling inspection, opening
+the panel or viewing a cached translation.
+
+V2 request flags: `inspectAI` (boolean, default false);
+`forceRefresh` (boolean, default false, accepted only with inspectAI).
+Both remain optional and do not affect V1 or the V2 cache key.
+When the user switches off the checkbox or changes translation mode,
+any visible trace is cleared from the page. No new environment variables
+or additional provider calls are required just to capture a trace.
+
+Manual browser QA: enable inspection; translate a new Chinese sentence,
+expand both Claude and GPT sections and compare Claude's raw JSON to
+the GPT input's `analysis`. Translate again and confirm the cache HIT
+notice, then explicitly run a paid fresh request and check both stages
+and that the accounting table correctly shows token charges. Turn off
+inspection and verify the transcript disappears immediately. Toggle
+V1's independent **Kiểm chứng** to see its separate GPT request when
+one is actually performed.
