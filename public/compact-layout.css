@@ -424,7 +424,7 @@ html[data-theme] #openPracticeBtn svg{
 #v2AnalysisNotes{color:var(--ui-muted,#667085)}
 
 /* Opt-in V2 wire transcript; hidden during ordinary V1/V2 translations. */
-#v2InspectPanel[hidden],#v2InspectLabel[hidden],#v2InspectRerun[hidden]{display:none!important}
+#v2InspectPanel[hidden],#v2InspectLabel[hidden],#v1InspectLabel[hidden],#v2InspectRerun[hidden]{display:none!important}
 .v2-inspect-toggle{display:inline-flex;align-items:center;gap:7px;
   font-size:11px;color:var(--ui-muted,#667085);margin:2px 4px 4px;cursor:pointer}
 .v2-inspect-toggle input{width:15px;height:15px;accent-color:#2563eb}
