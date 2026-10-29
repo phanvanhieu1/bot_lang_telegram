@@ -6,7 +6,7 @@ const {createProviders,safeError}=require('./providers');
 const {glossaryInstructions,termHighlights,validateAppliedTerms,contextDomain}=require('../terminology/resolver');
 const {sanitizeClaudeTerms}=require('./vocabulary');
 const {contextPolicy}=require('../prompts/context-policy');
-const ENGINE_VERSION='v2.3.0';
+const ENGINE_VERSION='v2.4.0';
 
 function parseObject(raw) {
   const s=String(raw||'').replace(/<think>[\s\S]*?<\/think>/g,'')
