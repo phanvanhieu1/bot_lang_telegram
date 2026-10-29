@@ -328,3 +328,159 @@ html[data-theme] #openPracticeBtn svg{
 @media(prefers-reduced-motion:reduce){
   html[data-theme] #openPracticeBtn{transition:none!important}
 }
+
+/* Main toolbar: visible context and V1/V2 selection, one translation button. */
+.translation-main-controls{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;
+  margin:7px 1px 8px;min-height:46px}
+.main-context-picker{display:flex;align-items:center;gap:9px;min-width:0}
+.main-context-picker>label{font-size:12px;font-weight:650;white-space:nowrap;
+  color:var(--ui-text,inherit)}
+.main-context-picker select{width:auto;min-width:162px;max-width:210px;
+  padding:8px 28px 8px 10px;font-size:12px;line-height:1.4;
+  border:1px solid var(--ui-border,#cbd5e1);border-radius:10px;
+  background:var(--ui-surface,transparent);color:var(--ui-text,inherit);
+  cursor:pointer}
+.translation-engine-picker[hidden]{display:none!important}
+.translation-engine-picker{display:flex;align-items:stretch;gap:2px;
+  border:1px solid var(--ui-border,#cbd5e1);padding:3px;margin:0 0 0 auto;
+  border-radius:11px;min-width:0}
+.translation-engine-picker legend{font-size:11px;font-weight:650;
+  margin-left:4px;padding:0 3px;color:var(--ui-muted,#64748b)}
+.translation-engine-picker label{position:relative;cursor:pointer;font-size:12px}
+.translation-engine-picker input{position:absolute;opacity:0;width:1px;height:1px}
+.translation-engine-picker label span{display:block;min-width:46px;text-align:center;
+  padding:7px 11px;border-radius:7px;font-weight:650}
+.translation-engine-picker input:checked+span{background:#3b55df;color:#fff}
+.translation-engine-picker input:focus-visible+span{outline:2px solid #7298ff;outline-offset:2px}
+.translation-engine-picker input:disabled+span{opacity:.6;cursor:wait}
+.translate-row{gap:10px;flex-wrap:wrap}
+@media(max-width:520px){
+  .translation-main-controls{gap:7px;align-items:center}
+  .main-context-picker select{min-width:130px;max-width:175px;font-size:11px}
+  .translation-engine-picker label span{min-width:36px;padding:7px}
+}
+
+/* User-verified terminology: minimal, single-pane details editor. */
+#termEditor[hidden],#termTranslationWarning[hidden]{display:none!important}
+.term-add-btn{margin-left:auto;border:1px solid #9baaca;background:transparent;color:inherit;border-radius:9px;padding:6px 9px;font-size:12px;cursor:pointer}
+.term-add-btn:hover{border-color:#3470c1}
+.term-editor{margin:8px 0 12px;padding:13px;border:1px solid #c4d4e8;border-radius:12px;background:var(--ui-subtle,#f8fafc);color:var(--ui-text,#172033)}
+.term-editor h3{font-size:14px;margin:0 0 10px}
+.term-editor form{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px}
+.term-editor label{font-size:12px;color:inherit;grid-column:1/-1}
+.term-editor input,.term-editor select{width:100%;min-width:0;box-sizing:border-box;padding:9px 10px;border:1px solid #aebed3;border-radius:9px;background:var(--ui-card,#fff);color:inherit;font:inherit}
+.term-editor-actions{grid-column:1/-1;display:flex;gap:8px;margin-top:6px}
+.term-editor-actions button,.term-small{padding:7px 11px;border-radius:8px;border:1px solid #93a8c5;background:transparent;color:inherit;cursor:pointer}
+.term-editor-actions button[type=submit]{background:#2563eb;color:#fff;border-color:#2563eb}
+.term-list{display:grid;gap:5px;max-height:200px;overflow:auto}
+.term-list-item{display:flex;align-items:center;gap:6px;border-top:1px solid #bdcce0;padding:6px 0}
+.term-list-info{flex:1;min-width:0;font-size:12px;overflow-wrap:anywhere}
+.term-list-info small{display:block;color:#64748b;font-size:11px}
+.term-highlight{background:#dbeafe;color:#1d4ed8;border-bottom:2px solid #2563eb;border-radius:3px;padding:0 1px}
+.term-warning{font-size:12px;color:#b45309;margin:6px 0}
+.term-vocab-add{font-size:11px;border:1px solid #93c5fd;background:transparent;color:#2563eb;border-radius:7px;padding:4px 7px;cursor:pointer}
+@media(max-width:580px){.term-editor form{grid-template-columns:1fr}.term-list-item{flex-wrap:wrap}}
+
+/* Explicit approval required before applying a personal term in reverse. */
+.term-editor .term-two-way{grid-column:1/-1;display:flex;gap:8px;align-items:flex-start;line-height:1.45;cursor:pointer}
+.term-editor .term-two-way input[type="checkbox"]{width:auto;min-width:16px;height:16px;flex:none;margin:1px 0 0;accent-color:#2563eb}
+
+/* Clear, compact display of the user's confirmed terms actually applied. */
+#termAppliedSummary[hidden]{display:none!important}
+.term-applied-summary{font-size:12px;line-height:1.5;color:var(--ui-muted,#526174);
+  margin:4px 0;overflow-wrap:anywhere}
+
+/* Per-translation token and price comparison, never claiming unmetered API calls are free. */
+#requestUsagePanel[hidden]{display:none!important}
+.request-usage-panel{margin:9px 0;padding:9px 0;border-top:1px solid var(--ui-border,#cbd5e1);color:var(--ui-text,inherit)}
+.request-usage-heading{display:flex;justify-content:space-between;gap:10px;align-items:baseline;font-size:12px;margin-bottom:5px}
+.request-usage-heading span{font-size:11px;color:var(--ui-muted,#64748b)}
+.request-usage-panel table{border-collapse:collapse;width:100%;font-size:11px;text-align:left}
+.request-usage-panel th,.request-usage-panel td{padding:5px 7px;border-bottom:1px solid var(--ui-border,#cbd5e1)}
+.request-usage-panel th:first-child,.request-usage-panel td:first-child{max-width:300px;overflow-wrap:anywhere}
+.request-usage-panel th:not(:first-child),.request-usage-panel td:not(:first-child){text-align:right;font-variant-numeric:tabular-nums}
+.request-usage-panel .request-usage-total{font-weight:700}
+.request-usage-note{font-size:11px;line-height:1.45;color:var(--ui-muted,#64748b);margin:6px 0 0}
+
+/* V1/V2 per-click cost appears immediately under the translate buttons. */
+#translationCostSnapshot[hidden],#cacheOriginPanel[hidden]{display:none!important}
+.translation-cost-snapshot{margin:2px 4px 5px;text-align:right;
+  font-size:11px;line-height:1.45;color:var(--ui-muted,#64748b);
+  overflow-wrap:anywhere}
+.cache-origin-panel{padding:9px 0 1px;margin-top:7px;
+  border-top:1px dashed var(--ui-border,#cbd5e1)}
+.cache-origin-panel>strong{display:block;font-size:11px;margin-bottom:4px}
+@media(max-width:580px){.translation-cost-snapshot{text-align:left}}
+
+/* Lightweight V2 interpretation; never presents AI hypotheses as verified facts. */
+#v2AnalysisDetails[hidden]{display:none!important}
+.v2-analysis-details{margin:5px 0 9px;padding:7px 0 8px;
+  border-bottom:1px solid var(--ui-border,#d6dce5);
+  font-size:12px;line-height:1.5;color:var(--ui-text,inherit)}
+.v2-analysis-heading{display:flex;align-items:baseline;justify-content:space-between;
+  gap:12px;flex-wrap:wrap;font-size:12px}
+.v2-analysis-heading span{font-size:11px;color:var(--ui-muted,#667085)}
+.v2-analysis-details p{margin:3px 0 0;overflow-wrap:anywhere}
+#v2AnalysisNotes{color:var(--ui-muted,#667085)}
+
+/* Opt-in V2 wire transcript; hidden during ordinary V1/V2 translations. */
+#v2InspectPanel[hidden],#v2InspectLabel[hidden],#v1InspectLabel[hidden],#v2InspectRerun[hidden]{display:none!important}
+.v2-inspect-toggle{display:inline-flex;align-items:center;gap:7px;
+  font-size:11px;color:var(--ui-muted,#667085);margin:2px 4px 4px;cursor:pointer}
+.v2-inspect-toggle input{width:15px;height:15px;accent-color:#2563eb}
+.v2-inspect-panel{border-top:1px solid var(--ui-border,#cbd5e1);
+  padding:10px 0;display:grid;gap:8px;min-width:0}
+.v2-inspect-header{font-size:12px}
+#v2InspectNotice{font-size:11px;line-height:1.5;
+  color:var(--ui-muted,#667085);margin:0}
+#v2InspectRerun{justify-self:start;font-size:11px;
+  border:1px solid var(--ui-border,#cbd5e1);
+  border-radius:8px;padding:7px 9px;cursor:pointer}
+#v2InspectStages{display:grid;gap:8px;min-width:0}
+.v2-inspect-stage{border:1px solid var(--ui-border,#cbd5e1);
+  border-radius:9px;min-width:0;overflow:hidden}
+.v2-inspect-stage summary{font-size:12px;padding:9px;cursor:pointer;
+  overflow-wrap:anywhere}
+.v2-inspect-body{padding:0 9px 9px;display:grid;gap:9px}
+.v2-inspect-field{min-width:0}
+.v2-inspect-field-header{display:flex;align-items:center;
+  justify-content:space-between;gap:10px;font-size:11px;margin-bottom:4px}
+.v2-inspect-copy{font-size:10px;padding:4px 7px;border-radius:6px;
+  border:1px solid var(--ui-border,#cbd5e1);cursor:pointer}
+.v2-inspect-code{padding:9px;border-radius:7px;font-size:11px;line-height:1.6;
+  white-space:pre-wrap;overflow-wrap:anywhere;max-height:260px;overflow:auto;
+  background:var(--ui-surface,#f1f5f9);color:var(--ui-text,inherit);
+  margin:0;max-width:100%;tab-size:2}
+
+/* History navigation is a keyboard-accessible button with the original card style. */
+.history-item{display:block;width:100%;text-align:left;font:inherit;color:inherit}
+.history-item:focus-visible{outline:2px solid #3b82f6;outline-offset:2px}
+.history-replay-notice{margin:0 0 8px;padding:9px 11px;
+  font-size:12px;line-height:1.5;border:1px solid var(--ui-border,#cbd5e1);
+  border-radius:10px;color:var(--ui-text,inherit);
+  background:var(--ui-subtle,transparent)}
+.history-replay-notice[hidden]{display:none!important}
+
+/* Saved translations: a single gold star beside the copy/listen actions. */
+html[data-theme] #saveTranslationBtn[hidden]{display:none!important}
+html[data-theme] #saveTranslationBtn{
+  display:inline-flex!important;align-items:center;justify-content:center;
+  color:var(--ui-muted,#6b7280)!important;
+}
+html[data-theme] #saveTranslationBtn svg{
+  fill:transparent;stroke:currentColor;stroke-width:1.8;
+  stroke-linejoin:round;transition:fill .15s,color .15s;
+}
+html[data-theme] #saveTranslationBtn[aria-pressed="true"]{
+  color:#eab308!important;
+}
+html[data-theme] #saveTranslationBtn[aria-pressed="true"] svg{
+  fill:#facc15;stroke:#ca8a04;
+}
+html[data-theme] #saveTranslationBtn:disabled{opacity:.5;cursor:wait}
+.history-item.saved-history-item{position:relative;padding-right:38px}
+.history-item .saved-history-marker{position:absolute;right:12px;top:50%;
+  transform:translateY(-50%);color:#eab308;font-size:20px;line-height:1}
+
+/* Keep the history-only destructive action out of Saved view. */
+.clear-history-btn[hidden]{display:none!important}

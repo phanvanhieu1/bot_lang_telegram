@@ -67,6 +67,10 @@ async function requestGroq(prompt) {
   return {
     content,
     provider: 'groq',
+    usage:{
+      input:Number.isFinite(data.usage?.prompt_tokens)?data.usage.prompt_tokens:null,
+      output:Number.isFinite(data.usage?.completion_tokens)?data.usage.completion_tokens:null
+    },
     rateLimit
   };
 }

@@ -14,7 +14,7 @@
 <link href="/maintenance-ui.css" rel="stylesheet"/>
 <link href="/vocabulary-ui.css" rel="stylesheet"/>
 <link href="/translation-vocab.css" rel="stylesheet"/>
-<link href="/compact-layout.css" rel="stylesheet"/></head>
+<link href="/compact-layout.css?v=saved-translation-1" rel="stylesheet"/></head>
 <body>
 <main class="container">
 <header class="header gt-header">
@@ -74,15 +74,7 @@
 <input id="verificationToggle" type="checkbox"/>
 <span class="toggle-slider"></span>
 </label>
-<div class="context-select-wrapper">
-<label for="contextSelect">Ngữ cảnh</label>
-<select id="contextSelect">
-<option value="auto">Tự động</option>
-<option value="friend">Bạn bè</option>
-<option value="colleague">Đồng nghiệp</option>
-<option value="superior">Cấp trên</option>
-</select>
-</div>
+
 </div></div>
       </div>
     </div>
@@ -216,7 +208,23 @@
     Luyện tiếng Trung
   </button>
 </div>
-<div class="language-fixed" aria-label="Dịch tự động giữa tiếng Việt và ngôn ngữ đã chọn"><span class="pane-label">Tự động phát hiện ngôn ngữ</span><span class="pane-label" id="targetLabel">Bản dịch</span></div><div hidden="" id="languageSelector"><select aria-label="Ngôn ngữ đích cố định" id="targetLang"><option selected="" value="zh">Tiếng Trung</option><option value="en">Tiếng Anh</option></select></div><div class="translation-workspace">
+<div class="language-fixed" aria-label="Dịch tự động giữa tiếng Việt và ngôn ngữ đã chọn"><span class="pane-label">Tự động phát hiện ngôn ngữ</span><span class="pane-label" id="targetLabel">Bản dịch</span></div><div hidden="" id="languageSelector"><select aria-label="Ngôn ngữ đích cố định" id="targetLang"><option selected="" value="zh">Tiếng Trung</option><option value="en">Tiếng Anh</option></select></div><div class="translation-main-controls" aria-label="Tùy chọn dịch trên màn hình chính">
+  <div class="main-context-picker">
+    <label for="contextSelect">Ngữ cảnh</label>
+    <select id="contextSelect" aria-label="Chọn ngữ cảnh dịch">
+      <option value="auto">Tự động (AI xác định)</option>
+      <option value="friend">Bạn bè</option>
+      <option value="colleague">Đồng nghiệp</option>
+      <option value="superior">Cấp trên</option>
+    </select>
+  </div>
+  <fieldset id="translationEnginePicker" class="translation-engine-picker" hidden>
+    <legend>Phiên bản dịch</legend>
+    <label><input type="radio" name="translationEngine" value="v1" checked><span>V1</span></label>
+    <label><input type="radio" name="translationEngine" value="v2"><span>V2</span></label>
+  </fieldset>
+</div>
+<div class="translation-workspace">
 <div class="translation-source">
 <div class="textarea-wrapper">
 <textarea id="text" placeholder="Nhập văn bản cần dịch..." aria-label="Nhập văn bản cần dịch"></textarea>
@@ -255,6 +263,10 @@
 <div class="result-content" id="pronunciation"></div>
 </div>
 <div class="translation-output-actions" aria-label="Công cụ bản dịch">
+  <button class="pane-action-button saved-translation-star" id="saveTranslationBtn" type="button"
+    title="Lưu bản dịch" aria-label="Lưu bản dịch" aria-pressed="false" hidden>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 3.1 6.3 7 .9-5.1 4.9 1.3 7-6.3-3.3-6.3 3.3 1.3-7L2 9.2l7-.9z"/></svg>
+  </button>
   <button aria-label="Sao chép bản dịch" class="pane-action-button copy-btn" id="copyBtn" title="Sao chép bản dịch" type="button" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h2"/></svg></button>
   <button aria-label="Nghe bản dịch" class="pane-action-button" id="outputSpeakBtn" title="Nghe bản dịch" type="button" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6.5 9H3v6h3.5l4.5 4V5ZM15 9a5 5 0 0 1 0 6M18 6a9 9 0 0 1 0 12"/></svg></button>
 </div></div>
@@ -264,7 +276,18 @@
 <span id="translateText">Dịch</span>
 <span class="spinner" id="loadingSpinner"></span>
 </button>
-</div><div class="translator-mode-switch hidden">
+
+</div>
+<label class="v2-inspect-toggle" id="v1InspectLabel" hidden>
+  <input id="v1InspectToggle" type="checkbox"/>
+  <span>Xem luồng GPT (V1)</span>
+</label>
+<label class="v2-inspect-toggle" id="v2InspectLabel" hidden>
+  <input id="v2InspectToggle" type="checkbox"/>
+  <span>Xem luồng Claude → GPT (V2)</span>
+</label>
+<p id="translationCostSnapshot" class="translation-cost-snapshot" role="status" aria-live="polite" hidden></p>
+<div class="translator-mode-switch hidden">
 <button class="mode-btn" id="freeModeBtn" type="button">
     FREE
   </button>
@@ -280,13 +303,61 @@
 <div class="free-limit-reset" id="freeReset"></div>
 </div>
 <section aria-label="Chi tiết bản dịch" class="translation-details" id="translationDetails">
-<div class="details-heading"><span>Chi tiết bản dịch</span></div>
+<p id="historyReplayNotice" class="history-replay-notice" role="status" hidden></p>
+<div class="details-heading"><span>Chi tiết bản dịch</span>
+<button id="termAddBtn" type="button" class="term-add-btn" title="Thêm thuật ngữ chuyên ngành">＋ Thuật ngữ</button></div>
+<section id="v2AnalysisDetails" class="v2-analysis-details" hidden aria-label="Ngữ cảnh và phân tích bản dịch V2">
+  <div class="v2-analysis-heading"><strong>Phân tích V2</strong><span id="v2AnalysisDomain"></span></div>
+  <p id="v2AnalysisIntent"></p>
+  <p id="v2AnalysisNotes" hidden></p>
+</section>
+<section id="termEditor" class="term-editor" hidden aria-label="Quản lý thuật ngữ cá nhân">
+  <h3 id="termEditorTitle">Thêm thuật ngữ chuyên ngành</h3>
+  <form id="termForm">
+    <label for="termSourceLang">Chiều thuật ngữ</label>
+    <select id="termSourceLang" aria-label="Chọn chiều thuật ngữ">
+      <option value="zh">Tiếng Trung → Tiếng Việt</option>
+      <option value="vi">Tiếng Việt → Tiếng Trung</option>
+    </select>
+    <label id="termSourceLabel" for="termSource">Từ/cụm từ tiếng Trung</label><input id="termSource" required maxlength="100" autocomplete="off"/>
+    <label id="termMeaningLabel" for="termMeaning">Nghĩa chuyên ngành bằng tiếng Việt</label><input id="termMeaning" required maxlength="240" autocomplete="off"/>
+    <label class="term-two-way"><input id="termBidirectional" type="checkbox"/>
+      <span>Áp dụng cho cả hai chiều dịch (tôi xác nhận cặp nghĩa này đúng khi dịch ngược).</span>
+    </label>
+    <label for="termDomain">Lĩnh vực</label>
+    <select id="termDomain"><option value="work">Công việc</option><option value="it">IT</option><option value="daily">Đời sống</option><option value="any">Mọi ngữ cảnh</option></select>
+    <label for="termNotes">Ghi chú (tùy chọn)</label><input id="termNotes" maxlength="350" autocomplete="off"/>
+    <div class="term-editor-actions"><button type="submit" id="termSave">Lưu thuật ngữ</button><button type="button" id="termCancel">Đóng</button></div>
+  </form>
+  <p id="termFeedback" role="status"></p>
+  <div id="termList" class="term-list"></div>
+</section>
+<p id="termAppliedSummary" class="term-applied-summary" hidden role="status" aria-live="polite"></p>
+<p id="termTranslationWarning" class="term-warning" hidden role="status"></p>
+<section id="requestUsagePanel" class="request-usage-panel" hidden aria-label="Thống kê token và chi phí API lượt dịch">
+  <div class="request-usage-heading"><strong>Token & chi phí lượt dịch</strong><span id="requestUsageState"></span></div>
+  <table><thead><tr><th scope="col">Nhà cung cấp / Model</th><th scope="col">Input</th><th scope="col">Output</th><th scope="col">USD ước tính</th><th scope="col">Thời gian</th></tr></thead>
+    <tbody id="requestUsageRows"></tbody></table>
+  <p id="requestUsageNote" class="request-usage-note"></p>
+  <section id="cacheOriginPanel" class="cache-origin-panel" hidden aria-label="Chi phí lần tạo cache">
+    <strong>Chi phí lần đầu tạo cache (lịch sử)</strong>
+    <table><thead><tr><th scope="col">Nhà cung cấp / Model</th><th scope="col">Input</th><th scope="col">Output</th><th scope="col">USD ước tính</th><th scope="col">Thời gian</th></tr></thead>
+      <tbody id="cacheOriginRows"></tbody></table>
+  </section>
+</section>
+<section id="v2InspectPanel" class="v2-inspect-panel" hidden aria-label="Chi tiết dữ liệu trao đổi Claude và GPT">
+  <div class="v2-inspect-header"><strong id="aiInspectTitle">Luồng xử lý AI · V2</strong></div>
+  <p id="v2InspectNotice"></p>
+  <button id="v2InspectRerun" type="button" hidden>Chạy lại để xem AI (phát sinh phí API)</button>
+  <div id="v2InspectStages"></div>
+</section>
 <div class="details-content">
 <div class="translation-extras">
 <div class="result-box hidden" id="vocabularyWrapper">
 
 <div class="vocabulary-content" id="vocabulary"></div>
 <div class="translation-vocab-cards" id="vocabularyCards" hidden aria-live="polite"></div>
+<div class="translation-vocab-cards" id="v2ClaudeVocabulary" hidden aria-live="polite"></div>
 </div>
 </div>
 <div class="verification-box hidden" id="verificationWrapper">
@@ -306,7 +377,7 @@
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4v6h6M4.2 10a8.5 8.5 0 1 1 .3 5M12 7v5l4 2"/></svg>
     <span>Nhật ký</span>
   </button>
-  <button class="quick-link-button" type="button" disabled title="Lưu bản dịch (sắp ra mắt)">
+  <button class="quick-link-button" id="savedBtn" type="button" title="Xem bản dịch đã lưu">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 3.1 6.3 7 .9-5.1 4.9 1.3 7-6.3-3.3-6.3 3.3 1.3-7L2 9.2l7-.9z"/></svg>
     <span>Đã lưu</span>
   </button>
@@ -316,13 +387,13 @@
 <div class="history-overlay" id="historyOverlay"></div>
 <aside class="history-sidebar" id="historySidebar">
 <div class="history-header">
-<h2>Lịch sử dịch</h2>
+<h2 id="historySidebarTitle">Lịch sử dịch</h2>
 <button class="history-close" id="closeHistoryBtn" type="button">
       ✕
     </button>
 </div>
 <div class="history-search">
-<input id="historySearch" placeholder="Tìm trong lịch sử..." type="text"/>
+<input id="historySearch" placeholder="Tìm trong lịch sử..." type="text" aria-label="Tìm bản dịch"/>
 </div>
 <div class="history-list" id="historyList"></div>
 <div class="history-footer">
@@ -447,8 +518,11 @@
 @media(max-width:520px){.practice-audio-settings{grid-template-columns:1fr}}
 </style>
 <script src="/language-ui.js"></script>
-<script src="/translation-vocab.js"></script>
-<script src="/app.js"></script>
+<script src="/translation-vocab.js?v=history-replay-1"></script>
+<script src="/terminology.js"></script>
+<script src="/translation-usage.js?v=v2-v1-parity-1"></script>
+<script src="/v2-inspector.js?v=history-replay-1"></script>
+<script src="/app.js?v=saved-translation-1"></script>
 <script src="/google-style.js"></script>
 <script src="/practice-audio.js"></script>
 <script src="/image-translate.js"></script>

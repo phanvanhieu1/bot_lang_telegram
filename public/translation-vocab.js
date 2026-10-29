@@ -39,6 +39,13 @@
       item.isNew?'Mới':'Đã có');
     status.title=item.isNew?'Mục vừa được thêm vào từ điển':'Mục đã tồn tại trong từ điển';
     node(meta,'span','translation-vocab-count',count+' lần gặp');
+    if(item.type!=='pattern' && (item.text||item.key)) {
+      const add=node(meta,'button','term-vocab-add','＋');
+      add.type='button';add.title='Lưu vào từ điển thuật ngữ chuyên ngành';
+      add.setAttribute('aria-label','Thêm thuật ngữ '+(item.text||item.key));
+      add.addEventListener('click',()=>window.openTerminologyEditor?.(
+        item.text||item.key,item.meaning||'',item.category==='daily_life'?'daily':'work'));
+    }
     node(card,'div','translation-vocab-meaning',item.meaning||'Chưa có nghĩa');
     const pending=item.category==='unclassified';
     node(card,'div','translation-vocab-topic'+(pending?' is-pending':''),
@@ -133,9 +140,48 @@
       setTimeout(()=>void refresh(),45000);
     }
   }
+  // V2 source-language suggestions are displayed only when there are no
+  // Chinese MongoDB cards, or when the input is Vietnamese. Do not count them
+  // as learned vocabulary, do not show false "New" or encounter counters,
+  // and never auto-save Vietnamese entries into the Chinese study library.
+  const claudeRoot=document.getElementById('v2ClaudeVocabulary');
+  function renderClaudeTerms(terms,sourceLanguage='zh',hasStudyCards=false){
+    if(!claudeRoot)return;
+    claudeRoot.replaceChildren();
+    const items=Array.isArray(terms)?terms.filter(item=>
+      item&&typeof item.source==='string'&&item.source.trim()&&
+      typeof item.meaning==='string'&&item.meaning.trim()
+    ).slice(0,8):[];
+    const show=items.length>0&&(sourceLanguage==='vi'||!hasStudyCards);
+    claudeRoot.hidden=!show;
+    if(!show)return;
+    wrapper.classList.remove('hidden');
+    raw.hidden=true;
+    const section=node(claudeRoot,'section','translation-vocab-section');
+    const heading=node(section,'h3','translation-vocab-section-heading');
+    node(heading,'span','',
+      sourceLanguage==='vi'?'Claude nhận diện (tiếng Việt)':'Claude gợi ý từ/cụm từ');
+    node(heading,'small','',''+items.length+' mục');
+    node(section,'p','translation-vocab-note',
+      'Nghĩa do AI phân tích, chỉ để tham khảo; chưa lưu vào kho từ vựng.');
+    const grid=node(section,'div','translation-vocab-grid');
+    for(const item of items){
+      const card=node(grid,'article','translation-vocab-card');
+      node(card,'div','translation-vocab-term',item.source);
+      node(card,'div','translation-vocab-meaning',item.meaning);
+    }
+  }
+
   // Edit/delete in the study library refreshes the currently visible cards.
   window.addEventListener('vocabulary-library-updated',()=>{
     if(activeRefresh)void activeRefresh();
   });
+  // Historical render must preserve exactly the saved card values.
+  // Do not fetch vocabulary updates or increment encounter counts on replay.
+  window.renderTranslationVocabularySnapshot=(items,error='')=>{
+    version++;activeRefresh=null;expandedTypes.clear();
+    paint(Array.isArray(items)?items:[],error);
+  };
   window.renderTranslationVocabulary=render;
+  window.renderV2ClaudeTerms=renderClaudeTerms;
 })();
