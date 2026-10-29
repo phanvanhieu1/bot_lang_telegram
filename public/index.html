@@ -268,6 +268,10 @@
   title="Dịch V2 bằng Claude và OpenAI; chỉ chạy khi bạn bấm"
   aria-label="Dịch V2">Dịch V2</button>
 </div>
+<label class="v2-inspect-toggle" id="v2InspectLabel" hidden>
+  <input id="v2InspectToggle" type="checkbox"/>
+  <span>Xem luồng Claude → GPT (V2)</span>
+</label>
 <p id="translationCostSnapshot" class="translation-cost-snapshot" role="status" aria-live="polite" hidden></p>
 <div class="translator-mode-switch hidden">
 <button class="mode-btn" id="freeModeBtn" type="button">
@@ -325,6 +329,12 @@
     <table><thead><tr><th scope="col">Nhà cung cấp / Model</th><th scope="col">Input</th><th scope="col">Output</th><th scope="col">USD ước tính</th><th scope="col">Thời gian</th></tr></thead>
       <tbody id="cacheOriginRows"></tbody></table>
   </section>
+</section>
+<section id="v2InspectPanel" class="v2-inspect-panel" hidden aria-label="Chi tiết dữ liệu trao đổi Claude và GPT">
+  <div class="v2-inspect-header"><strong>Luồng xử lý AI · V2</strong></div>
+  <p id="v2InspectNotice"></p>
+  <button id="v2InspectRerun" type="button" hidden>Chạy lại để xem AI (phát sinh phí API)</button>
+  <div id="v2InspectStages"></div>
 </section>
 <div class="details-content">
 <div class="translation-extras">
@@ -496,7 +506,8 @@
 <script src="/translation-vocab.js?v=v2-claude-vocab-1"></script>
 <script src="/terminology.js"></script>
 <script src="/translation-usage.js?v=v2-v1-parity-1"></script>
-<script src="/app.js?v=v2-v1-parity-1"></script>
+<script src="/v2-inspector.js"></script>
+<script src="/app.js?v=v2-ai-inspect-1"></script>
 <script src="/google-style.js"></script>
 <script src="/practice-audio.js"></script>
 <script src="/image-translate.js"></script>
