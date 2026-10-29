@@ -5,6 +5,7 @@
 const {createProviders,safeError}=require('./providers');
 const {glossaryInstructions,termHighlights,validateAppliedTerms,contextDomain}=require('../terminology/resolver');
 const {sanitizeClaudeTerms}=require('./vocabulary');
+const {contextPolicy}=require('../prompts/context-policy');
 const ENGINE_VERSION='v2.3.0';
 
 function parseObject(raw) {
@@ -116,7 +117,9 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
       throw e;
     }
   }
+  const fixedContext=contextPolicy(context);
   const analyzing='Bạn là chuyên gia phân tích ngữ nghĩa Trung-Việt; KHÔNG dịch. '+coreRules+
+    ' '+fixedContext+' '+
     ' Trả JSON NGẮN, không Markdown: {"domain":"work|it|daily|mixed|unknown","intent":"...","tone":"...","facts":["..."],"terms":[{"source":"...","meaning":"..."}],"patterns":[{"source":"...","meaning":"..."}],"ambiguities":["..."]}. '+
     'Intent tối đa 20 từ, tone tối đa 5 từ, facts tối đa 3 ý ngắn. '+ 
     'terms tối đa 8 từ hoặc cụm từ hữu ích để học, chỉ chọn mục xuất hiện nguyên văn trong câu. '+
@@ -128,7 +131,8 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
     'Phân loại theo HOẠT ĐỘNG và vai trò của câu, không theo từng từ khóa: work khi là quy trình vận hành của tổ chức (duyệt giao dịch, chi trả, hạn mức hệ thống, kiểm soát rủi ro, phối hợp các bộ phận); daily khi là sinh hoạt/giao dịch cá nhân; it khi chủ yếu xử lý phần mềm, API, hạ tầng; mixed khi có nhiều lĩnh vực mà không có lĩnh vực chính; unknown nếu thiếu căn cứ. '+
     'Đừng xếp một chỉ dẫn nghiệp vụ thành daily chỉ vì câu ngắn hoặc không nhắc rõ cơ quan. Đừng xếp một câu mua sắm cá nhân thành work chỉ vì có tiền. '+
     'Không liệt kê chi tiết câu gốc không nói rõ (vật được chỉ, ngày giờ, loại đồ, ý định giả định). Không suy đoán ngữ cảnh. '+
-    'Không phân tích nghĩa của thuật ngữ như đã được xác nhận; nó chỉ là giả thuyết chờ đối chiếu DB.';
+    'Không phân tích nghĩa của thuật ngữ như đã được xác nhận; nó chỉ là giả thuyết chờ đối chiếu DB. '+
+    'Nếu người dùng đã chọn ngữ cảnh thủ công, giữ nguyên ngữ cảnh đó trong ý định, tone và phân tích; chỉ khi auto mới tự xác định quan hệ giao tiếp.';
   // An output-token cap is a maximum, NOT a target for Claude. A 480-token
   // cap truncated real short Chinese sentences despite a concise prompt.
   // Start with enough headroom; if JSON is genuinely incomplete, retry
@@ -195,7 +199,9 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
     ?'Dịch sang tiếng Trung giản thể tự nhiên, đúng ngữ pháp và sắc thái. Không viết phần dịch bằng tiếng Việt; giữ nguyên thuật ngữ tiếng Trung đã xác nhận. '
     :'Dịch sang tiếng Việt tự nhiên, đúng ngữ pháp và sắc thái. Diễn đạt tiếng Việt mạch lạc: tránh xếp chồng phó từ chỉ thời và thể gây gượng; khi một việc đã bắt đầu và vẫn tiếp diễn, giữ đúng cả hai ý bằng cấu trúc tự nhiên. ';
   const translating='Bạn là biên dịch viên tiếng Trung và tiếng Việt. '+coreRules+
-    '\nSử dụng phân tích Claude để hiểu hành động và ý định nhưng không chấp nhận nghĩa thuật ngữ phỏng đoán nếu xung đột với danh sách đã được xác nhận.'+
+    '\n'+fixedContext+
+    '\nNếu ngữ cảnh do người dùng chọn, giữ nguyên lựa chọn ấy ngay cả khi Claude đoán khác; auto mới suy luận ngữ cảnh. '+
+    'Sử dụng phân tích Claude để hiểu hành động và ý định nhưng không chấp nhận nghĩa thuật ngữ phỏng đoán nếu xung đột với danh sách đã được xác nhận.'+
     termPrompt+
     '\nDịch toàn bộ câu gốc tự nhiên, đủ ý. Đừng đoán thông tin gốc không nói. '+
     outputRules+
