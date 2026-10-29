@@ -2,7 +2,9 @@
 const textInput = document.getElementById('text');
 const targetLang = document.getElementById('targetLang');
 const translateBtn = document.getElementById('translateBtn');
-const translateV2Btn = document.getElementById('translateV2Btn');
+const translationEnginePicker=document.getElementById('translationEnginePicker');
+const engineV1=document.querySelector('input[name="translationEngine"][value="v1"]');
+const engineV2=document.querySelector('input[name="translationEngine"][value="v2"]');
 const v2InspectLabel = document.getElementById('v2InspectLabel');
 const v2InspectToggle = document.getElementById('v2InspectToggle');
 const translateText = document.getElementById('translateText');
@@ -118,11 +120,32 @@ let translatorMode = 'free';
 let currentUserRole = null;
 let v2EnabledForUser = false;
 let v2Busy = false;
-function refreshV2Button() {
-  const visible=v2EnabledForUser && translatorMode === 'pro' && targetLang.value === 'zh';
-  translateV2Btn.hidden = !visible;
-  if(v2InspectLabel)v2InspectLabel.hidden=!visible;
-  if(!visible)window.renderV2Inspection?.(null);
+function v2Eligible(){
+  return v2EnabledForUser&&translatorMode==='pro'&&targetLang.value==='zh';
+}
+function selectedEngine(){
+  return v2Eligible()&&engineV2.checked?'v2':'v1';
+}
+function setEngineControlsBusy(busy){
+  contextSelect.disabled=busy;
+  engineV1.disabled=busy;engineV2.disabled=busy;
+}
+function refreshV2Button(){
+  const eligible=v2Eligible();
+  translationEnginePicker.hidden=!eligible;
+  if(!eligible)engineV1.checked=true;
+  if(v2InspectLabel)v2InspectLabel.hidden=!(eligible&&selectedEngine()==='v2');
+  if(selectedEngine()!=='v2')window.renderV2Inspection?.(null);
+}
+if(localStorage.getItem('translationEngine')==='v2')engineV2.checked=true;
+for(const radio of [engineV1,engineV2]){
+  radio.addEventListener('change',()=>{
+    if(translateBtn.disabled||v2Busy)return;
+    localStorage.setItem('translationEngine',radio.value);
+    window.renderV2Inspection?.(null);
+    window.renderRequestUsage?.(null);
+    refreshV2Button();
+  });
 }
 async function checkV2Access() {
   try {
@@ -524,8 +547,9 @@ practiceExplanation.textContent =
 
 async function translate() {
   if (v2Busy) return;
-  // Guards both keyboard and button submissions while a request is in flight.
+  // Single visible Dịch button and Enter always dispatch to selected version.
   if (translateBtn.disabled) return;
+  if(selectedEngine()==='v2')return translateV2();
 
   const text = textInput.value.trim();
   const selectedLang = targetLang.value;
@@ -539,7 +563,7 @@ async function translate() {
   }
 
   translateBtn.disabled = true;
-  translateV2Btn.disabled = true;
+  setEngineControlsBusy(true);
   translateBtn.classList.add('loading');
 
   status.textContent = 'Đang dịch...';
@@ -673,7 +697,7 @@ const response = await fetch(translateEndpoint, {
   } finally {
     if (requestVersion === languageRequestVersion) {
       translateBtn.disabled = false;
-      translateV2Btn.disabled = false;
+      setEngineControlsBusy(false);
       translateBtn.classList.remove('loading');
     }
   }
@@ -813,23 +837,20 @@ function renderV2AnalysisDetails(data=null){
   note.textContent=notes.length?'Lưu ý: '+notes.join(' · '):'';
 }
 
-let forceV2InspectRefresh=false;
-// Called only from the explicit paid-refresh button inside the inspector.
+// Run a fresh V2 request only after an explicit user click in the inspector.
 window.requestV2LiveTrace=()=>{
-  if(!v2InspectToggle?.checked)return;
-  forceV2InspectRefresh=true;
-  translateV2Btn.click();
+  if(!v2InspectToggle?.checked||selectedEngine()!=='v2')return;
+  void translateV2(true);
 };
-translateV2Btn.addEventListener('click', async () => {
-  const forceRefresh=forceV2InspectRefresh;
-  forceV2InspectRefresh=false;
-  if (!v2EnabledForUser || v2Busy || translateBtn.disabled || targetLang.value !== 'zh' || translatorMode !== 'pro') return;
+async function translateV2(forceRefresh=false){
+  if(selectedEngine()!=='v2'||v2Busy||translateBtn.disabled)return;
   const text = textInput.value.trim();
   if (!text) { status.textContent = 'Vui lòng nhập nội dung cần dịch'; textInput.focus(); return; }
   const version = languageRequestVersion;
   v2Busy = true;
   translateBtn.disabled = true;
-  translateV2Btn.disabled = true;
+  setEngineControlsBusy(true);
+  translateBtn.classList.add('loading');
   status.textContent = 'Đang phân tích và đối chiếu bản dịch chuyên sâu...';
   status.className = 'status';
   window.displayAppliedTerms?.([]);
@@ -890,11 +911,12 @@ translateV2Btn.addEventListener('click', async () => {
     }
   } finally {
     v2Busy = false;
-    translateV2Btn.disabled = false;
     translateBtn.disabled = false;
+    translateBtn.classList.remove('loading');
+    setEngineControlsBusy(false);
     refreshV2Button();
   }
-});
+}
 
 
 // =========================
@@ -1279,6 +1301,7 @@ window.addEventListener('learning-language-change', () => {
   refreshV2Button();
   translateBtn.disabled = false;
   translateBtn.classList.remove('loading');
+  setEngineControlsBusy(false);
   status.textContent = '';
   status.className = 'status';
   window.displayTermWarning?.([]);
