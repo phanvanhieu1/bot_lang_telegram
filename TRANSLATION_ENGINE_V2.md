@@ -777,3 +777,50 @@ Suggested manual browser smoke tests:
    is no accidental cross-context cache reuse.
 5. Confirm V1 English FREE/PRO use the selected context; test Enter
    and click, cache HIT, independent verification and vocabulary.
+
+## V1 PRO GPT request inspector (2026-10-30)
+
+The same on-page expandable AI inspector now supports the selected **V1 PRO**
+engine. Under V1, the checkbox reads **Xem luồng GPT (V1)**; under V2,
+**Xem luồng Claude → GPT (V2)**. In FREE mode no GPT inspection option is
+offered. Only one inspector transcript can be visible at any moment.
+
+When V1 PRO sends an actual GPT-4o request, `inspectAI:true` captures
+exactly the provider-visible **system prompt** and **user message array**,
+the raw provider response text, model ID, prompt/completion token counts
+and elapsed milliseconds. The V1 Chinese workflow labels the stages as
+`translator` (new translation), `supplement` (cached translation with
+new vocabulary/backtranslation) or `verification` (independent check).
+V1 English PRO is included, including its real one-message GPT prompt.
+The single shared UI renders these as separately expandable sections,
+with literal text only (no HTML execution) and Copy actions.
+
+There is **no additional AI call** for inspection: hooks only observe calls
+that V1 already needed. V1 usage summary itemizes the actual stages when
+inspection is enabled, and retains the prior aggregate fallback when off.
+V1 and V2 share the same usage and result layout.
+
+A V1 cache HIT does not replay fictional prompts. Instead, a clearly
+labeled **Chạy lại V1 để xem GPT (phát sinh phí API)** button can bypass
+cache for the current request with `forceRefresh:true`, but only when the
+user explicitly clicks it *and* `inspectAI:true` is set. Requests with
+`forceRefresh:true,inspectAI:false` return HTTP 400. A partially cached
+translation may legitimately show only the `supplement` stage or newly
+run verification, rather than a full translation transcript.
+
+The trace is returned **only to the currently authenticated PRO/Admin**
+web request, with `Cache-Control: private, no-store`. Raw prompts and
+outputs are not saved in web cache, vocabulary DB, translation history,
+usage ledger, browser storage, or server logs. API keys and hidden model
+reasoning are never exposed. Changing engine/toggling inspection off
+clears the visible transcript. The prompt may contain approved personal
+terminology and the source text, so copying the trace can reveal it.
+
+To try manually, switch to V1, enable **Xem luồng GPT (V1)**, translate
+a sentence that has not been cached, and inspect GPT's system prompt,
+user message, raw translation, per-stage latency and tokens. Repeat the
+sentence to see a cache notice; opt into a new *paid* request only by
+clicking the rerun button. Confirm independent verification and V1
+Chinese supplements generate separate properly labeled stages. Test
+English V1 PRO for the single user-message prompt case. No V1 FREE
+provider request is included in this GPT-only inspector.
