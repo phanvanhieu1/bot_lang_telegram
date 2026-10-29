@@ -3,6 +3,8 @@ const textInput = document.getElementById('text');
 const targetLang = document.getElementById('targetLang');
 const translateBtn = document.getElementById('translateBtn');
 const translateV2Btn = document.getElementById('translateV2Btn');
+const v2InspectLabel = document.getElementById('v2InspectLabel');
+const v2InspectToggle = document.getElementById('v2InspectToggle');
 const translateText = document.getElementById('translateText');
 const status = document.getElementById('status');
 const languageSelector = document.getElementById('languageSelector');
@@ -117,7 +119,10 @@ let currentUserRole = null;
 let v2EnabledForUser = false;
 let v2Busy = false;
 function refreshV2Button() {
-  translateV2Btn.hidden = !(v2EnabledForUser && translatorMode === 'pro' && targetLang.value === 'zh');
+  const visible=v2EnabledForUser && translatorMode === 'pro' && targetLang.value === 'zh';
+  translateV2Btn.hidden = !visible;
+  if(v2InspectLabel)v2InspectLabel.hidden=!visible;
+  if(!visible)window.renderV2Inspection?.(null);
 }
 async function checkV2Access() {
   try {
@@ -552,6 +557,7 @@ async function translate() {
   window.displayAppliedTerms?.([]);
   window.displayTermWarning?.([]);
   window.renderRequestUsage?.(null);
+  window.renderV2Inspection?.(null);
   window.renderV2ClaudeTerms?.([]);
   renderV2AnalysisDetails();
   pronunciation.textContent = '';
@@ -807,7 +813,16 @@ function renderV2AnalysisDetails(data=null){
   note.textContent=notes.length?'Lưu ý: '+notes.join(' · '):'';
 }
 
+let forceV2InspectRefresh=false;
+// Called only from the explicit paid-refresh button inside the inspector.
+window.requestV2LiveTrace=()=>{
+  if(!v2InspectToggle?.checked)return;
+  forceV2InspectRefresh=true;
+  translateV2Btn.click();
+};
 translateV2Btn.addEventListener('click', async () => {
+  const forceRefresh=forceV2InspectRefresh;
+  forceV2InspectRefresh=false;
   if (!v2EnabledForUser || v2Busy || translateBtn.disabled || targetLang.value !== 'zh' || translatorMode !== 'pro') return;
   const text = textInput.value.trim();
   if (!text) { status.textContent = 'Vui lòng nhập nội dung cần dịch'; textInput.focus(); return; }
@@ -820,6 +835,7 @@ translateV2Btn.addEventListener('click', async () => {
   window.displayAppliedTerms?.([]);
   window.displayTermWarning?.([]);
   window.renderRequestUsage?.(null);
+  window.renderV2Inspection?.(null);
   window.renderV2ClaudeTerms?.([]);
   renderV2AnalysisDetails();
   window.renderTranslationVocabulary?.([], '', 'zh');
@@ -830,7 +846,9 @@ translateV2Btn.addEventListener('click', async () => {
         backTranslation:backTranslationToggle.checked,
         pronunciation:pronunciationToggle.checked,
         vocabulary:vocabularyToggle.checked,
-        verification:verificationToggle.checked})
+        verification:verificationToggle.checked,
+        inspectAI:v2InspectToggle?.checked===true,
+        forceRefresh})
     });
     const data = await response.json();
     if (version !== languageRequestVersion || textInput.value.trim() !== text) return;
@@ -841,6 +859,7 @@ translateV2Btn.addEventListener('click', async () => {
     window.renderTermHighlights?.(data.appliedTerms || []);
     window.displayAppliedTerms?.(data.appliedTerms || []);
     window.renderRequestUsage?.(data.requestUsage||null,'v2');
+    window.renderV2Inspection?.(data.inspection||null);
     window.displayTermWarning?.((data.issues||[]).filter(x=>x.includes('Thuật ngữ')));
     const cards=vocabularyToggle.checked&&Array.isArray(data.vocabularyItems)
       ? data.vocabularyItems:[];
@@ -1265,6 +1284,7 @@ window.addEventListener('learning-language-change', () => {
   window.displayTermWarning?.([]);
   window.displayAppliedTerms?.([]);
   window.renderRequestUsage?.(null);
+  window.renderV2Inspection?.(null);
   window.renderV2ClaudeTerms?.([]);
   renderV2AnalysisDetails();
   translation.innerHTML = '<div class="translation-placeholder"><span class="translation-placeholder-icon">文</span><p>Bản dịch sẽ xuất hiện tại đây</p></div>';
