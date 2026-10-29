@@ -4,6 +4,7 @@ const express=require('express');
 const {requireAuth,requireRole}=require('../../modules/users/user.middleware');
 const {addUsage}=require('../../usage');
 const {addHistory}=require('../../history');
+const {historySnapshot}=require('../../history-snapshot');
 const {verifyTranslation}=require('../services/verification.service');
 const {deepTranslate,ENGINE_VERSION}=require('./engine');
 const {estimateUsage}=require('./accounting');
@@ -170,18 +171,13 @@ function createV2Router({translate=deepTranslate,env=process.env,cache=v2Cache,
         pronunciation:spoken,vocabulary:details.vocabulary,
         verification:verification?verified:null
       });
-      try{
-        await recordHistory({userId:owner,text:original,targetLang,
-          learningLang:'zh',result});
-      }catch(_){console.warn('[V2] translation history unavailable');}
-
       if(usage.totalTokens>0){
         try{await recordUsage({userId:owner,totalTokens:usage.totalTokens,
           cost:usage.estimatedCostUsd});}
         catch(_){console.error('V2 usage write failed');}
       }
       usage.elapsedMs=Date.now()-startedAt;
-      return res.json({
+      const responseBody={
         success:true,engine:ENGINE_VERSION,result,
         translation:translated.translation,backTranslation:back,
         pronunciation:spoken,verification:verification?verified:null,
@@ -196,14 +192,25 @@ function createV2Router({translate=deepTranslate,env=process.env,cache=v2Cache,
         cached:translationCached,usage:responseUsage,requestUsage:usage,
         ...(inspectAI?{inspection:{
           cacheHit:translationCached,
-          // Raw inputs/outputs exist for this request only. Never persist
-          // them in Mongo, history or server logs; no provider API keys.
+          // The opt-in transcript may be archived in the private owner-only
+          // history snapshot; it is never placed in shared cache or logs.
           stages:trace,
           notice:translationCached
             ?'Bản dịch lấy từ cache, không gọi lại Claude/GPT để dịch. Nếu có kiểm chứng mới, request đó vẫn hiển thị bên dưới. Chạy mới để xem đầy đủ luồng dịch sẽ phát sinh phí API.'
             :'Đây là payload và JSON do nhà cung cấp trả về, không bao gồm suy luận nội bộ ẩn.'
         }}:{})
-      });
+      };
+      // Persist the exact visible data, not recomputed vocabulary counts.
+      // Only an explicitly enabled inspector archives provider prompts.
+      try{
+        await recordHistory({userId:owner,text:original,targetLang,
+          learningLang:'zh',result,details:historySnapshot({
+            engine:'v2',context,options:{backTranslation,pronunciation,
+              vocabulary,verification,inspectAI},
+            response:responseBody})});
+      }catch(_){console.warn('[V2] translation history unavailable');}
+      if(inspectAI)res.set('Cache-Control','private, no-store');
+      return res.json(responseBody);
     }catch(error){
       const code=String(error?.code||'V2_UNAVAILABLE');
       console.warn('[V2] translation unavailable:',code);
