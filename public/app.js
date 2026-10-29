@@ -107,6 +107,10 @@ saveTranslationBtn.addEventListener('click',async()=>{
 });
 let languageRequestVersion = 0;
 const historyReplayNotice=document.getElementById('historyReplayNotice');
+textInput.addEventListener('input',()=>{
+  if(activeTranslationSource&&textInput.value.trim()!==activeTranslationSource)
+    setSaveState(); // The shown translation no longer corresponds to input.
+});
 function clearHistoryReplayNotice(){
   if(historyReplayNotice)historyReplayNotice.hidden=true;
 }
@@ -644,6 +648,7 @@ async function translate(forceRefresh=false) {
     return;
   }
 
+  setSaveState();
   translateBtn.disabled = true;
   setEngineControlsBusy(true);
   translateBtn.classList.add('loading');
@@ -758,6 +763,8 @@ const response = await fetch(translateEndpoint, {
     window.displayTermWarning?.(data.terminologyWarnings || []);
     window.renderRequestUsage?.(data.requestUsage||null,'v1');
     window.renderV2Inspection?.(data.inspection||null,'v1');
+    if(textInput.value.trim()===text)
+      setSaveState({historyId:data.historyId||null,source:text});
     if (selectedLang === 'en') {
       window.dispatchEvent(new CustomEvent('translation-finished', {
         detail: { sourceLanguage: data.sourceLanguage }
@@ -933,6 +940,7 @@ async function translateV2(forceRefresh=false){
   const text = textInput.value.trim();
   if (!text) { status.textContent = 'Vui lòng nhập nội dung cần dịch'; textInput.focus(); return; }
   const version = languageRequestVersion;
+  setSaveState();
   v2Busy = true;
   translateBtn.disabled = true;
   setEngineControlsBusy(true);
@@ -963,6 +971,7 @@ async function translateV2(forceRefresh=false){
     // V1 and V2 use the same labeled result and exactly the same UI parser,
     // toggles and output containers. Two-stage AI is only a server concern.
     parseResult(data.result);
+    setSaveState({historyId:data.historyId||null,source:text});
     window.renderTermHighlights?.(data.appliedTerms || []);
     window.displayAppliedTerms?.(data.appliedTerms || []);
     window.renderRequestUsage?.(data.requestUsage||null,'v2');
