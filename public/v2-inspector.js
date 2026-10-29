@@ -40,11 +40,9 @@
     if(!data)return;
     const hit=data.cacheHit===true;
     notice.textContent=String(data.notice||'');
-    if(hit){
-      rerun.hidden=false;
-      return;
-    }
+    if(hit)rerun.hidden=false;
     const list=Array.isArray(data.stages)?data.stages:[];
+    if(hit&&!list.length)return;
     if(!list.length){
       notice.textContent='Không có dữ liệu trao đổi AI của lượt này.';
       return;
