@@ -91,11 +91,14 @@ test('Legacy cache does not fabricate historical price, FREE missing tariff is u
   assert.equal(refs.translationCostSnapshot.hidden,true);
   assert.equal(refs.requestUsagePanel.hidden,true);
 });
-test('V2 action is named Dịch V2, and both translation handlers send usage to UI',()=>{
+test('One Dịch action selects V1/V2 and both translation handlers show usage',()=>{
   const read=p=>fs.readFileSync(path.join(__dirname,'..',p),'utf8');
   const html=read('public/index.html');
   const app=read('public/app.js');
-  assert.match(html,/aria-label="Dịch V2">Dịch V2<\/button>/);
+  assert.match(html,/id="translateBtn"/);
+  assert.match(html,/name="translationEngine" value="v1"/);
+  assert.match(html,/name="translationEngine" value="v2"/);
+  assert.doesNotMatch(html,/id="translateV2Btn"/);
   assert.match(html,/id="translationCostSnapshot"/);
   assert.match(html,/id="cacheOriginRows"/);
   assert.match(app,/renderRequestUsage\?\.\(data\.requestUsage\|\|null,'v1'\)/);
