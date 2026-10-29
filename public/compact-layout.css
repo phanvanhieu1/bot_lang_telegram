@@ -460,3 +460,24 @@ html[data-theme] #openPracticeBtn svg{
   border-radius:10px;color:var(--ui-text,inherit);
   background:var(--ui-subtle,transparent)}
 .history-replay-notice[hidden]{display:none!important}
+
+/* Saved translations: a single gold star beside the copy/listen actions. */
+html[data-theme] #saveTranslationBtn[hidden]{display:none!important}
+html[data-theme] #saveTranslationBtn{
+  display:inline-flex!important;align-items:center;justify-content:center;
+  color:var(--ui-muted,#6b7280)!important;
+}
+html[data-theme] #saveTranslationBtn svg{
+  fill:transparent;stroke:currentColor;stroke-width:1.8;
+  stroke-linejoin:round;transition:fill .15s,color .15s;
+}
+html[data-theme] #saveTranslationBtn[aria-pressed="true"]{
+  color:#eab308!important;
+}
+html[data-theme] #saveTranslationBtn[aria-pressed="true"] svg{
+  fill:#facc15;stroke:#ca8a04;
+}
+html[data-theme] #saveTranslationBtn:disabled{opacity:.5;cursor:wait}
+.history-item.saved-history-item{position:relative;padding-right:38px}
+.history-item .saved-history-marker{position:absolute;right:12px;top:50%;
+  transform:translateY(-50%);color:#eab308;font-size:20px;line-height:1}
