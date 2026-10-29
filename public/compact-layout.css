@@ -403,3 +403,32 @@ html[data-theme] #openPracticeBtn svg{
 .v2-analysis-heading span{font-size:11px;color:var(--ui-muted,#667085)}
 .v2-analysis-details p{margin:3px 0 0;overflow-wrap:anywhere}
 #v2AnalysisNotes{color:var(--ui-muted,#667085)}
+
+/* Opt-in V2 wire transcript; hidden during ordinary V1/V2 translations. */
+#v2InspectPanel[hidden],#v2InspectLabel[hidden],#v2InspectRerun[hidden]{display:none!important}
+.v2-inspect-toggle{display:inline-flex;align-items:center;gap:7px;
+  font-size:11px;color:var(--ui-muted,#667085);margin:2px 4px 4px;cursor:pointer}
+.v2-inspect-toggle input{width:15px;height:15px;accent-color:#2563eb}
+.v2-inspect-panel{border-top:1px solid var(--ui-border,#cbd5e1);
+  padding:10px 0;display:grid;gap:8px;min-width:0}
+.v2-inspect-header{font-size:12px}
+#v2InspectNotice{font-size:11px;line-height:1.5;
+  color:var(--ui-muted,#667085);margin:0}
+#v2InspectRerun{justify-self:start;font-size:11px;
+  border:1px solid var(--ui-border,#cbd5e1);
+  border-radius:8px;padding:7px 9px;cursor:pointer}
+#v2InspectStages{display:grid;gap:8px;min-width:0}
+.v2-inspect-stage{border:1px solid var(--ui-border,#cbd5e1);
+  border-radius:9px;min-width:0;overflow:hidden}
+.v2-inspect-stage summary{font-size:12px;padding:9px;cursor:pointer;
+  overflow-wrap:anywhere}
+.v2-inspect-body{padding:0 9px 9px;display:grid;gap:9px}
+.v2-inspect-field{min-width:0}
+.v2-inspect-field-header{display:flex;align-items:center;
+  justify-content:space-between;gap:10px;font-size:11px;margin-bottom:4px}
+.v2-inspect-copy{font-size:10px;padding:4px 7px;border-radius:6px;
+  border:1px solid var(--ui-border,#cbd5e1);cursor:pointer}
+.v2-inspect-code{padding:9px;border-radius:7px;font-size:11px;line-height:1.6;
+  white-space:pre-wrap;overflow-wrap:anywhere;max-height:260px;overflow:auto;
+  background:var(--ui-surface,#f1f5f9);color:var(--ui-text,inherit);
+  margin:0;max-width:100%;tab-size:2}
