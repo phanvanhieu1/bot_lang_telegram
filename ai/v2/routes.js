@@ -202,15 +202,17 @@ function createV2Router({translate=deepTranslate,env=process.env,cache=v2Cache,
       };
       // Persist the exact visible data, not recomputed vocabulary counts.
       // Only an explicitly enabled inspector archives provider prompts.
+      let historyId=null;
       try{
-        await recordHistory({userId:owner,text:original,targetLang,
+        const archived=await recordHistory({userId:owner,text:original,targetLang,
           learningLang:'zh',result,details:historySnapshot({
             engine:'v2',context,options:{backTranslation,pronunciation,
               vocabulary,verification,inspectAI},
             response:responseBody})});
+        historyId=archived?.id||null;
       }catch(_){console.warn('[V2] translation history unavailable');}
       if(inspectAI)res.set('Cache-Control','private, no-store');
-      return res.json(responseBody);
+      return res.json({...responseBody,historyId});
     }catch(error){
       const code=String(error?.code||'V2_UNAVAILABLE');
       console.warn('[V2] translation unavailable:',code);
