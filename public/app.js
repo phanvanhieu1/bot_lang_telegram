@@ -130,17 +130,20 @@ function setEngineControlsBusy(busy){
   contextSelect.disabled=busy;
   engineV1.disabled=busy;engineV2.disabled=busy;
 }
+let preferredEngine=localStorage.getItem('translationEngine')==='v2'?'v2':'v1';
 function refreshV2Button(){
   const eligible=v2Eligible();
   translationEnginePicker.hidden=!eligible;
-  if(!eligible)engineV1.checked=true;
+  // Preserve the preferred engine across temporary FREE/English selection.
+  engineV2.checked=eligible&&preferredEngine==='v2';
+  engineV1.checked=!engineV2.checked;
   if(v2InspectLabel)v2InspectLabel.hidden=!(eligible&&selectedEngine()==='v2');
   if(selectedEngine()!=='v2')window.renderV2Inspection?.(null);
 }
-if(localStorage.getItem('translationEngine')==='v2')engineV2.checked=true;
 for(const radio of [engineV1,engineV2]){
   radio.addEventListener('change',()=>{
     if(translateBtn.disabled||v2Busy)return;
+    preferredEngine=radio.value;
     localStorage.setItem('translationEngine',radio.value);
     window.renderV2Inspection?.(null);
     window.renderRequestUsage?.(null);
