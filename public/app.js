@@ -1271,10 +1271,14 @@ async function openHistoryDetail(item){
     textInput.dispatchEvent(new Event('input',{bubbles:true}));
     const archivedResult=typeof saved.result==='string'?saved.result:'';
     parseResult(archivedResult);
-    window.renderTranslationVocabularySnapshot?.(
-      Array.isArray(payload.vocabularyItems)?payload.vocabularyItems:[],
-      payload.vocabularyError||''
-    );
+    if(detail&&Array.isArray(payload.vocabularyItems)){
+      window.renderTranslationVocabularySnapshot?.(
+        payload.vocabularyItems,payload.vocabularyError||''
+      );
+    }else{
+      // Legacy rows have only the raw VOCABULARY text. Preserve that.
+      window.renderTranslationVocabulary?.(undefined);
+    }
     window.displayAppliedTerms?.(payload.appliedTerms||[]);
     window.renderTermHighlights?.(payload.appliedTerms||[]);
     window.displayTermWarning?.(payload.terminologyWarnings||
