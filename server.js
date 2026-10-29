@@ -687,7 +687,8 @@ app.post(
       const freeTerms=await lookupUserTerms(req.user._id,text.trim(),{
         context:['auto','friend','colleague','superior'].includes(freeContext)?freeContext:'auto',
         sourceLang:freeIsChinese?'zh':'vi',
-        targetLang:freeIsChinese?'vi':'zh'});
+        targetLang:freeIsChinese?'vi':'zh',
+        v1AutoCandidates:true});
       const result = await translateFree(text.trim(),{
          terms:freeTerms,
          context:['auto','friend','colleague','superior'].includes(freeContext)
@@ -906,7 +907,8 @@ app.post('/api/translate',requirePro, async (req, res) => {
     const inputText = text.trim();
 const inputIsChinese = containsChinese(inputText);
 const appliedTerms=await lookupUserTerms(req.user._id,inputText,{
-  context,sourceLang:inputIsChinese?'zh':'vi',targetLang:inputIsChinese?'vi':'zh'
+  context,sourceLang:inputIsChinese?'zh':'vi',targetLang:inputIsChinese?'vi':'zh',
+  v1AutoCandidates:true
 });
 
 const shouldBackTranslate =
