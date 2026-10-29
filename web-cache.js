@@ -51,7 +51,7 @@ function freeKey(text, lang = 'zh', context = 'auto') {
   // Versioned for explicit vs automatic context; no stale translations.
   return lang === 'zh'
     ? hashKey(['free-context-2', normalizedText, String(context)])
-    : hashKey(['free', lang, normalizedText]);
+    : hashKey(['free-context-2', lang, normalizedText, String(context)]);
 }
 
 function proKey(text, lang, isFast, context = 'auto') {
