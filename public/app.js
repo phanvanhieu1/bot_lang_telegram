@@ -1221,10 +1221,24 @@ async function loadUsage() {
 }
 
 function openHistory() {
+  sidebarView='history';
+  historySidebarTitle.textContent='Lịch sử dịch';
+  clearHistoryBtn.hidden=false;
+  historySearch.placeholder='Tìm trong lịch sử...';
+  historySearch.value='';
   historySidebar.classList.add('active');
   historyOverlay.classList.add('active');
-
-  loadHistory();
+  void loadHistory();
+}
+function openSaved() {
+  sidebarView='saved';
+  historySidebarTitle.textContent='Đã lưu';
+  clearHistoryBtn.hidden=true;
+  historySearch.placeholder='Tìm bản dịch đã lưu...';
+  historySearch.value='';
+  historySidebar.classList.add('active');
+  historyOverlay.classList.add('active');
+  void loadSaved();
 }
 
 function closeHistory() {
@@ -1233,20 +1247,18 @@ function closeHistory() {
 }
 
 historyBtn.addEventListener('click', openHistory);
+savedBtn.addEventListener('click',openSaved);
 closeHistoryBtn.addEventListener('click', closeHistory);
 historyOverlay.addEventListener('click', closeHistory);
 
 historySearch.addEventListener('input', () => {
   const term = historySearch.value.trim().toLocaleLowerCase('vi-VN');
 
-  renderHistory(
-    term
-      ? historyData.filter(item =>
-          [item.text, item.result, item.targetLang]
-            .some(value => String(value || '').toLocaleLowerCase('vi-VN').includes(term))
-        )
-      : historyData
-  );
+  const collection=sidebarView==='saved'?savedData:historyData;
+  renderHistory(term?collection.filter(item=>
+    [item.text,item.result,item.targetLang].some(value=>
+      String(value||'').toLocaleLowerCase('vi-VN').includes(term)))
+    :collection);
 });
 
 clearHistoryBtn.addEventListener('click', async () => {
@@ -1281,6 +1293,22 @@ clearHistoryBtn.addEventListener('click', async () => {
   }
 });
 
+async function loadSaved(){
+  historyList.textContent='Đang tải bản dịch đã lưu...';
+  try{
+    const response=await fetch('/api/saved',{credentials:'same-origin',
+      cache:'no-store'});
+    const data=await response.json();
+    if(!response.ok||!data.success)
+      throw new Error(data.message||'Không thể tải bản dịch đã lưu');
+    savedData=Array.isArray(data.saved)?data.saved:[];
+    if(sidebarView==='saved')renderHistory(savedData);
+  }catch(error){
+    if(sidebarView==='saved'){
+      historyList.textContent=error.message||'Không thể tải bản dịch đã lưu';
+    }
+  }
+}
 async function loadHistory() {
   try {
     const response = await fetch('/api/history');
@@ -1303,11 +1331,14 @@ async function loadHistory() {
 }
 
 async function openHistoryDetail(item){
-  // A click restores the historical result without a translation API call.
+  // Saved and history records both replay the full archived result.
+  const source=sidebarView;
   if(translateBtn.disabled||v2Busy)return;
   const current=++historyDetailLoad;
   try{
-    const response=await fetch('/api/history/'+encodeURIComponent(item.id),{
+    const response=await fetch(
+      (source==='saved'?'/api/saved/':'/api/history/')+
+        encodeURIComponent(item.id),{
       credentials:'same-origin',cache:'no-store'
     });
     const data=await response.json();
@@ -1351,6 +1382,13 @@ async function openHistoryDetail(item){
     textInput.dispatchEvent(new Event('input',{bubbles:true}));
     const archivedResult=typeof saved.result==='string'?saved.result:'';
     parseResult(archivedResult);
+    const currentHistoryId=source==='saved'?saved.historyId:saved.id;
+    setSaveState({historyId:currentHistoryId,
+      savedId:source==='saved'?saved.id:null,source:saved.text});
+    if(source==='history'){
+      const version=favoriteVersion;
+      void syncSavedState(currentHistoryId,version);
+    }
     if(detail&&Array.isArray(payload.vocabularyItems)){
       window.renderTranslationVocabularySnapshot?.(
         payload.vocabularyItems,payload.vocabularyError||''
@@ -1392,14 +1430,17 @@ async function openHistoryDetail(item){
     }
     const stamp=new Date(saved.time).toLocaleString('vi-VN');
     if(historyReplayNotice){
-      historyReplayNotice.textContent='Đang xem bản dịch đã lưu · '+stamp+
+      historyReplayNotice.textContent=
+        (source==='saved'?'Đang xem mục Đã lưu · ':'Đang xem bản dịch từ lịch sử · ')+stamp+
         ' · '+(historicalEngine==='v2'?'V2':historicalEngine==='free'?'FREE':'V1')+
         (detail?' · Thông số tại thời điểm dịch':
           ' · Bản ghi cũ không có thông số chi tiết')+
         ' · Không gọi lại AI';
       historyReplayNotice.hidden=false;
     }
-    status.textContent='✓ Đã mở bản dịch từ lịch sử (không gọi API dịch)';
+    status.textContent=source==='saved'
+      ?'✓ Đã mở bản dịch đã lưu (không gọi API dịch)'
+      :'✓ Đã mở bản dịch từ lịch sử (không gọi API dịch)';
     status.className='status success';
     closeHistory();
     document.getElementById('translationDetails')?.scrollIntoView?.({
@@ -1417,15 +1458,16 @@ function renderHistory(items) {
   historyList.innerHTML = '';
 
   if (!items.length) {
-    historyList.innerHTML =
-      '<div class="history-empty">Chưa có lịch sử dịch</div>';
+    historyList.innerHTML=sidebarView==='saved'
+      ?'<div class="history-empty">Chưa có bản dịch đã lưu. Nhấn ngôi sao trong ô bản dịch để lưu.</div>'
+      :'<div class="history-empty">Chưa có lịch sử dịch</div>';
     return;
   }
 
   items.forEach(item => {
     const element = document.createElement('button');
     element.type='button';
-    element.className = 'history-item';
+    element.className='history-item'+(sidebarView==='saved'?' saved-history-item':'');
     element.title='Mở lại bản dịch và tất cả thông số đã lưu';
     element.setAttribute('aria-label','Xem lại bản dịch: '+String(item.text||'').slice(0,100));
     element.addEventListener('click',()=>openHistoryDetail(item));
@@ -1466,6 +1508,7 @@ function renderHistory(items) {
 
       <div class="history-item-source"></div>
       <div class="history-item-result"></div>
+      ${sidebarView==='saved'?'<span class="saved-history-marker" aria-hidden="true">★</span>':''}
     `;
 
     element.querySelector('.history-item-source').textContent = item.text;
