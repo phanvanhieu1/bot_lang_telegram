@@ -40,7 +40,12 @@ const clearHistoryBtn = document.getElementById('clearHistoryBtn');
 const logoutBtn = document.getElementById('logoutBtn');
 
 let historyData = [];
+let historyDetailLoad=0;
 let languageRequestVersion = 0;
+const historyReplayNotice=document.getElementById('historyReplayNotice');
+function clearHistoryReplayNotice(){
+  if(historyReplayNotice)historyReplayNotice.hidden=true;
+}
 
 const translation = document.getElementById('translation');
 const pronunciation = document.getElementById('pronunciation');
@@ -559,6 +564,7 @@ window.requestV1LiveTrace=()=>{
 };
 async function translate(forceRefresh=false) {
   if (v2Busy) return;
+  clearHistoryReplayNotice();
   // Single visible Dịch button and Enter always dispatch to selected version.
   if (translateBtn.disabled) return;
   if(selectedEngine()==='v2')return translateV2();
@@ -859,6 +865,7 @@ window.requestV2LiveTrace=()=>{
 };
 async function translateV2(forceRefresh=false){
   if(selectedEngine()!=='v2'||v2Busy||translateBtn.disabled)return;
+  clearHistoryReplayNotice();
   const text = textInput.value.trim();
   if (!text) { status.textContent = 'Vui lòng nhập nội dung cần dịch'; textInput.focus(); return; }
   const version = languageRequestVersion;
@@ -1222,6 +1229,101 @@ async function loadHistory() {
   }
 }
 
+async function openHistoryDetail(item){
+  // A click restores the historical result without a translation API call.
+  if(translateBtn.disabled||v2Busy)return;
+  const current=++historyDetailLoad;
+  try{
+    const response=await fetch('/api/history/'+encodeURIComponent(item.id),{
+      credentials:'same-origin',cache:'no-store'
+    });
+    const data=await response.json();
+    if(!response.ok||!data.success||!data.item)
+      throw new Error(data.message||'Không thể mở lịch sử');
+    if(current!==historyDetailLoad)return;
+    const saved=data.item;
+    const detail=saved.details&&typeof saved.details==='object'?saved.details:null;
+    const payload=detail?.payload||{};
+    const historicalEngine=detail?.engine||'v1';
+    const historicalLang=saved.learningLang||'zh';
+    // The current history sidebar is already scoped to the learning language.
+    if(historicalLang!==targetLang.value)return;
+    const options=detail?.options||null;
+    if(options&&translatorMode==='pro'){
+      for(const [control,value] of [
+        [backTranslationToggle,options.backTranslation],
+        [pronunciationToggle,options.pronunciation],
+        [vocabularyToggle,options.vocabulary],
+        [verificationToggle,options.verification]
+      ]){
+        if(typeof value==='boolean')control.checked=value;
+      }
+    }
+    if(['auto','friend','colleague','superior'].includes(detail?.context)){
+      contextSelect.value=detail.context;
+    }
+    // The V2 preference is visual only; history replay never invokes V2.
+    if(['v1','v2'].includes(historicalEngine)&&v2Eligible()){
+      preferredEngine=historicalEngine;
+      refreshV2Button();
+    }
+    textInput.value=saved.text||'';
+    textInput.dispatchEvent(new Event('input',{bubbles:true}));
+    const archivedResult=typeof saved.result==='string'?saved.result:'';
+    parseResult(archivedResult);
+    window.renderTranslationVocabularySnapshot?.(
+      Array.isArray(payload.vocabularyItems)?payload.vocabularyItems:[],
+      payload.vocabularyError||''
+    );
+    window.displayAppliedTerms?.(payload.appliedTerms||[]);
+    window.renderTermHighlights?.(payload.appliedTerms||[]);
+    window.displayTermWarning?.(payload.terminologyWarnings||
+      (Array.isArray(payload.issues)?payload.issues.filter(x=>
+        typeof x==='string'&&x.includes('Thuật ngữ')):[]));
+    window.renderV2ClaudeTerms?.([]);
+    renderV2AnalysisDetails();
+    window.renderRequestUsage?.(payload.requestUsage||null,
+      historicalEngine==='v2'?'v2':'v1');
+    // Persisted transcript exists only if inspection was explicitly enabled.
+    // History playback does not show an action that can silently bill API fees.
+    const archivedInspection=payload.inspection?{
+      ...payload.inspection,historical:true
+    }:{
+      historical:true,cacheHit:false,stages:[],
+      notice:detail
+        ?detail.inspectionUnavailable||
+          'Luồng prompt/phản hồi AI không được lưu cho lượt dịch này.'
+        :'Bản ghi cũ: chưa lưu thông số token và luồng AI.'
+    };
+    window.renderV2Inspection?.(archivedInspection,
+      historicalEngine==='v2'?'v2':'v1');
+    if(historicalLang==='en'){
+      window.dispatchEvent(new CustomEvent('translation-finished',{
+        detail:{sourceLanguage:payload.sourceLanguage}
+      }));
+    }
+    const stamp=new Date(saved.time).toLocaleString('vi-VN');
+    if(historyReplayNotice){
+      historyReplayNotice.textContent='Đang xem bản dịch đã lưu · '+stamp+
+        ' · '+(historicalEngine==='v2'?'V2':historicalEngine==='free'?'FREE':'V1')+
+        (detail?' · Thông số tại thời điểm dịch':
+          ' · Bản ghi cũ không có thông số chi tiết')+
+        ' · Không gọi lại AI';
+      historyReplayNotice.hidden=false;
+    }
+    status.textContent='✓ Đã mở bản dịch từ lịch sử (không gọi API dịch)';
+    status.className='status success';
+    closeHistory();
+    document.getElementById('translationDetails')?.scrollIntoView?.({
+      behavior:'smooth',block:'start'
+    });
+  }catch(error){
+    if(current!==historyDetailLoad)return;
+    status.textContent=error.message||'Không thể xem lại bản dịch';
+    status.className='status error';
+  }
+}
+
 function renderHistory(items) {
   items = items.filter(item => (item.learningLang || 'zh') === targetLang.value);
   historyList.innerHTML = '';
@@ -1233,8 +1335,12 @@ function renderHistory(items) {
   }
 
   items.forEach(item => {
-    const element = document.createElement('div');
+    const element = document.createElement('button');
+    element.type='button';
     element.className = 'history-item';
+    element.title='Mở lại bản dịch và tất cả thông số đã lưu';
+    element.setAttribute('aria-label','Xem lại bản dịch: '+String(item.text||'').slice(0,100));
+    element.addEventListener('click',()=>openHistoryDetail(item));
 
     const date = new Date(item.time);
 
@@ -1313,6 +1419,8 @@ loadUsage();
 // Ignore late API responses from the previous language; never show stale results.
 window.addEventListener('learning-language-change', () => {
   languageRequestVersion++;
+  historyDetailLoad++;
+  clearHistoryReplayNotice();
   refreshV2Button();
   translateBtn.disabled = false;
   translateBtn.classList.remove('loading');
