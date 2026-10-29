@@ -32,8 +32,8 @@ const {
 const FREE_CACHE_TTL = 24 * 60 * 60 * 1000;
 const {glossaryInstructions,validateAppliedTerms}=require('../terminology/resolver');
 
-async function getFreeCachedTranslation(text) {
-  const cached = await getFreeCachedText(text);
+async function getFreeCachedTranslation(text,context='auto') {
+  const cached = await getFreeCachedText(text,'zh',context);
 
   if (!cached) return null;
 
@@ -83,19 +83,19 @@ async function getFreeCachedTranslation(text) {
   };
 }
 
-async function setFreeCachedTranslation(text, content, parsed) {
+async function setFreeCachedTranslation(text, content, parsed,context='auto') {
   await setFreeCachedText(text, {
     content,
     parsed,
     createdAt: Date.now()
-  });
+  },'zh',context);
 }
 
 // A successful provider response must not trigger a second paid AI request
 // merely because the database failed to persist the cache.
-async function persistFreeCache(text, result) {
+async function persistFreeCache(text, result,context='auto') {
   try {
-    await setFreeCachedTranslation(text, result.content, result.parsed);
+    await setFreeCachedTranslation(text, result.content, result.parsed,context);
   } catch (error) {
     console.error('FREE MongoDB cache write error:', error);
   }
@@ -152,10 +152,10 @@ function classifyProviderError(error, provider) {
 async function translateWithProvider(
   text,
   requestProvider,
-  customPrompt = null
+  customPrompt = null,context='auto'
 ) {
   const prompt =
-    customPrompt || buildFreePrompt(text);
+    customPrompt || buildFreePrompt(text,context);
 
   const result = await requestProvider(prompt);
 
@@ -175,13 +175,14 @@ async function translateWithProvider(
 async function runTranslationPipeline(
   text,
   requestProvider,
-  terms=[]
+  terms=[],context='auto'
 ) {
   // Groq / OpenRouter: both directions are generated in ONE AI request.
   const result = await translateWithProvider(
     text,
     requestProvider,
-    terms.length?buildFreePrompt(text)+glossaryInstructions(terms):null
+    terms.length?buildFreePrompt(text,context)+glossaryInstructions(terms):null,
+    context
   );
 
   const inputIsChinese = containsChinese(text);
@@ -255,9 +256,9 @@ async function runDeepLPipeline(text) {
 }
 
 async function translateFree(text,options={}) {
-  const terms=options.terms||[];
+  const terms=options.terms||[],context=options.context||'auto';
   // Shared cache cannot hold user-specific dictionary translations.
-  const cachedResult = terms.length?null:await getFreeCachedTranslation(text);
+  const cachedResult = terms.length?null:await getFreeCachedTranslation(text,context);
 
   if (cachedResult) {
     return {
@@ -276,10 +277,10 @@ async function translateFree(text,options={}) {
     const result = await runTranslationPipeline(
       text,
       requestGroq,
-      terms
+      terms,context
     );
 
-    if(!terms.length)await persistFreeCache(text, result);
+    if(!terms.length)await persistFreeCache(text, result,context);
 
     return result;
   } catch (error) {
@@ -293,10 +294,10 @@ async function translateFree(text,options={}) {
     const result = await runTranslationPipeline(
       text,
       requestOpenRouter,
-      terms
+      terms,context
     );
 
-    if(!terms.length)await persistFreeCache(text, result);
+    if(!terms.length)await persistFreeCache(text, result,context);
 
     return result;
   } catch (error) {
@@ -313,10 +314,13 @@ async function translateFree(text,options={}) {
     try {
   // DeepL cannot receive required glossary instructions; never silently
   // ignore approved user terminology during fallback.
-  if(terms.length){const e=new Error('Glossary cannot be enforced with DeepL');e.code='TERMINOLOGY_REQUIRED';throw e;}
+  if(terms.length||context!=='auto'){
+    const e=new Error('Glossary or explicit context cannot be enforced with DeepL');
+    e.code='TERMINOLOGY_REQUIRED';throw e;
+  }
   const result = await runDeepLPipeline(text);
 
-  await persistFreeCache(text, result);
+  await persistFreeCache(text, result,context);
 
   return result;
 } catch (error) {
