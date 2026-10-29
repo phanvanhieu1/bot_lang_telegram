@@ -44,10 +44,12 @@
     if(!data)return;
     const hit=data.cacheHit===true;
     notice.textContent=String(data.notice||'');
-    if(hit){
+    // Replaying an archive must NEVER offer the chargeable rerun action.
+    if(hit&&!data.historical){
       rerun.hidden=false;
       rerun.textContent='Chạy lại '+currentEngine.toUpperCase()+
-        ' để xem GPT (phát sinh phí API)';
+        ' để xem '+(currentEngine==='v2'?'Claude/GPT':'GPT')+
+        ' (phát sinh phí API)';
     }
     const list=Array.isArray(data.stages)?data.stages:[];
     if(hit&&!list.length)return;
