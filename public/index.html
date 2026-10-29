@@ -14,7 +14,7 @@
 <link href="/maintenance-ui.css" rel="stylesheet"/>
 <link href="/vocabulary-ui.css" rel="stylesheet"/>
 <link href="/translation-vocab.css" rel="stylesheet"/>
-<link href="/compact-layout.css?v=v2-ai-inspect-1" rel="stylesheet"/></head>
+<link href="/compact-layout.css?v=single-translate-1" rel="stylesheet"/></head>
 <body>
 <main class="container">
 <header class="header gt-header">
@@ -74,15 +74,7 @@
 <input id="verificationToggle" type="checkbox"/>
 <span class="toggle-slider"></span>
 </label>
-<div class="context-select-wrapper">
-<label for="contextSelect">Ngữ cảnh</label>
-<select id="contextSelect">
-<option value="auto">Tự động</option>
-<option value="friend">Bạn bè</option>
-<option value="colleague">Đồng nghiệp</option>
-<option value="superior">Cấp trên</option>
-</select>
-</div>
+
 </div></div>
       </div>
     </div>
@@ -216,7 +208,23 @@
     Luyện tiếng Trung
   </button>
 </div>
-<div class="language-fixed" aria-label="Dịch tự động giữa tiếng Việt và ngôn ngữ đã chọn"><span class="pane-label">Tự động phát hiện ngôn ngữ</span><span class="pane-label" id="targetLabel">Bản dịch</span></div><div hidden="" id="languageSelector"><select aria-label="Ngôn ngữ đích cố định" id="targetLang"><option selected="" value="zh">Tiếng Trung</option><option value="en">Tiếng Anh</option></select></div><div class="translation-workspace">
+<div class="language-fixed" aria-label="Dịch tự động giữa tiếng Việt và ngôn ngữ đã chọn"><span class="pane-label">Tự động phát hiện ngôn ngữ</span><span class="pane-label" id="targetLabel">Bản dịch</span></div><div hidden="" id="languageSelector"><select aria-label="Ngôn ngữ đích cố định" id="targetLang"><option selected="" value="zh">Tiếng Trung</option><option value="en">Tiếng Anh</option></select></div><div class="translation-main-controls" aria-label="Tùy chọn dịch trên màn hình chính">
+  <div class="main-context-picker">
+    <label for="contextSelect">Ngữ cảnh</label>
+    <select id="contextSelect" aria-label="Chọn ngữ cảnh dịch">
+      <option value="auto">Tự động (AI xác định)</option>
+      <option value="friend">Bạn bè</option>
+      <option value="colleague">Đồng nghiệp</option>
+      <option value="superior">Cấp trên</option>
+    </select>
+  </div>
+  <fieldset id="translationEnginePicker" class="translation-engine-picker" hidden>
+    <legend>Phiên bản dịch</legend>
+    <label><input type="radio" name="translationEngine" value="v1" checked><span>V1</span></label>
+    <label><input type="radio" name="translationEngine" value="v2"><span>V2</span></label>
+  </fieldset>
+</div>
+<div class="translation-workspace">
 <div class="translation-source">
 <div class="textarea-wrapper">
 <textarea id="text" placeholder="Nhập văn bản cần dịch..." aria-label="Nhập văn bản cần dịch"></textarea>
@@ -264,9 +272,7 @@
 <span id="translateText">Dịch</span>
 <span class="spinner" id="loadingSpinner"></span>
 </button>
-<button id="translateV2Btn" class="translate-v2-button" type="button" hidden
-  title="Dịch V2 bằng Claude và OpenAI; chỉ chạy khi bạn bấm"
-  aria-label="Dịch V2">Dịch V2</button>
+
 </div>
 <label class="v2-inspect-toggle" id="v2InspectLabel" hidden>
   <input id="v2InspectToggle" type="checkbox"/>
@@ -507,7 +513,7 @@
 <script src="/terminology.js"></script>
 <script src="/translation-usage.js?v=v2-v1-parity-1"></script>
 <script src="/v2-inspector.js"></script>
-<script src="/app.js?v=v2-ai-inspect-1"></script>
+<script src="/app.js?v=single-translate-1"></script>
 <script src="/google-style.js"></script>
 <script src="/practice-audio.js"></script>
 <script src="/image-translate.js"></script>
