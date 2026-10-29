@@ -59,10 +59,12 @@ function createV2Router({translate=deepTranslate,env=process.env,cache=v2Cache,
       success:false,code:'V2_DISABLED',message:'Dịch V2 chưa được bật trên máy chủ.'
     });
     const {text,context='auto',targetLang='zh',vocabulary=true,
-      backTranslation=true,pronunciation=true,verification=false}=req.body||{};
+      backTranslation=true,pronunciation=true,verification=false,
+      inspectAI=false,forceRefresh=false}=req.body||{};
     if(targetLang!=='zh'||typeof text!=='string'||!text.trim()||text.length>2000||
-       [vocabulary,backTranslation,pronunciation,verification]
+       [vocabulary,backTranslation,pronunciation,verification,inspectAI,forceRefresh]
          .some(flag=>typeof flag!=='boolean')||
+       (forceRefresh&&!inspectAI)||
        !['auto','friend','colleague','superior'].includes(context)){
       return res.status(400).json({success:false,code:'V2_INVALID_INPUT',
         message:'V2 hiện hỗ trợ Trung–Việt, tối đa 2.000 ký tự.'});
@@ -78,12 +80,17 @@ function createV2Router({translate=deepTranslate,env=process.env,cache=v2Cache,
       const key=cache.keyForRequest({owner:id,text:original,context,signature,env,
         backTranslation,vocabulary});
       let hit=null;
-      try{hit=await cache.getCached({owner,key});}
-      catch(_){console.warn('[V2] cache read unavailable');}
-
+      // A live run to inspect model traffic is chargeable and must only be
+      // initiated by the user's explicit force-refresh control.
+      if(!forceRefresh){
+        try{hit=await cache.getCached({owner,key});}
+        catch(_){console.warn('[V2] cache read unavailable');}
+      }
+      const trace=[];
       const translationCached=Boolean(hit);
       const translated=hit?hit.value:await translate({text:original,context,
         backTranslation,vocabulary,
+        inspectStage:inspectAI?stage=>trace.push(stage):null,
         loadGlossary:(source,opts)=>lookupUserTerms(req.user._id,source,opts)});
 
       // Miss: preserve only validated PASS content in owner-isolated cache.
@@ -185,7 +192,16 @@ function createV2Router({translate=deepTranslate,env=process.env,cache=v2Cache,
         translationNotes:translated.translationNotes||[],
         appliedTerms:translated.appliedTerms||[],
         sourceLanguage:translated.sourceLanguage,targetLanguage:translated.targetLanguage,
-        cached:translationCached,usage:responseUsage,requestUsage:usage
+        cached:translationCached,usage:responseUsage,requestUsage:usage,
+        ...(inspectAI?{inspection:{
+          cacheHit:translationCached,
+          // Raw inputs/outputs exist for this request only. Never persist
+          // them in Mongo, history or server logs; no provider API keys.
+          stages:trace,
+          notice:translationCached
+            ?'Bản dịch lấy từ cache; lượt này không gọi Claude/GPT để tạo bản dịch. Chạy mới nếu cần xem các request thực tế (phát sinh phí API).'
+            :'Đây là payload và JSON do nhà cung cấp trả về, không bao gồm suy luận nội bộ ẩn.'
+        }}:{})
       });
     }catch(error){
       const code=String(error?.code||'V2_UNAVAILABLE');
