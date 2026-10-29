@@ -176,6 +176,12 @@
   window.addEventListener('vocabulary-library-updated',()=>{
     if(activeRefresh)void activeRefresh();
   });
+  // Historical render must preserve exactly the saved card values.
+  // Do not fetch vocabulary updates or increment encounter counts on replay.
+  window.renderTranslationVocabularySnapshot=(items,error='')=>{
+    version++;activeRefresh=null;expandedTypes.clear();
+    paint(Array.isArray(items)?items:[],error);
+  };
   window.renderTranslationVocabulary=render;
   window.renderV2ClaudeTerms=renderClaudeTerms;
 })();
