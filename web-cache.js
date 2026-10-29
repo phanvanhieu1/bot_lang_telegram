@@ -56,7 +56,7 @@ function freeKey(text, lang = 'zh', context = 'auto') {
 
 function proKey(text, lang, isFast, context = 'auto') {
   return hashKey([
-    'pro',
+    'pro-context-2',
     String(text).trim(),
     String(lang),
     Boolean(isFast),
