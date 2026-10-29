@@ -80,7 +80,7 @@ function cleanTranslation(raw) {
       value.uncertainties.filter(x=>typeof x==='string').slice(0,3).map(x=>x.slice(0,180)):[]};
 }
 async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
-  backTranslation=true,vocabulary=true},
+  backTranslation=true,vocabulary=true,inspectStage=null},
   providers=createProviders()) {
   if(typeof text!=='string'||!text.trim()||text.length>2000||
     !['auto','friend','colleague','superior'].includes(context))
@@ -88,13 +88,22 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
   const sourceText=text.trim(),direction=detectDirection(sourceText);
   const stages=[];
   const used=new Set();
-  async function stage(role,provider,fn) {
+  async function stage(role,provider,fn,request=null) {
     const at=Date.now();
     try{
       const r=await fn();
       used.add(provider);
-      stages.push({role,provider,model:r.model||provider,ms:Date.now()-at,
+      const ms=Date.now()-at;
+      stages.push({role,provider,model:r.model||provider,ms,
         usage:r.usage||{input:0,output:0}});
+      // Explicit on-demand inspection only: record provider-visible messages,
+      // not hidden internal reasoning, secrets, headers or API credentials.
+      if(typeof inspectStage==='function'&&request){
+        inspectStage({role,provider,model:r.model||provider,ms,
+          system:request.system,input:request.input,
+          rawOutput:typeof r.text==='string'?r.text:'',
+          usage:r.usage||{input:0,output:0}});
+      }
       return r;
     }catch(e) {
       stages.push({role,provider,error:String(e.code||'V2_PROVIDER_ERROR'),ms:Date.now()-at});
@@ -130,9 +139,11 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
     sourceLanguage:direction.source,targetLanguage:direction.target});
   const isMalformed=(e)=>['V2_INVALID_AGENT_JSON','V2_INVALID_ANALYSIS','V2_CLAUDE_TRUNCATED'].includes(e?.code);
   async function analyze(role,limit,retry=false){
+    const system=retry?analyzing+
+      ' Trả về MỘT JSON hoàn chỉnh, súc tích; không có giải thích ngoài JSON.':analyzing;
     const result=await stage(role,'claude',()=>providers.claude(
-      retry?analyzing+' Trả về MỘT JSON hoàn chỉnh, súc tích; không có giải thích ngoài JSON.':analyzing,
-      analyzerInput,{maxOutputTokens:limit}));
+      system,analyzerInput,{maxOutputTokens:limit}),
+      {system,input:analyzerInput});
     if(result.stopReason==='max_tokens')throw safeError('V2_CLAUDE_TRUNCATED');
     return safeFrame(parseObject(result.text));
   }
@@ -209,7 +220,8 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
     includeChineseVocabulary:vocabulary&&direction.source==='vi',
     approvedTerminology:glossary.map(t=>({source:t.source,meaning:t.translation,domain:t.domain}))});
   const modelTranslation=await stage('translator','openai',()=>
-    providers.openai(translating,userPayload,{maxOutputTokens:1500,jsonSchema}));
+    providers.openai(translating,userPayload,{maxOutputTokens:1500,jsonSchema}),
+    {system:translating,input:userPayload});
   let translated;
   try{
     if(modelTranslation.responseStatus==='incomplete')
@@ -232,13 +244,15 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
     // One targeted correction only; never silently replace a confirmed
     // glossary meaning with an AI guess or loop until both models agree.
     try{
+      const repairSystem=translating+'\nCHỈ sửa các lỗi đã được đối chiếu trong danh sách.';
+      const repairInput=JSON.stringify({original:sourceText,current:translated.translation,
+        errors:issues,includeBackTranslation:backTranslation&&direction.source==='vi',
+        includeChineseVocabulary:vocabulary&&direction.source==='vi',
+        approvedTerminology:glossary});
       translated=cleanTranslation((await stage('repair','openai',()=>
-        providers.openai(translating+'\nCHỈ sửa các lỗi đã được đối chiếu trong danh sách.',
-          JSON.stringify({original:sourceText,current:translated.translation,
-            errors:issues,includeBackTranslation:backTranslation&&direction.source==='vi',
-            includeChineseVocabulary:vocabulary&&direction.source==='vi',
-            approvedTerminology:glossary}),
-          {maxOutputTokens:1200,jsonSchema}))).text);
+        providers.openai(repairSystem,repairInput,
+          {maxOutputTokens:1200,jsonSchema}),
+        {system:repairSystem,input:repairInput})).text);
     }catch(_){/* keep original, mark review below */}
     issues=[
       ...validateAppliedTerms(translated.translation,glossary).map(x=>'Thuật ngữ chưa được áp dụng: '+x),
