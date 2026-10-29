@@ -5,6 +5,8 @@
   const notice=document.getElementById('v2InspectNotice');
   const stagesRoot=document.getElementById('v2InspectStages');
   const rerun=document.getElementById('v2InspectRerun');
+  const title=document.getElementById('aiInspectTitle');
+  let currentEngine='v2';
   if(!panel||!notice||!stagesRoot||!rerun)return;
   const el=(tag,className,text,parent)=>{
     const node=document.createElement(tag);
@@ -33,14 +35,20 @@
     const pre=el('pre','v2-inspect-code',value,box);
     pre.setAttribute('tabindex','0');
   }
-  function render(data=null){
+  function render(data=null,engine='v2'){
+    currentEngine=engine==='v1'?'v1':'v2';
+    if(title)title.textContent='Luồng xử lý AI · '+currentEngine.toUpperCase();
     stagesRoot.replaceChildren();
     panel.hidden=!data;
     rerun.hidden=true;
     if(!data)return;
     const hit=data.cacheHit===true;
     notice.textContent=String(data.notice||'');
-    if(hit)rerun.hidden=false;
+    if(hit){
+      rerun.hidden=false;
+      rerun.textContent='Chạy lại '+currentEngine.toUpperCase()+
+        ' để xem GPT (phát sinh phí API)';
+    }
     const list=Array.isArray(data.stages)?data.stages:[];
     if(hit&&!list.length)return;
     if(!list.length){
@@ -53,6 +61,7 @@
       const name=item.role==='analyzer'?'Claude · Phân tích':
         item.role==='analyzer-retry'?'Claude · Phân tích lại':
         item.role==='translator'?'GPT · Dịch':
+        item.role==='supplement'?'GPT · Bổ sung từ vựng/dịch ngược':
         item.role==='repair'?'GPT · Sửa lỗi':
         item.role==='verification'?'GPT · Kiểm chứng':
         String(item.role||'Gọi AI');
@@ -69,10 +78,13 @@
   }
   rerun.addEventListener('click',()=>{
     // Explicit action: running the paid request is never triggered by an effect.
-    window.requestV2LiveTrace?.();
+    if(currentEngine==='v1')window.requestV1LiveTrace?.();
+    else window.requestV2LiveTrace?.();
   });
-  document.getElementById('v2InspectToggle')?.addEventListener('change',event=>{
-    if(!event.target.checked)render(null);
-  });
+  for(const id of ['v1InspectToggle','v2InspectToggle']){
+    document.getElementById(id)?.addEventListener('change',event=>{
+      if(!event.target.checked)render(null,currentEngine);
+    });
+  }
   window.renderV2Inspection=render;
 })();
