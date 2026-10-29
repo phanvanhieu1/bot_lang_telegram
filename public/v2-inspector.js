@@ -71,5 +71,8 @@
     // Explicit action: running the paid request is never triggered by an effect.
     window.requestV2LiveTrace?.();
   });
+  document.getElementById('v2InspectToggle')?.addEventListener('change',event=>{
+    if(!event.target.checked)render(null);
+  });
   window.renderV2Inspection=render;
 })();
