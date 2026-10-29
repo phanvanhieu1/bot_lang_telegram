@@ -33,6 +33,10 @@ const { addUsage, getUsageStats } = require('./usage');
 const { proRequestUsage,freeRequestUsage } = require('./translation-request-usage');
 const {historySnapshot}=require('./history-snapshot');
 const {
+  saveHistoryTranslation,listSavedTranslations,getSavedTranslation,
+  getSavedStatus,removeSavedTranslation
+}=require('./saved-translations');
+const {
   translateFull,
   evaluateChinese,
   generatePinyin,
@@ -674,13 +678,13 @@ app.post(
           rateLimit: en.rateLimit,
           requestUsage:freeRequestUsage(en)
         };
-        await addHistory({userId:req.user._id,text:text.trim(),
+        const savedHistory=await addHistory({userId:req.user._id,text:text.trim(),
           targetLang:en.parsed.sourceLanguage==='en'?'vi':'en',
           learningLang:'en',result:en.content,
           details:historySnapshot({engine:'free',context:freeContext,
             options:{backTranslation:true,pronunciation:false,vocabulary:false},
             response:responseBody})});
-        return res.json(responseBody);
+        return res.json({...responseBody,historyId:savedHistory.id});
       }
 
       const freeIsChinese=containsChinese(text.trim());
@@ -732,13 +736,13 @@ const pronunciation =
   appliedTerms:termHighlights(result.parsed.translation,freeTerms),
   terminologyWarnings:validateAppliedTerms(result.parsed.translation,freeTerms)
 };
-      await addHistory({userId:req.user._id,text:text.trim(),
+      const savedHistory=await addHistory({userId:req.user._id,text:text.trim(),
         targetLang:inputIsChinese?'vi':'zh',learningLang:'zh',
         result:resultText,details:historySnapshot({
           engine:'free',context:freeContext,
           options:{backTranslation:true,pronunciation:true,vocabulary:false},
           response:{...responseBody,result:resultText}})});
-      return res.json(responseBody);
+      return res.json({...responseBody,historyId:savedHistory.id});
 
     } catch (error) {
   console.error(
@@ -895,13 +899,13 @@ app.post('/api/translate',requirePro, async (req, res) => {
         ...inspectionFor(!trace.some(stage=>
           stage.role==='translator'||stage.role==='supplement'))
       };
-      await addHistory({userId:req.user._id,text:text.trim(),
+      const savedHistory=await addHistory({userId:req.user._id,text:text.trim(),
         targetLang:en.parsed.sourceLanguage==='en'?'vi':'en',
         learningLang:'en',result:en.content,
         details:historySnapshot({engine:'v1',context,
           options:{backTranslation,pronunciation:false,vocabulary,verification,inspectAI},
           response:responseBody})});
-      return res.json(responseBody);
+      return res.json({...responseBody,historyId:savedHistory.id});
     }
 
     const inputText = text.trim();
@@ -1190,12 +1194,12 @@ const responseBody={
   appliedTerms:termHighlights(finalCache.translation||'',appliedTerms),
   terminologyWarnings:validateAppliedTerms(finalCache.translation||'',appliedTerms)
 };
-await addHistory({userId:req.user._id,text:text.trim(),targetLang,
+const savedHistory=await addHistory({userId:req.user._id,text:text.trim(),targetLang,
   learningLang:'zh',result:responseContent,
   details:historySnapshot({engine:'v1',context,
     options:{backTranslation,pronunciation,vocabulary,verification,inspectAI},
     response:responseBody})});
-return res.json(responseBody);
+return res.json({...responseBody,historyId:savedHistory.id});
 
   } catch (error) {
   console.error('Translation error:', error);
@@ -1218,6 +1222,71 @@ app.get('/api/usage', requireAuth, async (req, res) => {
       success: false,
       message: 'Không thể lấy thống kê'
     });
+  }
+});
+
+// All Saved actions require an authenticated owner; clients send only a
+// history ID. Server copies the authenticated owner's persisted translation.
+function savedSameOrigin(req,res,next){
+  const origin=req.get('origin');
+  const expected=req.protocol+'://'+req.get('host');
+  const site=req.get('sec-fetch-site');
+  if((origin&&origin!==expected)||(site&&
+      !['same-origin','none'].includes(site))){
+    return res.status(403).json({success:false,message:'Yêu cầu khác nguồn gốc'});
+  }
+  next();
+}
+app.get('/api/saved',requireAuth,async(req,res)=>{
+  try{
+    res.set('Cache-Control','private, no-store');
+    const saved=await listSavedTranslations(req.user._id);
+    return res.json({success:true,saved});
+  }catch(error){
+    console.error('Saved translations list unavailable');
+    return res.status(500).json({success:false,message:'Không thể tải mục đã lưu'});
+  }
+});
+app.get('/api/saved/status/:historyId',requireAuth,async(req,res)=>{
+  try{
+    res.set('Cache-Control','private, no-store');
+    const id=await getSavedStatus(req.user._id,req.params.historyId);
+    return res.json({success:true,savedId:id});
+  }catch(error){
+    return res.status(500).json({success:false,message:'Không thể kiểm tra mục đã lưu'});
+  }
+});
+app.post('/api/saved',requireAuth,savedSameOrigin,async(req,res)=>{
+  try{
+    const saved=await saveHistoryTranslation(req.user._id,req.body?.historyId);
+    if(!saved)return res.status(404).json({success:false,
+      message:'Không tìm thấy bản dịch thuộc tài khoản này'});
+    res.set('Cache-Control','private, no-store');
+    return res.json({success:true,item:saved});
+  }catch(error){
+    console.error('Saved translation create failed');
+    return res.status(500).json({success:false,message:'Không thể lưu bản dịch'});
+  }
+});
+app.get('/api/saved/:id',requireAuth,async(req,res)=>{
+  try{
+    const item=await getSavedTranslation(req.user._id,req.params.id);
+    res.set('Cache-Control','private, no-store');
+    if(!item)return res.status(404).json({success:false,
+      message:'Không tìm thấy bản dịch đã lưu'});
+    return res.json({success:true,item});
+  }catch(error){
+    return res.status(500).json({success:false,message:'Không thể mở bản dịch đã lưu'});
+  }
+});
+app.delete('/api/saved/:id',requireAuth,savedSameOrigin,async(req,res)=>{
+  try{
+    const removed=await removeSavedTranslation(req.user._id,req.params.id);
+    if(!removed)return res.status(404).json({success:false,
+      message:'Không tìm thấy bản dịch đã lưu'});
+    return res.json({success:true});
+  }catch(error){
+    return res.status(500).json({success:false,message:'Không thể bỏ lưu bản dịch'});
   }
 });
 
