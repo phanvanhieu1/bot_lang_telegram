@@ -7,6 +7,8 @@ const engineV1=document.querySelector('input[name="translationEngine"][value="v1
 const engineV2=document.querySelector('input[name="translationEngine"][value="v2"]');
 const v2InspectLabel = document.getElementById('v2InspectLabel');
 const v2InspectToggle = document.getElementById('v2InspectToggle');
+const v1InspectLabel = document.getElementById('v1InspectLabel');
+const v1InspectToggle = document.getElementById('v1InspectToggle');
 const translateText = document.getElementById('translateText');
 const status = document.getElementById('status');
 const languageSelector = document.getElementById('languageSelector');
@@ -138,7 +140,10 @@ function refreshV2Button(){
   engineV2.checked=eligible&&preferredEngine==='v2';
   engineV1.checked=!engineV2.checked;
   if(v2InspectLabel)v2InspectLabel.hidden=!(eligible&&selectedEngine()==='v2');
-  if(selectedEngine()!=='v2')window.renderV2Inspection?.(null);
+  if(v1InspectLabel)v1InspectLabel.hidden=!(translatorMode==='pro'&&selectedEngine()==='v1');
+  // Both modes use the same details panel, but never mix traces.
+  if(selectedEngine()!=='v2'&&selectedEngine()!=='v1')
+    window.renderV2Inspection?.(null);
 }
 for(const radio of [engineV1,engineV2]){
   radio.addEventListener('change',()=>{
@@ -548,7 +553,12 @@ practiceExplanation.textContent =
 // TRANSLATE
 // =========================
 
-async function translate() {
+// A live rerun is allowed only via the explicit button in the inspector.
+window.requestV1LiveTrace=()=>{
+  if(selectedEngine()!=='v1'||translatorMode!=='pro'||!v1InspectToggle?.checked)return;
+  void translate(true);
+};
+async function translate(forceRefresh=false) {
   if (v2Busy) return;
   // Single visible Dịch button and Enter always dispatch to selected version.
   if (translateBtn.disabled) return;
@@ -613,6 +623,8 @@ vocabulary.textContent = '';
         vocabulary: vocabularyToggle.checked,
         verification: verificationToggle.checked,
         context: contextSelect.value,
+        inspectAI:v1InspectToggle?.checked===true,
+        forceRefresh:forceRefresh===true
       };
 
 const response = await fetch(translateEndpoint, {
@@ -676,6 +688,7 @@ const response = await fetch(translateEndpoint, {
     window.displayAppliedTerms?.(data.appliedTerms || []);
     window.displayTermWarning?.(data.terminologyWarnings || []);
     window.renderRequestUsage?.(data.requestUsage||null,'v1');
+    window.renderV2Inspection?.(data.inspection||null,'v1');
     if (selectedLang === 'en') {
       window.dispatchEvent(new CustomEvent('translation-finished', {
         detail: { sourceLanguage: data.sourceLanguage }
@@ -883,7 +896,7 @@ async function translateV2(forceRefresh=false){
     window.renderTermHighlights?.(data.appliedTerms || []);
     window.displayAppliedTerms?.(data.appliedTerms || []);
     window.renderRequestUsage?.(data.requestUsage||null,'v2');
-    window.renderV2Inspection?.(data.inspection||null);
+    window.renderV2Inspection?.(data.inspection||null,'v2');
     window.displayTermWarning?.((data.issues||[]).filter(x=>x.includes('Thuật ngữ')));
     const cards=vocabularyToggle.checked&&Array.isArray(data.vocabularyItems)
       ? data.vocabularyItems:[];
