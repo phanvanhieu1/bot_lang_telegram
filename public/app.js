@@ -105,7 +105,6 @@ saveTranslationBtn.addEventListener('click',async()=>{
     saveTranslationBtn.disabled=false;
   }
 });
-let historyDetailLoad=0;
 let languageRequestVersion = 0;
 const historyReplayNotice=document.getElementById('historyReplayNotice');
 function clearHistoryReplayNotice(){
