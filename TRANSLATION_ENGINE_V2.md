@@ -824,3 +824,51 @@ clicking the rerun button. Confirm independent verification and V1
 Chinese supplements generate separate properly labeled stages. Test
 English V1 PRO for the single user-message prompt case. No V1 FREE
 provider request is included in this GPT-only inspector.
+
+## Full translation history replay (2026-10-30)
+
+History sidebar entries are now keyboard-accessible buttons. Clicking one
+retrieves `GET /api/history/:id` (authentication required; query strictly
+scoped to `req.user._id`) and restores the selected result in the **existing
+translation workspace**. No translation API, provider or vocabulary encounter
+write is triggered by replay. The main UI displays archived source/result,
+backtranslation, pronunciation, vocabulary cards, independent verification,
+matched glossary spans/warnings, exact requestUsage (per-stage model, token,
+estimated USD, latency and cached flag), and when archived, the Claude/GPT
+inspector trace with copy controls.
+
+New translation history entries store a `details` snapshot with
+`engine`, `context`, original UI toggle choices, and a whitelist of the
+actual response fields. Both V1 FREE/PRO (Chinese/English) and V2 record a
+snapshot. Vocabulary cards are rendered in a **snapshot-only** mode that
+never recalculates historical encounter counts. The list endpoint selects
+only engine/context summary; full details load on demand, are owner scoped
+and served with `Cache-Control: private, no-store`. The existing maximum
+of 200 history items per user and per-language Delete behavior remain.
+
+**Privacy change made specifically for history replay:** when the user
+explicitly enabled the V1/V2 inspector on a particular request, that
+request's prompt/response trace is now persisted within the user-owned
+history snapshot, enabling later viewing. When inspector was off, traces
+are **not** recorded or inferred. Traces are not added to shared
+translation caches, usage ledgers or logs. The per-record snapshot cap is
+200 KB; if an exceptional raw transcript exceeds the cap, it is omitted
+and a notice is stored rather than writing an oversized document. The
+inspector's rerun button is always hidden during archived playback so a
+history click can never generate unexpected paid calls.
+
+**Legacy history:** past records only stored the raw labeled result.
+Their source, translation, backtranslation, pronunciation, vocabulary
+text and verification (when present) remain readable. Historic token
+counts, costs, vocabulary status at the time and raw AI prompts that
+were never saved cannot be reconstructed; the UI labels these as
+unavailable rather than fabricating data.
+
+Manual verification: produce new V1 and V2 translations with vocabulary
+and inspection toggled on; open History and click each to check restored
+number of tokens, money, duration, AI stages, copy buttons, badges, words,
+backtranslation and verification. Confirm no new API charges and no
+vocabulary encounter increases. Confirm history list JSON never contains
+raw prompts; manually request another user's history item ID and expect
+404. Check old history entries show available original fields without
+invented usage figures. Verify browser reload still allows playback.
