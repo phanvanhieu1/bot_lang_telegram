@@ -62,6 +62,7 @@ function resolveTerms(text,rows,{context='auto',analyzedDomain='unknown',
       conditional:allowCandidates&&t.domain!=='any'};
   }).filter(t=>t&&t.offset>=0);
   potential.sort((a,b)=>String(b.source).length-String(a.source).length||
+    Number(a.conditional)-Number(b.conditional)||
     Number(a.reverse)-Number(b.reverse)||
     Number(b.priority||0)-Number(a.priority||0));
   const covered=[];
@@ -73,7 +74,9 @@ function resolveTerms(text,rows,{context='auto',analyzedDomain='unknown',
       // Alternative confirmed meanings for the EXACT SAME source span may
       // be offered as options to V1 GPT in AUTO, not silently discarded.
       const sameSpan=overlapping[0]===start&&overlapping[1]===end;
-      if(!(allowCandidates&&sameSpan&&t.conditional))continue;
+      if(!(allowCandidates&&sameSpan&&t.conditional&&
+        selected.some(row=>row.offset===start&&row.source===t.source&&
+          row.conditional===true)))continue;
       if(selected.some(row=>row.offset===start&&
         row.source===t.source&&row.domain===t.domain))continue;
     }else covered.push([start,end]);
