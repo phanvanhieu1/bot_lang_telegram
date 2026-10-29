@@ -14,7 +14,7 @@
 <link href="/maintenance-ui.css" rel="stylesheet"/>
 <link href="/vocabulary-ui.css" rel="stylesheet"/>
 <link href="/translation-vocab.css" rel="stylesheet"/>
-<link href="/compact-layout.css?v=history-replay-1" rel="stylesheet"/></head>
+<link href="/compact-layout.css?v=saved-translation-1" rel="stylesheet"/></head>
 <body>
 <main class="container">
 <header class="header gt-header">
@@ -263,6 +263,10 @@
 <div class="result-content" id="pronunciation"></div>
 </div>
 <div class="translation-output-actions" aria-label="Công cụ bản dịch">
+  <button class="pane-action-button saved-translation-star" id="saveTranslationBtn" type="button"
+    title="Lưu bản dịch" aria-label="Lưu bản dịch" aria-pressed="false" hidden>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 3.1 6.3 7 .9-5.1 4.9 1.3 7-6.3-3.3-6.3 3.3 1.3-7L2 9.2l7-.9z"/></svg>
+  </button>
   <button aria-label="Sao chép bản dịch" class="pane-action-button copy-btn" id="copyBtn" title="Sao chép bản dịch" type="button" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h2"/></svg></button>
   <button aria-label="Nghe bản dịch" class="pane-action-button" id="outputSpeakBtn" title="Nghe bản dịch" type="button" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6.5 9H3v6h3.5l4.5 4V5ZM15 9a5 5 0 0 1 0 6M18 6a9 9 0 0 1 0 12"/></svg></button>
 </div></div>
@@ -373,7 +377,7 @@
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4v6h6M4.2 10a8.5 8.5 0 1 1 .3 5M12 7v5l4 2"/></svg>
     <span>Nhật ký</span>
   </button>
-  <button class="quick-link-button" type="button" disabled title="Lưu bản dịch (sắp ra mắt)">
+  <button class="quick-link-button" id="savedBtn" type="button" title="Xem bản dịch đã lưu">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 3.1 6.3 7 .9-5.1 4.9 1.3 7-6.3-3.3-6.3 3.3 1.3-7L2 9.2l7-.9z"/></svg>
     <span>Đã lưu</span>
   </button>
@@ -383,13 +387,13 @@
 <div class="history-overlay" id="historyOverlay"></div>
 <aside class="history-sidebar" id="historySidebar">
 <div class="history-header">
-<h2>Lịch sử dịch</h2>
+<h2 id="historySidebarTitle">Lịch sử dịch</h2>
 <button class="history-close" id="closeHistoryBtn" type="button">
       ✕
     </button>
 </div>
 <div class="history-search">
-<input id="historySearch" placeholder="Tìm trong lịch sử..." type="text"/>
+<input id="historySearch" placeholder="Tìm trong lịch sử..." type="text" aria-label="Tìm bản dịch"/>
 </div>
 <div class="history-list" id="historyList"></div>
 <div class="history-footer">
@@ -518,7 +522,7 @@
 <script src="/terminology.js"></script>
 <script src="/translation-usage.js?v=v2-v1-parity-1"></script>
 <script src="/v2-inspector.js?v=history-replay-1"></script>
-<script src="/app.js?v=history-replay-1"></script>
+<script src="/app.js?v=saved-translation-1"></script>
 <script src="/google-style.js"></script>
 <script src="/practice-audio.js"></script>
 <script src="/image-translate.js"></script>
