@@ -89,4 +89,10 @@ test('FREE Chinese cache and old auto output are isolated from manually chosen c
   assert.match(cache,/hashKey\(\['free-context-2', normalizedText, String\(context\)\]\)/);
   assert.match(read('ai/services/free.service.js'),/getFreeCachedTranslation\(text,context\)/);
   assert.match(read('ai/services/free.service.js'),/context!=='auto'/);
+  const english=read('web-english.js');
+  assert.match(english,/contextPolicy\(options.context\|\|'auto'\)/);
+  assert.match(english,/prompt\(text, \{ vocabulary: false,context \}\)/);
+  assert.match(english,/getFreeCachedText\(text, 'en',context\)/);
+  assert.match(read('server.js'),/translateEnglishFree\(text.trim\(\),\{context:freeContext\}\)/);
+  assert.match(cache,/pro-context-2/);
 });
