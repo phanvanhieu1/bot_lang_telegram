@@ -720,3 +720,60 @@ and that the accounting table correctly shows token charges. Turn off
 inspection and verify the transcript disappears immediately. Toggle
 V1's independent **Kiểm chứng** to see its separate GPT request when
 one is actually performed.
+
+## One translate button and visible manual/automatic context (2026-10-30)
+
+The main translation screen now displays **Ngữ cảnh** directly above the
+source/result panes, not inside the settings popover. The four choices are:
+`Tự động (AI xác định)`, `Bạn bè`, `Đồng nghiệp`, `Cấp trên`.
+Selection is saved in the existing `translationContext` localStorage key.
+
+When V2 access is available (PRO/Admin, Chinese language tab, V2 server
+feature-flag and provider credentials active), a compact V1/V2 selector
+appears on the **main page**. It persists the preferred version in
+`translationEngine`, defaults to V1 for new sessions and gracefully
+falls back to V1 when V2 is not allowed (FREE/English/disabled). Only
+one visible **Dịch** button remains. Clicking it or pressing Enter
+dispatches to the selected engine; inspector paid rerun still explicitly
+calls V2 only when V2 is selected. Settings keep the other four PRO
+toggles, voice choice and speed unchanged.
+
+All translator prompts now use `ai/prompts/context-policy.js`:
+- **Manual selection:** specified speaker/listener relationship and tone
+  are binding; no AI may independently replace this conversational
+  context, invent a superior/friend or change request strength.
+- **Auto:** the model may infer context from the source; when evidence
+  is weak, preserve a neutral register. Confirmed user-approved
+  terminology remains scoped to the chosen/resolved domain.
+- The same policy covers V1 PRO (including supplemental prompts), V2's
+  Claude analysis and GPT-4o translation, V1 FREE Chinese Groq/OpenRouter,
+  and V1 English PRO/FREE.
+- FREE Chinese fallback to DeepL is disabled for explicitly selected
+  contexts that DeepL cannot be instructed to respect; a failed
+  fallback is better than pretending to honor a manually fixed context.
+
+Caches are isolated by the selected context. V1 PRO and V1 FREE
+Chinese/English use a new context-policy cache-key version; V2 engine
+version increased to `v2.4.0`, which also changes the V2 cache
+fingerprint. Existing cache rows are not deleted, but first requests
+after the update may require fresh paid API calls to use the new policy.
+No new AI stage or extra API calls were introduced by the UI/prompt
+change, and no environment variables need updating.
+
+Suggested manual browser smoke tests:
+1. In PRO/Chinese, verify single **Dịch** button, V1/V2 selector and
+   prominent context dropdown. Switch to English/FREE and confirm V2 is
+   unavailable but V1 remains usable; returning to Chinese/PRO restores
+   saved V2 preference.
+2. Select **Đồng nghiệp**, translate `是不是澎湃的，教我一下` with
+   personally approved `澎湃 → PP` in work domain. V2 should pass
+   work domain to GPT even when Claude's own topic classification is
+   daily. Inspect the GPT `approvedTerminology` field if needed.
+3. Translate the same input using **Tự động** and compare the resolved
+   domain. Work-only glossary terms must not be forced into an actual
+   everyday sentence without evidence.
+4. Toggle **Bạn bè**, **Đồng nghiệp**, **Cấp trên** and verify each
+   selection is present in both V1/V2 provider prompt. Confirm there
+   is no accidental cross-context cache reuse.
+5. Confirm V1 English FREE/PRO use the selected context; test Enter
+   and click, cache HIT, independent verification and vocabulary.
