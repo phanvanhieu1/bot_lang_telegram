@@ -1,5 +1,6 @@
 const { LANG_CONFIG } = require('../../config');
 const {contextPolicy}=require('./context-policy');
+const {NAME_PRESERVATION_RULES}=require('./proper-names');
 
 function buildProPrompt(
   text,
@@ -31,6 +32,7 @@ BẢN DỊCH ĐÃ CÓ:
 ${existingTranslation}
 
 Không dịch lại và không thay đổi bản dịch trên.
+${NAME_PRESERVATION_RULES}
 
 ${contextInstruction}`;
 
@@ -101,7 +103,8 @@ Hãy tự động nhận diện ngôn ngữ của văn bản đầu vào:
 - Nếu đầu vào là tiếng Việt → BẮT BUỘC dịch sang ${lang.promptName}.
 - Nếu đầu vào là ${lang.promptName} → BẮT BUỘC dịch sang tiếng Việt.
 - Nếu đầu vào là ngôn ngữ khác → dịch sang tiếng Việt.
-- Không được trả lại nguyên văn đầu vào.
+- Không được trả lại nguyên văn toàn bộ đầu vào (ngoại trừ tên riêng/nhãn/mã phải giữ nguyên).
+- ${NAME_PRESERVATION_RULES}
 - Không giải thích.
 
 ${contextInstruction}
@@ -128,7 +131,8 @@ QUY TẮC DỊCH:
   + BẮT BUỘC dịch sang tiếng Việt.
 - Nếu đầu vào là ngôn ngữ khác:
   + Dịch sang tiếng Việt.
-- Không được lặp lại nguyên văn đầu vào.
+- Không lặp lại nguyên văn toàn bộ đầu vào; riêng tên riêng/nhãn/mã phải được giữ đúng nguyên dạng.
+- ${NAME_PRESERVATION_RULES}
 - Bản dịch phải tự nhiên và đúng ngữ cảnh.
 
 ${contextInstruction}`;
