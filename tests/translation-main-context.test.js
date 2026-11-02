@@ -86,7 +86,8 @@ test('V2 Claude and GPT share forced manual context and trace actual choices',as
 test('FREE Chinese cache and old auto output are isolated from manually chosen context',()=>{
   const cache=read('web-cache.js');
   assert.match(cache,/free-context-2/);
-  assert.match(cache,/hashKey\(\['free-context-2', normalizedText, String\(context\)\]\)/);
+  assert.match(cache,/hashKey\(\['free-context-3-names', normalizedText, String\(context\)\]\)/);
+  assert.match(cache,/hashKey\(\['free-context-2', lang, normalizedText, String\(context\)\]\)/);
   assert.match(read('ai/services/free.service.js'),/getFreeCachedTranslation\(text,context\)/);
   assert.match(read('ai/services/free.service.js'),/context!=='auto'/);
   const english=read('web-english.js');
