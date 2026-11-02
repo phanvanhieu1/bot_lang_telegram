@@ -3,13 +3,13 @@
 // speculative analysis; OpenAI translates; deterministic checks validate.
 // No terminology is ever auto-saved from model output.
 const {createProviders,safeError}=require('./providers');
-const {glossaryInstructions,termHighlights,validateAppliedTerms,contextDomain}=require('../terminology/resolver');
+const {termHighlights,validateAppliedTerms,contextDomain}=require('../terminology/resolver');
 const {sanitizeClaudeTerms}=require('./vocabulary');
 const {contextPolicy}=require('../prompts/context-policy');
 const {analyzerBudget}=require('./analyzer-budget');
-const {NAME_PRESERVATION_RULES,sanitizeProperNames,missingProtectedNames}=
+const {NAME_PRESERVATION_RULES,extractSourceNames,sanitizeProperNames,missingProtectedNames}=
   require('../prompts/proper-names');
-const ENGINE_VERSION='v2.6.0';
+const ENGINE_VERSION='v2.7.0';
 
 function parseObject(raw) {
   const s=String(raw||'').replace(/<think>[\s\S]*?<\/think>/g,'')
@@ -95,6 +95,16 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
     throw safeError('V2_INVALID_INPUT');
   const sourceText=text.trim(),direction=detectDirection(sourceText);
   const analysisBudget=analyzerBudget(sourceText);
+  // The separate Chinese learning library is not used for Vietnamese input
+  // or when the vocabulary option is off. Don't ask Claude to generate it.
+  const learningTermsEnabled=vocabulary===true&&direction.source==='zh';
+  const analysisLimits=learningTermsEnabled?analysisBudget.limits:{
+    ...analysisBudget.limits,terms:0,patterns:0
+  };
+  const effectiveAnalysisBudget={...analysisBudget,limits:analysisLimits};
+  // Zero-model-call fallback for unambiguous source markers and operational
+  // labels. Claude may still detect names the JS recognizer cannot.
+  const sourceNameHints=direction.source==='zh'?extractSourceNames(sourceText):[];
   const stages=[];
   const used=new Set();
   async function stage(role,provider,fn,request=null) {
@@ -129,7 +139,7 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
   const analyzing='Bạn là chuyên gia phân tích ngữ nghĩa Trung-Việt; KHÔNG dịch. '+coreRules+
     ' '+fixedContext+' '+
     ' Trả JSON NGẮN, không Markdown: {"domain":"work|it|daily|mixed|unknown","intent":"...","tone":"...","facts":["..."],"terms":[{"source":"...","meaning":"..."}],"patterns":[{"source":"...","meaning":"..."}],"ambiguities":["..."],"names":["..."]}. '+
-    'Tuân thủ analysisLimits trong user message cho intentChars, facts, terms, patterns và ambiguities. Đây là GIỚI HẠN TỐI ĐA, không phải chỉ tiêu phải đạt; trả mảng rỗng nếu không có. tone tối đa 5 từ. '+ 
+    'Tuân thủ analysisLimits trong user message cho intentChars, facts, terms, patterns và ambiguities. Đây là GIỚI HẠN TỐI ĐA, không phải chỉ tiêu phải đạt; trả mảng rỗng nếu không có. Nếu terms/patterns có giới hạn 0, trả []. tone tối đa 5 từ. '+ 
     'Không bỏ sót thông tin trọng yếu về chủ thể, hành động, điều kiện, phủ định, thời gian hay số liệu. terms chỉ chọn từ hoặc cụm từ hữu ích để học, thực sự xuất hiện trong câu. '+
     'source chép đúng từ/cụm từ ở nguyên văn, meaning là nghĩa tiếng Việt ngắn gọn theo ngữ cảnh (với câu gốc tiếng Việt thì giải thích ngắn bằng tiếng Việt). '+
     'Ưu tiên từ tiếng Trung ít nhất hai chữ Hán; không chọn họ tên, mã tài khoản, số, URL hoặc từ không xuất hiện trong câu. '+
@@ -143,6 +153,7 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
     'names là tối đa 12 tên/nhãn riêng bằng chữ Hán, sao chép CHÍNH XÁC từ câu gốc (người, nền tảng, kênh, nhóm, nhãn hệ thống); không phiên âm/dịch nghĩa. '+
     'Xét vai trò cú pháp thay vì nghĩa từ điển: một cụm có thể là tên riêng dù chữ Hán có nghĩa thông thường; phân biệt tên với từ thời gian hoặc động từ liền kề. '+
     'Không đưa từ thường, từ chỉ thời gian, mã Latin/số, hoặc tên chưa có dấu hiệu thực sự trong câu vào names; nếu không có thì dùng []. '+
+    'Nếu nameHints có trong user message, kiểm tra chúng theo ngữ cảnh, không tự dịch nghĩa hoặc gán tên mới. '+
     'Nếu người dùng đã chọn ngữ cảnh thủ công, giữ nguyên ngữ cảnh đó trong ý định, tone và phân tích; chỉ khi auto mới tự xác định quan hệ giao tiếp.';
   // Count Unicode characters once and set both output quotas and provider
   // token headroom from the same policy, with no extra AI request.
@@ -151,7 +162,8 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
   const analysisRetryLimit=analysisBudget.retryMaxOutputTokens;
   const analyzerInput=JSON.stringify({original:sourceText,context,
     sourceLanguage:direction.source,targetLanguage:direction.target,
-    analysisLimits:analysisBudget.limits});
+    analysisLimits,
+    ...(sourceNameHints.length?{nameHints:sourceNameHints}:{})});
   const isMalformed=(e)=>['V2_INVALID_AGENT_JSON','V2_INVALID_ANALYSIS','V2_CLAUDE_TRUNCATED'].includes(e?.code);
   async function analyze(role,limit,retry=false){
     const system=retry?analyzing+
@@ -160,7 +172,7 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
       system,analyzerInput,{maxOutputTokens:limit}),
       {system,input:analyzerInput});
     if(result.stopReason==='max_tokens')throw safeError('V2_CLAUDE_TRUNCATED');
-    return safeFrame(parseObject(result.text),analysisBudget,sourceText);
+    return safeFrame(parseObject(result.text),effectiveAnalysisBudget,sourceText);
   }
   let frame;
   try{
@@ -201,16 +213,22 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
   const resolvedDomain=contextDomain(context,frame.domain);
   const authoritativeSources=new Set(glossary.map(t=>t.source.trim().toLowerCase()));
   // DB-approved mappings outrank model suggestions; names are source spans.
-  const protectedNames=sanitizeProperNames(frame.names,sourceText,glossary);
+  const protectedNames=sanitizeProperNames(
+    [...frame.names,...sourceNameHints],sourceText,glossary);
+  // Do not forward study-only grammar or duplicate the protected name array.
+  const {patterns:_studyPatterns,names:_analyzerNames,...semanticAnalysis}=frame;
   const translationAnalysis={
-    ...frame,
+    ...semanticAnalysis,
     domain:resolvedDomain,
     terms:frame.terms.filter(t=>
       !authoritativeSources.has(t.source.trim().toLowerCase()) &&
       !protectedNames.some(name=>t.source.includes(name)||name.includes(t.source)))
   };
-  // Other detected names survive in their original script.
-  const termPrompt=glossaryInstructions(glossary);
+  // One canonical approved-terminology payload for both translator and repair.
+  // Do not serialize the same glossary as a second system-prompt block.
+  const approvedTerminology=glossary.map(t=>({
+    source:t.source,meaning:t.translation,domain:t.domain
+  }));
   const outputRules=direction.target==='zh'
     ?'Dịch sang tiếng Trung giản thể tự nhiên, đúng ngữ pháp và sắc thái. Không viết phần dịch bằng tiếng Việt; giữ nguyên thuật ngữ tiếng Trung đã xác nhận. '
     :'Dịch sang tiếng Việt tự nhiên, đúng ngữ pháp và sắc thái. Diễn đạt tiếng Việt mạch lạc: tránh xếp chồng phó từ chỉ thời và thể gây gượng; khi một việc đã bắt đầu và vẫn tiếp diễn, giữ đúng cả hai ý bằng cấu trúc tự nhiên. ';
@@ -218,8 +236,7 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
     '\n'+NAME_PRESERVATION_RULES+
     '\n'+fixedContext+
     '\nNếu ngữ cảnh do người dùng chọn, giữ nguyên lựa chọn ấy ngay cả khi Claude đoán khác; auto mới suy luận ngữ cảnh. '+
-    'Sử dụng phân tích Claude để hiểu hành động và ý định nhưng không chấp nhận nghĩa thuật ngữ phỏng đoán nếu xung đột với danh sách đã được xác nhận.'+
-    termPrompt+
+    'Sử dụng phân tích Claude để hiểu hành động và ý định. Trường approvedTerminology trong dữ liệu User là từ điển NGƯỜI DÙNG XÁC NHẬN: bắt buộc ưu tiên nghĩa tại đó cho đoạn nguồn phù hợp; không để suy đoán Claude ghi đè.'+
     '\nDịch toàn bộ câu gốc tự nhiên, đủ ý. Đừng đoán thông tin gốc không nói. '+
     outputRules+
     'uncertainties chỉ ghi nếu có sự không rõ ràng ẢNH HƯỞNG ĐẾN NGHĨA CỐT LÕI, không ghi chi tiết còn thiếu vốn bình thường. '+
@@ -242,7 +259,7 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
     protectedNames,
     includeBackTranslation:backTranslation&&direction.source==='vi',
     includeChineseVocabulary:vocabulary&&direction.source==='vi',
-    approvedTerminology:glossary.map(t=>({source:t.source,meaning:t.translation,domain:t.domain}))});
+    approvedTerminology});
   const modelTranslation=await stage('translator','openai',()=>
     providers.openai(translating,userPayload,{maxOutputTokens:1500,jsonSchema}),
     {system:translating,input:userPayload});
@@ -275,7 +292,7 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
         errors:issues,protectedNames,
         includeBackTranslation:backTranslation&&direction.source==='vi',
         includeChineseVocabulary:vocabulary&&direction.source==='vi',
-        approvedTerminology:glossary});
+        approvedTerminology});
       translated=cleanTranslation((await stage('repair','openai',()=>
         providers.openai(repairSystem,repairInput,
           {maxOutputTokens:1200,jsonSchema}),
@@ -295,7 +312,7 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
     issues.push('Câu có mơ hồ quan trọng ảnh hưởng nghĩa bản dịch; cần kiểm tra thủ công.');
   }
   const analysisTerms=sanitizeClaudeTerms(
-    frame.terms,sourceText,direction.source,analysisBudget.limits.terms)
+    frame.terms,sourceText,direction.source,analysisLimits.terms)
     .filter(term=>!protectedNames.some(name=>
       term.source.includes(name)||name.includes(term.source)))
     .map(term=>{
