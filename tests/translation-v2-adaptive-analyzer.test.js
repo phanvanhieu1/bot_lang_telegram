@@ -4,6 +4,7 @@ const assert=require('node:assert/strict');
 const {analyzerBudget}=require('../ai/v2/analyzer-budget');
 const {deepTranslate,ENGINE_VERSION}=require('../ai/v2/engine');
 const {sanitizeClaudeTerms}=require('../ai/v2/vocabulary');
+const {parseAi1Items}=require('../web-vocabulary/ai-items');
 const fs=require('node:fs');
 const path=require('node:path');
 const read=p=>fs.readFileSync(path.join(__dirname,'..',p),'utf8');
@@ -113,4 +114,13 @@ test('Vocabulary sanitization permits confirmed budget above former fixed 8',()=
   assert.equal(sanitizeClaudeTerms(terms,source,'vi',20).length,20);
   assert.match(read('ai/v2/routes.js'),/analyzerBudget\(source\)\.limits\.patterns/);
   assert.match(read('ai/v2/engine.js'),/analysisBudget=analyzerBudget\(sourceText\)/);
+});
+
+test('V2 can request 26 study items while V1 parser retains legacy default of 24',()=>{
+  const words='工作 银行 会员 订单 经理 金额 人工 后台 审核 暂停 确认 继续 活动 记录 客户 登录 退款 提现 支付 成功 失败 时间 系统 安全 产品 公司'.split(' ');
+  const source=words.join('，');
+  const content=words.map(word=>'[WORD] '+word+' : nghĩa').join('\n');
+  assert.equal(words.length,26);
+  assert.equal(parseAi1Items(content,source,'zh').length,24);
+  assert.equal(parseAi1Items(content,source,'zh',26).length,26);
 });
