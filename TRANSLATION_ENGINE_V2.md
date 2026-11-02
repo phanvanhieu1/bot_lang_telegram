@@ -951,3 +951,51 @@ automatically claim high-confidence application of advisory hints.
   after opening saved/history. Translations that could not persist history
   cannot be bookmarked until history persistence succeeds. All saved
   create/delete/read operations are ordinary MongoDB calls, not GPT calls.
+
+## Pre-merge reliability pass — phase 1 (2026-11-02)
+
+This phase fixes verified code-level risks identified during review. It does
+not merge or deploy PR #5 and does not modify translation model/prompt choices.
+
+- **Stale response protection:** The web translator now increments a shared
+  `translationViewVersion` for new input, translation requests and archive
+  playback. Both V1 and V2 check the same visible input and version before
+  painting any async response. Archive detail loading is invalidated by user
+  edits, subsequent history clicks and new requests. Switching learning
+  languages clears the active saved-star identity; stale history list requests
+  do not paint over the Saved drawer. A changed input after a pending response
+  prompts the user to translate again rather than misleadingly claiming it
+  still loaded.
+- **Best-effort history:** All V1 FREE/PRO routes now call the small reusable
+  `history-guard.js` helper. A successful, billable translation can return
+  its full original result even if writing MongoDB history fails.
+  `historyId:null` means the result was not archived and cannot be bookmarked
+  with the existing star. V2 already used a best-effort history write.
+- **Bounded history snapshot:** `history.js` applies the 200,000-byte limit
+  to the actual nested `payload.inspection`, not a nonexistent top-level
+  `inspection`. If a transcript exceeds the bound, the other visible fields
+  (especially request usage, cost and vocabulary) are kept when possible.
+  Exceptionally large metadata is minimized while the top-level raw
+  translation result remains intact.
+- **Orphaned Saved undo:** A Saved item whose history source still exists is
+  permanently deleted when unstarred, as before. When its history source
+  has already been pruned or cleared, removing the star hides the item
+  immediately and retains a private, account-owned 30-minute undo copy.
+  Unstarring and re-starring within that window restores the copy without
+  calling an AI provider. The document's `expiresAt` TTL index removes it
+  after expiry. Deleted items are excluded from list, get-by-ID and star
+  status queries. This is a bounded undo facility, not permanent storage of
+  removed bookmarks; TTL deletion may be delayed by MongoDB's background
+  cleanup scheduler, but the explicit expiry filter disallows late recovery.
+- **Verification:** `tests/premerge-stability.test.js` tests enormous
+  opt-in GPT/Claude inspection payloads, preserved usage accounting, safe
+  history failures and stale-response version guards.
+  `tests/saved-translations.test.js` simulates orphan undo, duplicate
+  prevention, owner isolation and owner-verified deletion. The GitHub Actions
+  Node test workflow runs `npm test` with mock providers and MongoDB.
+  It does not replace staging tests with a real browser, database and AI APIs.
+
+Remaining future phases: owner-scoped V1 glossary cache, dictionary-search
+scaling, Saved pagination, stage-level accounting for partial V2 failures,
+V1 English cache-label accuracy, stricter request validation, staging
+translation-quality evaluation and final PR merge review.
