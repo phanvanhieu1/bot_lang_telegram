@@ -45,7 +45,9 @@ function inferLegacyType(term, language) {
   return term.length > 4 ? 'phrase' : 'word';
 }
 
-function parseAi1Items(vocabulary, foreignText, language) {
+function parseAi1Items(vocabulary, foreignText, language, maxItems=MAX_AI1_ITEMS) {
+  const limit=Number.isFinite(maxItems)
+    ?Math.max(1,Math.min(32,Math.floor(maxItems))):MAX_AI1_ITEMS;
   if (!['zh','en'].includes(language) ||
       typeof vocabulary !== 'string' || !vocabulary.trim() ||
       typeof foreignText !== 'string') return [];
@@ -78,7 +80,7 @@ function parseAi1Items(vocabulary, foreignText, language) {
       key, text:cleanedTerm.slice(0,90), type, meaning,
       occurrences:Math.min(50,count)
     });
-    if (unique.size>=MAX_AI1_ITEMS) break;
+    if (unique.size>=limit) break;
   }
   return [...unique.values()];
 }
