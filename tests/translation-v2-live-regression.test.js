@@ -2,6 +2,7 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const {deepTranslate}=require('../ai/v2/engine');
+const {analyzerBudget}=require('../ai/v2/analyzer-budget');
 const {resolveTerms}=require('../ai/terminology/resolver');
 
 // Regressions based on real paid API outputs from the 2026-10-28 smoke run.
@@ -98,7 +99,9 @@ test('G01 paid output: dictionary resolves terminology even if Claude lists harm
   assert.equal(result.appliedTerms.length,1);
   assert.equal(result.appliedTerms[0].source,'刷子');
   assert.deepEqual(providers.calls.map(x=>x.provider),['claude','openai']);
-  assert.ok(providers.calls[0].maxOutputTokens<=900,'short sentence should not allocate excessive Claude output tokens');
+  assert.equal(providers.calls[0].maxOutputTokens,
+    analyzerBudget('帮忙看下，这是刷子吗？').maxOutputTokens,
+    'Claude output ceiling must match the input-length policy');
 });
 test('G02 paid output: missing brush subtype or travel time are not translation errors',async()=>{
   const providers=providerSample({
@@ -115,7 +118,8 @@ test('G02 paid output: missing brush subtype or travel time are not translation 
   assert.equal(result.appliedTerms.length,0);
   assert.equal(result.translationNotes.length,1);
   assert.match(result.translation,/bàn chải/);
-  assert.ok(providers.calls[0].maxOutputTokens<=900);
+  assert.equal(providers.calls[0].maxOutputTokens,
+    analyzerBudget('我想去超市买个刷子').maxOutputTokens);
 });
 
 test('G01 real failure: Claude says daily but explicit colleague and confirmed DB term win',async()=>{
