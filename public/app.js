@@ -801,6 +801,11 @@ const response = await fetch(translateEndpoint, {
       translateBtn.disabled = false;
       setEngineControlsBusy(false);
       translateBtn.classList.remove('loading');
+      if(viewVersion !== translationViewVersion &&
+         textInput.value.trim() !== text){
+        status.textContent='Nội dung đã thay đổi. Nhấn Dịch để cập nhật.';
+        status.className='status';
+      }
     }
   }
 }
@@ -1028,6 +1033,11 @@ async function translateV2(forceRefresh=false){
       translateBtn.classList.remove('loading');
       setEngineControlsBusy(false);
       refreshV2Button();
+      if(viewVersion !== translationViewVersion &&
+         textInput.value.trim() !== text){
+        status.textContent='Nội dung đã thay đổi. Nhấn Dịch để cập nhật.';
+        status.className='status';
+      }
     }
   }
 }
