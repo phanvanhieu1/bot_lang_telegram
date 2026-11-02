@@ -642,6 +642,18 @@ function addPinyinToVocabulary(vocabulary) {
     .join('\n');
 }
 
+// Translation is the primary operation; a failed history write must not
+// make an already-billed, successful AI result appear to have failed.
+async function recordTranslationHistorySafely(record){
+  try{
+    const saved=await addHistory(record);
+    return saved?.id||null;
+  }catch(_){
+    console.warn('[Translation] History write unavailable');
+    return null;
+  }
+}
+
 app.post(
   '/api/translate/free',
   requireAuth,
@@ -678,13 +690,13 @@ app.post(
           rateLimit: en.rateLimit,
           requestUsage:freeRequestUsage(en)
         };
-        const savedHistory=await addHistory({userId:req.user._id,text:text.trim(),
+        const historyId=await recordTranslationHistorySafely({userId:req.user._id,text:text.trim(),
           targetLang:en.parsed.sourceLanguage==='en'?'vi':'en',
           learningLang:'en',result:en.content,
           details:historySnapshot({engine:'free',context:freeContext,
             options:{backTranslation:true,pronunciation:false,vocabulary:false},
             response:responseBody})});
-        return res.json({...responseBody,historyId:savedHistory.id});
+        return res.json({...responseBody,historyId});
       }
 
       const freeIsChinese=containsChinese(text.trim());
@@ -736,13 +748,13 @@ const pronunciation =
   appliedTerms:termHighlights(result.parsed.translation,freeTerms),
   terminologyWarnings:validateAppliedTerms(result.parsed.translation,freeTerms)
 };
-      const savedHistory=await addHistory({userId:req.user._id,text:text.trim(),
+      const historyId=await recordTranslationHistorySafely({userId:req.user._id,text:text.trim(),
         targetLang:inputIsChinese?'vi':'zh',learningLang:'zh',
         result:resultText,details:historySnapshot({
           engine:'free',context:freeContext,
           options:{backTranslation:true,pronunciation:true,vocabulary:false},
           response:{...responseBody,result:resultText}})});
-      return res.json({...responseBody,historyId:savedHistory.id});
+      return res.json({...responseBody,historyId});
 
     } catch (error) {
   console.error(
@@ -899,13 +911,13 @@ app.post('/api/translate',requirePro, async (req, res) => {
         ...inspectionFor(!trace.some(stage=>
           stage.role==='translator'||stage.role==='supplement'))
       };
-      const savedHistory=await addHistory({userId:req.user._id,text:text.trim(),
+      const historyId=await recordTranslationHistorySafely({userId:req.user._id,text:text.trim(),
         targetLang:en.parsed.sourceLanguage==='en'?'vi':'en',
         learningLang:'en',result:en.content,
         details:historySnapshot({engine:'v1',context,
           options:{backTranslation,pronunciation:false,vocabulary,verification,inspectAI},
           response:responseBody})});
-      return res.json({...responseBody,historyId:savedHistory.id});
+      return res.json({...responseBody,historyId});
     }
 
     const inputText = text.trim();
@@ -1194,12 +1206,12 @@ const responseBody={
   appliedTerms:termHighlights(finalCache.translation||'',appliedTerms),
   terminologyWarnings:validateAppliedTerms(finalCache.translation||'',appliedTerms)
 };
-const savedHistory=await addHistory({userId:req.user._id,text:text.trim(),targetLang,
+const historyId=await recordTranslationHistorySafely({userId:req.user._id,text:text.trim(),targetLang,
   learningLang:'zh',result:responseContent,
   details:historySnapshot({engine:'v1',context,
     options:{backTranslation,pronunciation,vocabulary,verification,inspectAI},
     response:responseBody})});
-return res.json({...responseBody,historyId:savedHistory.id});
+return res.json({...responseBody,historyId});
 
   } catch (error) {
   console.error('Translation error:', error);
