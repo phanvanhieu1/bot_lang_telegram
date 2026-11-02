@@ -32,6 +32,7 @@ const { startQuotaPolling } = require('./api-monitoring/quotas');
 const { addUsage, getUsageStats } = require('./usage');
 const { proRequestUsage,freeRequestUsage } = require('./translation-request-usage');
 const {historySnapshot}=require('./history-snapshot');
+const {recordTranslationHistorySafely}=require('./history-guard');
 const {
   saveHistoryTranslation,listSavedTranslations,getSavedTranslation,
   getSavedStatus,removeSavedTranslation
@@ -640,18 +641,6 @@ function addPinyinToVocabulary(vocabulary) {
     })
     .filter(Boolean)
     .join('\n');
-}
-
-// Translation is the primary operation; a failed history write must not
-// make an already-billed, successful AI result appear to have failed.
-async function recordTranslationHistorySafely(record){
-  try{
-    const saved=await addHistory(record);
-    return saved?.id||null;
-  }catch(_){
-    console.warn('[Translation] History write unavailable');
-    return null;
-  }
 }
 
 app.post(
