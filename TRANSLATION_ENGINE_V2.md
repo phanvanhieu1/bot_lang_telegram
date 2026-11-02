@@ -1085,3 +1085,48 @@ names or business identifiers into the production prompt.
   glossary override, V2 repair and unresolved-name REVIEW, and
   filtering analyzer guesses that contradict source-name preservation.
   Paid provider/browser tests remain opt-in and were not run.
+
+## V2 lean analysis and source-grounded name safeguards (2026-11-02)
+
+Engine `v2.7.0` further improves the Claude → MongoDB → GPT pipeline.
+The model family, user glossary priority and existing repair policy remain
+unchanged, and no new model/API step is introduced.
+
+- **Conditional lexical analysis:** Claude still produces intent, facts,
+  tone, meaningful ambiguities and names on every request. The learning
+  fields `terms` and `patterns` receive an explicit limit of **zero**
+  when the user disables vocabulary, or the source is Vietnamese (GPT already
+  generates Chinese vocabulary from the Vietnamese→Chinese translation).
+  The backend enforces the same limits in `safeFrame`; it does not rely on
+  model compliance. The full input-length limits continue when Chinese-source
+  learning is enabled. Token savings depend on actual model outputs.
+- **Lean translator payload:** The GPT stage receives the approved glossary
+  only once, as a canonical `approvedTerminology` array in the user JSON.
+  The system rules specify that these entries override Claude's guesses, but
+  no longer duplicate the owner glossary as a second verbose system block.
+  The targeted repair uses exactly that same canonical array.
+  GPT does not receive `analysis.patterns` (study-only) or a redundant
+  `analysis.names` copy of `protectedNames`. The source text, semantic
+  `facts`, intent, tone and material ambiguities remain available.
+- **Source-only JS name hints:** A small deterministic recognizer in
+  `ai/prompts/proper-names.js` identifies certain *high-confidence*
+  proprietary spans, such as explicitly labelled/quoted Chinese names or
+  identifier-linked operational shorthand separated from a time expression.
+  The names are validated against the original sentence, skip a short list
+  of frequent ordinary business nouns and do not override owner-approved
+  mappings. The hints are sent to Claude for context and combined with
+  Claude's own recognized names for downstream GPT protection. They cover
+  the regression where a name could be omitted even when Claude's
+  `names` array is empty. Ambiguous prose without clear markers should
+  **not** be classified as a name solely from a dictionary-looking word.
+- Existing `REVIEW` behavior remains: a missing protected name triggers the
+  existing one GPT correction and then a REVIEW if still absent.
+  No blanket conversion of arbitrary Chinese nouns into proper names.
+- Model version is bumped to `v2.7.0`, intentionally invalidating old
+  cached translations. On the initial run of an identical sentence the full
+  Claude/GPT pipeline may be billed again; subsequent valid PASS requests
+  reuse the 14-day V2 MongoDB cache.
+- The Node regression suite checks Claude-missed names, ordinary noun
+  safeguards, glossary precedence, deduplicated translator payload,
+  optional vocabulary switching and no additional AI calls.
+  These are deterministic mocked-provider tests, not a paid API A/B run.
