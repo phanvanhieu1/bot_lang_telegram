@@ -25,25 +25,34 @@ historySchema.index({ userId: 1, time: -1, _id: -1 });
 const TranslationHistory = mongoose.models.TranslationHistory ||
   mongoose.model('TranslationHistory', historySchema);
 
+const MAX_DETAILS_BYTES=200000;
+function boundedHistoryDetails(details){
+  if(!details||typeof details!=='object'||Array.isArray(details))return null;
+  // Snapshot fields are whitelisted by historySnapshot; do not mutate it.
+  const clone=JSON.parse(JSON.stringify(details));
+  const bytes=value=>Buffer.byteLength(JSON.stringify(value),'utf8');
+  if(bytes(clone)<=MAX_DETAILS_BYTES)return clone;
+  // Inspector lives under payload.inspection, not at the root.
+  if(clone.payload?.inspection){
+    delete clone.payload.inspection;
+    clone.inspectionUnavailable='Luồng AI quá dài nên không được lưu vào lịch sử.';
+    if(bytes(clone)<=MAX_DETAILS_BYTES)return clone;
+  }
+  // Keep original result in the parent document and retain small accounting
+  // even if unusually large vocabulary/analysis metadata exceeds the cap.
+  const usage=clone.payload?.requestUsage;
+  const minimal={version:clone.version,engine:clone.engine,
+    context:clone.context,options:clone.options,
+    payload:usage?{requestUsage:usage}:{},
+    inspectionUnavailable:'Chi tiết vượt giới hạn lưu trữ; đã giữ lại bản dịch gốc.'};
+  if(bytes(minimal)<=MAX_DETAILS_BYTES)return minimal;
+  return {version:clone.version,engine:clone.engine,context:clone.context,
+    options:clone.options,payload:{},
+    inspectionUnavailable:'Chi tiết quá dài để lưu.'};
+}
 async function addHistory({ userId, text, targetLang, learningLang = 'zh', result, details = null }) {
   if (!userId) throw new Error('Missing history owner');
-
-  // Bound stored metadata: a snapshot can include sensitive AI prompts only
-  // when the user enabled the inspector on that translation. Owner scoped.
-  let safeDetails=null;
-  if(details && typeof details==='object' && !Array.isArray(details)){
-    const serialized=JSON.stringify(details);
-    if(Buffer.byteLength(serialized,'utf8')<=200000){
-      safeDetails=JSON.parse(serialized);
-    }else{
-      // Keep translation and accounting if extremely long raw AI traffic.
-      const {inspection,...summary}=details;
-      if(Buffer.byteLength(JSON.stringify(summary),'utf8')<=200000){
-        safeDetails={...summary,inspection:null,
-          inspectionUnavailable:'Luồng AI quá dài nên không được lưu vào lịch sử.'};
-      }
-    }
-  }
+  const safeDetails=boundedHistoryDetails(details);
   const item = await TranslationHistory.create({
     userId, text, targetLang, learningLang, result, details:safeDetails
   });
@@ -117,4 +126,4 @@ async function clearHistory(userId, learningLang = null) {
   await TranslationHistory.deleteMany(filter);
 }
 
-module.exports = { addHistory, getHistory, getHistoryDetail, clearHistory };
+module.exports = { addHistory, getHistory, getHistoryDetail, clearHistory, boundedHistoryDetails };
