@@ -1,4 +1,5 @@
 const {contextPolicy}=require('./context-policy');
+const {NAME_PRESERVATION_RULES}=require('./proper-names');
 function containsChinese(text) {
   return /[\u3400-\u9FFF]/u.test(text || '');
 }
@@ -13,6 +14,7 @@ const TRANSLATION_RULES = `QUY TẮC DỊCH VÀ NGỮ CẢNH:
 - Không tự thêm lời xin lỗi, cảm ơn, lý do, điều kiện hoặc thông tin không có trong câu gốc.
 - Có thể điều chỉnh trật tự từ, cách xưng hô và dấu câu để bản dịch mượt mà, nhưng không làm thay đổi ý nghĩa.
 - Nếu câu gốc có nhiều cách hiểu mà thiếu ngữ cảnh, chọn cách hiểu thông dụng và ít suy diễn nhất.
+- ${NAME_PRESERVATION_RULES}
 - Không giải thích, không Markdown, không thêm nội dung khác.`;
 
 function buildFreePrompt(text,context='auto') {
