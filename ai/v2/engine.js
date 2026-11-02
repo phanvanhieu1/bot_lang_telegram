@@ -203,7 +203,9 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
   const translationAnalysis={
     ...frame,
     domain:resolvedDomain,
-    terms:frame.terms.filter(t=>!authoritativeSources.has(t.source.trim().toLowerCase()))
+    terms:frame.terms.filter(t=>
+      !authoritativeSources.has(t.source.trim().toLowerCase()) &&
+      !protectedNames.some(name=>t.source.includes(name)||name.includes(t.source)))
   };
   // DB-approved mappings outrank model suggestions. All other detected
   // proper names must survive in the original script, not a guessed reading.
@@ -294,6 +296,8 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
   }
   const analysisTerms=sanitizeClaudeTerms(
     frame.terms,sourceText,direction.source,analysisBudget.limits.terms)
+    .filter(term=>!protectedNames.some(name=>
+      term.source.includes(name)||name.includes(term.source)))
     .map(term=>{
       // Confirmed user glossary wins over speculative analyzer meanings in
       // the learning suggestions as well as in the final translation.
