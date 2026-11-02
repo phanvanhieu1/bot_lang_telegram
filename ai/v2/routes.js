@@ -13,6 +13,7 @@ const {pronounceChinese,formatV1Details,verificationUsage}=require('./details');
 const {lookupUserTerms}=require('../terminology/resolver');
 const {resolveTranslationVocabulary}=require('../../web-vocabulary/resolver');
 const {toStudyVocabulary}=require('./vocabulary');
+const {analyzerBudget}=require('./analyzer-budget');
 const v2Cache=require('./cache');
 
 function createV2Router({translate=deepTranslate,env=process.env,cache=v2Cache,
@@ -33,7 +34,8 @@ function createV2Router({translate=deepTranslate,env=process.env,cache=v2Cache,
     // normal translation call, exactly as V1 does.
     const vocabulary=translated.sourceLanguage==='zh'
       ? toStudyVocabulary(translated.analysisTerms||[],chineseText,'zh',
-          translated.analysisPatterns||[])
+          translated.analysisPatterns||[],
+          analyzerBudget(source).limits.patterns)
       : String(translated.studyVocabulary||'').slice(0,3500);
     if(!vocabulary)return {vocabularyItems:[],vocabularyError:null,vocabulary:''};
     try{
