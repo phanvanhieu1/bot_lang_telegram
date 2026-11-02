@@ -39,9 +39,14 @@ function extractSourceNames(sourceText,max=12){
   const label='(?:平台|渠道|商户|品牌|项目|用户名|昵称|名字|名称|代号)';
   for(const match of source.matchAll(new RegExp(
     label+'\\s*[:：]\\s*[「“【]([\\p{Script=Han}]{2,8})[」”】]','gu')))add(match[1]);
+  // Bare labels are safest only when the value is one independent Chinese
+  // lexical token; otherwise "平台：星河今天来过" looks like a whole sentence.
+  const segmenter=new Intl.Segmenter('zh-Hans',{granularity:'word'});
   for(const match of source.matchAll(new RegExp(
-    label+'\\s*[:：]\\s*([\\p{Script=Han}]{2,8})(?=\\s|[,，。；;、]|$)','gu')))
-    add(match[1]);
+    label+'\\s*[:：]\\s*([\\p{Script=Han}]{2,8})(?=\\s|[,，。；;、]|$)','gu'))){
+    const words=[...segmenter.segment(match[1])].filter(item=>item.isWordLike);
+    if(words.length===1&&words[0].segment===match[1])add(match[1]);
+  }
   // A generic high-signal pattern in informal operational messages. The
   // identifier and time boundary reduce false positives; common nouns remain
   // unprotected. Claude can still classify ordinary words independently.
