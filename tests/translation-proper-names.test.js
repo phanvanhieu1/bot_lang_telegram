@@ -11,7 +11,7 @@ const read=p=>fs.readFileSync(path.join(repo,p),'utf8');
 const original='TX17935632022942941041  70  X855YC15  X855多出的芳华晚上你核实下';
 const preserved='TX17935632022942941041 70 X855YC15 — X855 có phần dư liên quan đến 芳华, tối bạn xác minh giúp.';
 
-function fakeProviders({translations=[preserved],names=['芳华']}={}){
+function fakeProviders({translations=[preserved],names=['芳华'],terms=[]}={}){
   const requests=[];
   return {requests,
     claude:async(system,user,meta)=>{
@@ -19,7 +19,7 @@ function fakeProviders({translations=[preserved],names=['芳华']}={}){
       assert.match(system,/names/);
       return {model:'claude-mock',usage:{input:500,output:125},
         text:JSON.stringify({domain:'work',intent:'Nhờ kiểm tra phần dư trong giao dịch',
-          tone:'colleague',facts:['Cần kiểm tra'],terms:[],patterns:[],
+          tone:'colleague',facts:['Cần kiểm tra'],terms,patterns:[],
           ambiguities:[],names})};
     },
     openai:async(system,user,meta)=>{
@@ -49,6 +49,22 @@ test('V2 extracts exact proprietary Chinese names and preserves them with identi
   assert.match(prompt.system,/CHÉP Y NGUYÊN/);
   for(const code of ['TX17935632022942941041','70','X855YC15','X855'])
     assert.ok(result.translation.includes(code),code);
+});
+
+
+test('Named entity protection excludes conflicting Claude vocabulary hypotheses',async()=>{
+  const providers=fakeProviders({terms:[
+    {source:'芳华',meaning:'thanh xuân'},
+    {source:'核实',meaning:'xác minh'}
+  ]});
+  const result=await deepTranslate({
+    text:original,context:'auto',loadGlossary:async()=>[]
+  },providers);
+  assert.equal(result.status,'PASS');
+  assert.deepEqual(providers.requests[1].user.protectedNames,['芳华']);
+  assert.ok(!providers.requests[1].user.analysis.terms.some(x=>x.source==='芳华'));
+  assert.ok(providers.requests[1].user.analysis.terms.some(x=>x.source==='核实'));
+  assert.ok(!result.analysisTerms.some(x=>x.source==='芳华'));
 });
 
 test('V2 invokes at most its existing one-pass repair on omitted Chinese name',async()=>{
