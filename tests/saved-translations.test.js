@@ -103,7 +103,8 @@ test('saved API uses authentication, server-owned history, and independent per-o
   assert.match(read('saved-translations.js'),/getHistoryDetail\(owner,historyId\)/);
   assert.match(read('saved-translations.js'),/\$setOnInsert/);
   assert.doesNotMatch(read('saved-translations.js'),/deleteMany/);
-  assert.match(server,/historyId:savedHistory\.id/);
+  assert.match(server,/const historyId=await recordTranslationHistorySafely/);
+  assert.match(server,/return res\.json\(\{\.\.\.responseBody,historyId\}\)/);
   assert.match(read('ai/v2/routes.js'),/return res\.json\(\{\.\.\.responseBody,historyId\}\)/);
 });
 
