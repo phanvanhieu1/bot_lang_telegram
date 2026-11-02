@@ -6,7 +6,8 @@ const {parseAi1Items}=require('../../web-vocabulary/ai-items');
 const {normalize,isSafeTerm,removeSensitiveSegments}=require('../../web-vocabulary/extractor');
 
 const MAX_TERMS=8;
-function sanitizeClaudeTerms(raw,sourceText,sourceLanguage){
+function sanitizeClaudeTerms(raw,sourceText,sourceLanguage,maxTerms=MAX_TERMS){
+  const limit=Math.max(0,Math.min(20,Number.isFinite(maxTerms)?Math.floor(maxTerms):MAX_TERMS));
   if(!Array.isArray(raw)||!['zh','vi'].includes(sourceLanguage))return [];
   const source=removeSensitiveSegments(String(sourceText||'')).slice(0,2000);
   const unique=new Set(),result=[];
@@ -25,18 +26,20 @@ function sanitizeClaudeTerms(raw,sourceText,sourceLanguage){
     }
     unique.add(term);
     result.push({source:term,meaning});
-    if(result.length>=MAX_TERMS)break;
+    if(result.length>=limit)break;
   }
   return result;
 }
 
-function toStudyVocabulary(terms,sourceText,sourceLanguage,patterns=[]){
+function toStudyVocabulary(terms,sourceText,sourceLanguage,patterns=[],maxPatterns=4){
   if(sourceLanguage!=='zh')return '';
   const lines=(terms||[]).map(row=>{
     const kind=row.source.length>4?'PHRASE':'WORD';
     return '['+kind+'] '+row.source+' : '+row.meaning;
   });
-  for(const row of (patterns||[]).slice(0,4)){
+  const patternLimit=Math.max(0,Math.min(6,
+    Number.isFinite(maxPatterns)?Math.floor(maxPatterns):4));
+  for(const row of (patterns||[]).slice(0,patternLimit)){
     if(!row||typeof row.source!=='string'||typeof row.meaning!=='string')continue;
     const key=row.source.trim().slice(0,80),meaning=row.meaning.trim().slice(0,160);
     if(!key||!meaning||/[\r\n<>]/u.test(key)||/[\r\n<>]/u.test(meaning))continue;
