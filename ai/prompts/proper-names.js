@@ -34,9 +34,14 @@ function extractSourceNames(sourceText,max=12){
     if(safeSourceName(source,name)&&!GENERIC_WORDS.has(name)&&found.size<max)
       found.add(name);
   };
-  // Explicit name labels are reliable; labels without separators are not.
-  for(const match of source.matchAll(
-    /(?:平台|渠道|商户|品牌|项目|用户名|昵称|名字|名称|代号)\s*[:：]\s*[「“【]?([\p{Script=Han}]{2,8})/gu))add(match[1]);
+  // Explicit names: require matched quotes, or a clear boundary after an
+  // unquoted name. Otherwise "平台：星河今天..." could capture a whole clause.
+  const label='(?:平台|渠道|商户|品牌|项目|用户名|昵称|名字|名称|代号)';
+  for(const match of source.matchAll(new RegExp(
+    label+'\\s*[:：]\\s*[「“【]([\\p{Script=Han}]{2,8})[」”】]','gu')))add(match[1]);
+  for(const match of source.matchAll(new RegExp(
+    label+'\\s*[:：]\\s*([\\p{Script=Han}]{2,8})(?=\\s|[,，。；;、]|$)','gu')))
+    add(match[1]);
   // A generic high-signal pattern in informal operational messages. The
   // identifier and time boundary reduce false positives; common nouns remain
   // unprotected. Claude can still classify ordinary words independently.
