@@ -138,7 +138,9 @@ test('Claude analysis output is bounded for short inputs',async()=>{
   const m=mocked();
   const r=await deepTranslate({text:'这是刷子吗'},m.providers);
   assert.equal(r.status,'PASS');
-  assert.match(m.calls[0].sys,/Ambiguities tối đa 2/);
+  assert.match(m.calls[0].sys,/Tuân thủ analysisLimits/);
+  assert.equal(JSON.parse(m.calls[0].input).analysisLimits.ambiguities,2);
+  assert.equal(JSON.parse(m.calls[0].input).analysisLimits.facts,6);
   assert.match(m.calls[0].sys,/Không liệt kê chi tiết/);
 });
 test('Mixed automatic context is visible but does not force specialized terms',()=>{
