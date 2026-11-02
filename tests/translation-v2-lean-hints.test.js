@@ -55,6 +55,9 @@ test('Ordinary Chinese nouns near an ID are not forced into protected names',asy
 });
 test('Explicitly marked internal label is protected, unlabelled everyday text is not',()=>{
   assert.deepEqual(extractSourceNames('名称：星河'),['星河']);
+  assert.deepEqual(extractSourceNames('平台：「星河」'),['星河']);
+  assert.deepEqual(extractSourceNames('平台：星河今天来过'),[],
+    'unquoted label should not swallow surrounding grammar');
   assert.deepEqual(extractSourceNames('我想去超市买个刷子'),[]);
   assert.deepEqual(extractSourceNames('银行目前余额不足，无法进行交易'),[]);
 });
