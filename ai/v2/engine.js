@@ -200,6 +200,8 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
   // for exact source terms that have approved dictionary entries.
   const resolvedDomain=contextDomain(context,frame.domain);
   const authoritativeSources=new Set(glossary.map(t=>t.source.trim().toLowerCase()));
+  // DB-approved mappings outrank model suggestions; names are source spans.
+  const protectedNames=sanitizeProperNames(frame.names,sourceText,glossary);
   const translationAnalysis={
     ...frame,
     domain:resolvedDomain,
@@ -207,9 +209,7 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
       !authoritativeSources.has(t.source.trim().toLowerCase()) &&
       !protectedNames.some(name=>t.source.includes(name)||name.includes(t.source)))
   };
-  // DB-approved mappings outrank model suggestions. All other detected
-  // proper names must survive in the original script, not a guessed reading.
-  const protectedNames=sanitizeProperNames(frame.names,sourceText,glossary);
+  // Other detected names survive in their original script.
   const termPrompt=glossaryInstructions(glossary);
   const outputRules=direction.target==='zh'
     ?'Dịch sang tiếng Trung giản thể tự nhiên, đúng ngữ pháp và sắc thái. Không viết phần dịch bằng tiếng Việt; giữ nguyên thuật ngữ tiếng Trung đã xác nhận. '
