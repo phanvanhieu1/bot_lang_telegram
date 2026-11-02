@@ -85,7 +85,7 @@ test('saved translations copy owner-scoped history snapshot and survive history 
     assert.equal((await saved.listSavedTranslations(OTHER)).length,0);
     const repeated=await saved.saveHistoryTranslation(OWNER,HISTORY_ID);
     assert.equal(repeated.id,SAVED_ID);
-    assert.equal(updates,2,'idempotent upserts not duplicate bookmarks');
+    assert.equal(updates,3,'invalid-owner recovery lookup plus two idempotent saves');
     assert.equal(storage.size,1);
     const detail=await saved.getSavedTranslation(OWNER,SAVED_ID);
     assert.equal(detail.details.payload.requestUsage.inputTokens,651);
