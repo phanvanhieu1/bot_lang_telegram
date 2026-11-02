@@ -80,7 +80,7 @@ test('Claude receives length-based limits as user data and same caps prune respo
       'dynamic limits must not create another AI stage');
     assert.equal(result.usage.totalInputTokens,400);
   }
-  assert.equal(ENGINE_VERSION,'v2.5.0','new prompts invalidate prior V2 cache');
+  assert.equal(ENGINE_VERSION,'v2.6.0','name-preservation prompt invalidates prior V2 cache');
 });
 
 test('On malformed JSON, one retry receives bigger character-aware token headroom',async()=>{
