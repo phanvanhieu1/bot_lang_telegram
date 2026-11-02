@@ -46,7 +46,10 @@ function toStudyVocabulary(terms,sourceText,sourceLanguage,patterns=[],maxPatter
     lines.push('[PATTERN] '+key+' : '+meaning);
   }
   // Reuse V1's lexical grounding before any MongoDB write, including grammar.
-  const parsed=parseAi1Items(lines.join('\n'),sourceText,'zh');
+  // V2 long input may contain 20 terms + 6 patterns; the parser's V1
+  // default remains 24, but this call can preserve all 26 selected items.
+  const parsed=parseAi1Items(lines.join('\n'),sourceText,'zh',
+    Math.min(32,(terms||[]).length+patternLimit));
   return parsed.map(row=>'['+row.type.toUpperCase()+'] '+row.text+' : '+row.meaning).join('\n');
 }
 
