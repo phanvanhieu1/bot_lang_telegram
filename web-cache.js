@@ -49,14 +49,16 @@ function hashKey(parts) {
 function freeKey(text, lang = 'zh', context = 'auto') {
   const normalizedText = String(text).trim().replace(/\s+/g, ' ');
   // Versioned for explicit vs automatic context; no stale translations.
+  // Invalidate obsolete zh translations that could alter/omit proper names.
+  // English requests keep their previous cache namespace.
   return lang === 'zh'
-    ? hashKey(['free-context-2', normalizedText, String(context)])
+    ? hashKey(['free-context-3-names', normalizedText, String(context)])
     : hashKey(['free-context-2', lang, normalizedText, String(context)]);
 }
 
 function proKey(text, lang, isFast, context = 'auto') {
   return hashKey([
-    'pro-context-2',
+    lang==='zh'?'pro-context-3-names':'pro-context-2',
     String(text).trim(),
     String(lang),
     Boolean(isFast),
