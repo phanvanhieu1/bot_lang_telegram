@@ -60,7 +60,8 @@ test('Claude receives length-based limits as user data and same caps prune respo
         const data=JSON.parse(input),analysis=data.analysis;
         assert.equal(analysis.facts.length,b.limits.facts);
         assert.equal(analysis.terms.length,b.limits.terms);
-        assert.equal(analysis.patterns.length,b.limits.patterns);
+        assert.equal(analysis.patterns,undefined,
+          'study-only patterns never need to enter the GPT translation prompt');
         assert.equal(analysis.ambiguities.length,b.limits.ambiguities);
         assert.equal(analysis.intent.length,b.limits.intentChars);
         assert.equal(analysis.domain,'work');
@@ -73,14 +74,14 @@ test('Claude receives length-based limits as user data and same caps prune respo
     };
     const result=await deepTranslate({
       text:'中'.repeat(length),context:'colleague',
-      loadGlossary:async()=>[],backTranslation:false,vocabulary:false
+      loadGlossary:async()=>[],backTranslation:false,vocabulary:true
     },providers);
     assert.equal(result.status,'PASS');
     assert.deepEqual(calls,['claude','openai'],
       'dynamic limits must not create another AI stage');
     assert.equal(result.usage.totalInputTokens,400);
   }
-  assert.equal(ENGINE_VERSION,'v2.6.0','name-preservation prompt invalidates prior V2 cache');
+  assert.equal(ENGINE_VERSION,'v2.7.0','optimizer invalidates old V2 translation cache');
 });
 
 test('On malformed JSON, one retry receives bigger character-aware token headroom',async()=>{
