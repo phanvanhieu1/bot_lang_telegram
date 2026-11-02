@@ -43,6 +43,8 @@ let historyData = [];
 let savedData = [];
 let sidebarView='history';
 let historyDetailLoad=0;
+// Invalidate pending translation/archive results when the visible input changes.
+let translationViewVersion=0;
 const savedBtn=document.getElementById('savedBtn');
 const saveTranslationBtn=document.getElementById('saveTranslationBtn');
 const historySidebarTitle=document.getElementById('historySidebarTitle');
@@ -108,6 +110,8 @@ saveTranslationBtn.addEventListener('click',async()=>{
 let languageRequestVersion = 0;
 const historyReplayNotice=document.getElementById('historyReplayNotice');
 textInput.addEventListener('input',()=>{
+  translationViewVersion++;
+  historyDetailLoad++;
   if(activeTranslationSource&&textInput.value.trim()!==activeTranslationSource)
     setSaveState(); // The shown translation no longer corresponds to input.
 });
@@ -648,6 +652,8 @@ async function translate(forceRefresh=false) {
     return;
   }
 
+  const viewVersion=++translationViewVersion;
+  historyDetailLoad++;
   setSaveState();
   translateBtn.disabled = true;
   setEngineControlsBusy(true);
@@ -711,7 +717,9 @@ const response = await fetch(translateEndpoint, {
     });
 
     const data = await response.json();
-    if (requestVersion !== languageRequestVersion) return;
+    if (requestVersion !== languageRequestVersion ||
+        viewVersion !== translationViewVersion ||
+        textInput.value.trim() !== text) return;
 
     if (
   translatorMode === 'free' &&
@@ -780,7 +788,9 @@ const response = await fetch(translateEndpoint, {
     loadUsage();
 
   } catch (error) {
-    if (requestVersion !== languageRequestVersion) return;
+    if (requestVersion !== languageRequestVersion ||
+        viewVersion !== translationViewVersion ||
+        textInput.value.trim() !== text) return;
     console.error(error);
 
     status.textContent = error.message || 'Dịch thất bại';
@@ -940,6 +950,8 @@ async function translateV2(forceRefresh=false){
   const text = textInput.value.trim();
   if (!text) { status.textContent = 'Vui lòng nhập nội dung cần dịch'; textInput.focus(); return; }
   const version = languageRequestVersion;
+  const viewVersion=++translationViewVersion;
+  historyDetailLoad++;
   setSaveState();
   v2Busy = true;
   translateBtn.disabled = true;
@@ -966,7 +978,9 @@ async function translateV2(forceRefresh=false){
         forceRefresh})
     });
     const data = await response.json();
-    if (version !== languageRequestVersion || textInput.value.trim() !== text) return;
+    if (version !== languageRequestVersion ||
+        viewVersion !== translationViewVersion ||
+        textInput.value.trim() !== text) return;
     if (!response.ok || !data.success) throw new Error(data.message || 'Dịch chuyên sâu thất bại');
     // V1 and V2 use the same labeled result and exactly the same UI parser,
     // toggles and output containers. Two-stage AI is only a server concern.
@@ -1000,16 +1014,21 @@ async function translateV2(forceRefresh=false){
     }
     loadUsage();
   } catch (error) {
-    if (version === languageRequestVersion) {
+    if (version === languageRequestVersion &&
+        viewVersion === translationViewVersion &&
+        textInput.value.trim() === text) {
       status.textContent = error.message || 'Dịch chuyên sâu thất bại';
       status.className = 'status error';
     }
   } finally {
     v2Busy = false;
-    translateBtn.disabled = false;
-    translateBtn.classList.remove('loading');
-    setEngineControlsBusy(false);
-    refreshV2Button();
+    // A previous V2 call must not unlock a newer V1 request after language switch.
+    if(version===languageRequestVersion){
+      translateBtn.disabled = false;
+      translateBtn.classList.remove('loading');
+      setEngineControlsBusy(false);
+      refreshV2Button();
+    }
   }
 }
 
@@ -1221,6 +1240,7 @@ async function loadUsage() {
 }
 
 function openHistory() {
+  historyDetailLoad++;
   sidebarView='history';
   historySidebarTitle.textContent='Lịch sử dịch';
   clearHistoryBtn.hidden=false;
@@ -1231,6 +1251,7 @@ function openHistory() {
   void loadHistory();
 }
 function openSaved() {
+  historyDetailLoad++;
   sidebarView='saved';
   historySidebarTitle.textContent='Đã lưu';
   clearHistoryBtn.hidden=true;
@@ -1302,7 +1323,13 @@ async function loadSaved(){
     if(!response.ok||!data.success)
       throw new Error(data.message||'Không thể tải bản dịch đã lưu');
     savedData=Array.isArray(data.saved)?data.saved:[];
-    if(sidebarView==='saved')renderHistory(savedData);
+    if(sidebarView==='saved'){
+      const term=historySearch.value.trim().toLocaleLowerCase('vi-VN');
+      renderHistory(term?savedData.filter(item=>
+        [item.text,item.result,item.targetLang].some(value=>
+          String(value||'').toLocaleLowerCase('vi-VN').includes(term)))
+        :savedData);
+    }
   }catch(error){
     if(sidebarView==='saved'){
       historyList.textContent=error.message||'Không thể tải bản dịch đã lưu';
@@ -1319,8 +1346,13 @@ async function loadHistory() {
     }
 
     historyData = data.history;
-
-    renderHistory(historyData);
+    if(sidebarView==='history'){
+      const term=historySearch.value.trim().toLocaleLowerCase('vi-VN');
+      renderHistory(term?historyData.filter(item=>
+        [item.text,item.result,item.targetLang].some(value=>
+          String(value||'').toLocaleLowerCase('vi-VN').includes(term)))
+        :historyData);
+    }
 
   } catch (error) {
     console.error('History error:', error);
@@ -1335,6 +1367,7 @@ async function openHistoryDetail(item){
   const source=sidebarView;
   if(translateBtn.disabled||v2Busy)return;
   const current=++historyDetailLoad;
+  const viewVersion=++translationViewVersion;
   try{
     const response=await fetch(
       (source==='saved'?'/api/saved/':'/api/history/')+
@@ -1344,7 +1377,8 @@ async function openHistoryDetail(item){
     const data=await response.json();
     if(!response.ok||!data.success||!data.item)
       throw new Error(data.message||'Không thể mở lịch sử');
-    if(current!==historyDetailLoad)return;
+    if(current!==historyDetailLoad ||
+       viewVersion!==translationViewVersion)return;
     const saved=data.item;
     const detail=saved.details&&typeof saved.details==='object'?saved.details:null;
     const payload=detail?.payload||{};
@@ -1447,7 +1481,8 @@ async function openHistoryDetail(item){
       behavior:'smooth',block:'start'
     });
   }catch(error){
-    if(current!==historyDetailLoad)return;
+    if(current!==historyDetailLoad ||
+       viewVersion!==translationViewVersion)return;
     status.textContent=error.message||'Không thể xem lại bản dịch';
     status.className='status error';
   }
@@ -1550,7 +1585,9 @@ loadUsage();
 // Ignore late API responses from the previous language; never show stale results.
 window.addEventListener('learning-language-change', () => {
   languageRequestVersion++;
+  translationViewVersion++;
   historyDetailLoad++;
+  setSaveState();
   clearHistoryReplayNotice();
   refreshV2Button();
   translateBtn.disabled = false;
@@ -1584,7 +1621,7 @@ window.addEventListener('learning-language-change', () => {
   document.getElementById('submitPracticeBtn').disabled = false;
   document.getElementById('submitPracticeBtn').textContent = 'Chấm bài →';
   historySearch.value = '';
-  renderHistory(historyData);
+  renderHistory(sidebarView==='saved'?savedData:historyData);
   document.getElementById('text').dispatchEvent(new Event('input', { bubbles: true }));
 });
 
