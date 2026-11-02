@@ -1040,3 +1040,48 @@ Claude → MongoDB → GPT workflow. Node tests validate exact tier boundaries,
 Unicode counting, Claude JSON prompt/response limits, normal single-pass
 behavior, retry headroom and the expanded study-item parser. Benchmarks
 with paid APIs remain opt-in and have not been run as part of this change.
+
+## Proper names and internal labels — lossless fallback (2026-11-02)
+
+V1 and V2 now apply a shared policy from `ai/prompts/proper-names.js`:
+**if a proper name, platform, payment channel, brand, system label or other
+opaque identifier has no owner-approved or reliably established translation,
+keep the exact source characters**. Avoid invented Vietnamese readings,
+accidental concatenation with surrounding grammar or dropping the name.
+Translate the surrounding sentence normally. Never hardcode individual
+names or business identifiers into the production prompt.
+
+- **V1 PRO/FREE:** the existing GPT/Groq/OpenRouter single-call prompt
+  now explicitly preserves uncertain names written in Chinese, as well
+  as Latin IDs and numbers. No additional LLM round trip is required.
+  The Chinese-language shared-cache namespaces are rotated to avoid
+  silently replaying legacy mistranslations; English cache keys are
+  unchanged. V1 detection still relies on the translation model's
+  contextual judgment when a name is not explicitly registered.
+- **V2:** the existing Claude Analyzer response adds a short `names`
+  array containing exact Chinese source spans it recognizes as proper
+  names or internal labels. The backend validates that these strings
+  actually occur in the source and are not user-approved mappings.
+  The GPT translator receives `protectedNames` and must reproduce
+  each name verbatim. Conflicting guessed Claude term meanings for
+  a protected name are filtered from translation analysis and
+  learning vocabulary. The existing one-pass targeted repair runs
+  if an identified name was omitted. If still missing after repair,
+  V2 flags `REVIEW` with a name-specific issue instead of claiming
+  a clean `PASS`.
+- The existing MongoDB-approved terminology remains authoritative:
+  if the owner has approved a different canonical translation for an
+  exact name, that mapping takes precedence over fallback copying.
+  Names may be ambiguous in unpunctuated Chinese; extraction is
+  conservative, source-grounded and never guaranteed without a
+  confirmed glossary entry. No extra Claude call is introduced and
+  model output counts may increase slightly due to the names field.
+- The V2 version is bumped to `v2.6.0`, naturally invalidating prior
+  cached V2 translations. V1 zh-specific cache keys also change.
+  A temporary initial increase in billable AI requests is expected
+  when the old cache entries are no longer usable.
+- Regression tests include the user's transactional example where
+  `芳华` was misinterpreted or lost, exact Latin transaction IDs,
+  glossary override, V2 repair and unresolved-name REVIEW, and
+  filtering analyzer guesses that contradict source-name preservation.
+  Paid provider/browser tests remain opt-in and were not run.
