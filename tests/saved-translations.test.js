@@ -34,22 +34,37 @@ test('saved translations copy owner-scoped history snapshot and survive history 
   const toRow=(owner,historyId)=>storage.get(owner+':'+historyId);
   Model.updateOne=async(filter,update)=>{
     updates++;
-    if(!toRow(String(filter.owner),String(filter.historyId))){
-      storage.set(String(filter.owner)+':'+String(filter.historyId),{
-        _id:SAVED_ID,...update.$setOnInsert});
+    const owner=String(filter.owner);
+    const key=filter.historyId?owner+':'+String(filter.historyId):
+      Array.from(storage.entries()).find(([,x])=>
+        String(x._id)===String(filter._id)&&String(x.owner)===owner)?.[0];
+    const existing=storage.get(key);
+    const activeCheck=(row)=>!(filter.deletedAt===null&&row.deletedAt);
+    const recoveryCheck=(row)=>!filter.deletedAt?.$ne||
+      Boolean(row.deletedAt&&row.expiresAt>new Date());
+    if(existing&&activeCheck(existing)&&recoveryCheck(existing)){
+      Object.assign(existing,update.$set||{});
+      return {acknowledged:true,matchedCount:1,modifiedCount:1};
     }
-    return {acknowledged:true};
+    if(!existing&&update.$setOnInsert){
+      storage.set(key,{_id:SAVED_ID,...update.$setOnInsert,
+        ...update.$set});
+      return {acknowledged:true,matchedCount:0,modifiedCount:1};
+    }
+    return {acknowledged:true,matchedCount:0,modifiedCount:0};
   };
   Model.findOne=filter=>{
     const owner=String(filter.owner);
     const row=filter._id?Array.from(storage.values()).find(item=>
       String(item._id)===String(filter._id)&&String(item.owner)===owner)
       :toRow(owner,String(filter.historyId));
-    return {select:()=>({lean:async()=>row||null})};
+    const active=row&&!(filter.deletedAt===null&&row.deletedAt);
+    return {select:()=>({lean:async()=>active?row:null})};
   };
   Model.find=filter=>({
     sort:()=>({select:()=>({lean:async()=>Array.from(storage.values())
-      .filter(x=>String(x.owner)===String(filter.owner))})})
+      .filter(x=>String(x.owner)===String(filter.owner)&&
+        !(filter.deletedAt===null&&x.deletedAt))})})
   });
   Model.deleteOne=async filter=>{
     const owner=String(filter.owner);
@@ -82,6 +97,18 @@ test('saved translations copy owner-scoped history snapshot and survive history 
     assert.equal(await saved.getSavedStatus(OWNER,HISTORY_ID),SAVED_ID);
     assert.equal(await saved.getSavedStatus(OTHER,HISTORY_ID),null);
     assert.equal(await saved.removeSavedTranslation(OTHER,SAVED_ID),false);
+    assert.equal(await saved.removeSavedTranslation(OWNER,SAVED_ID),true);
+    assert.equal(await saved.getSavedTranslation(OWNER,SAVED_ID),null);
+    assert.equal(await saved.getSavedStatus(OWNER,HISTORY_ID),null);
+    assert.equal((await saved.listSavedTranslations(OWNER)).length,0);
+    // Undo within 30 minutes recovers the user's archived snapshot.
+    const restored=await saved.saveHistoryTranslation(OWNER,HISTORY_ID);
+    assert.equal(restored.id,SAVED_ID);
+    assert.equal((await saved.listSavedTranslations(OWNER)).length,1);
+    assert.equal((await saved.getSavedTranslation(OWNER,SAVED_ID)).details.payload
+      .requestUsage.inputTokens,651);
+    // Once original history exists, unsave is a true hard delete.
+    history.getHistoryDetail=async()=>mockHistory;
     assert.equal(await saved.removeSavedTranslation(OWNER,SAVED_ID),true);
     assert.equal(await saved.getSavedTranslation(OWNER,SAVED_ID),null);
   }finally{
