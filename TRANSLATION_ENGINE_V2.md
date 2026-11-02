@@ -999,3 +999,44 @@ Remaining future phases: owner-scoped V1 glossary cache, dictionary-search
 scaling, Saved pagination, stage-level accounting for partial V2 failures,
 V1 English cache-label accuracy, stricter request validation, staging
 translation-quality evaluation and final PR merge review.
+
+## Adaptive Claude Analyzer budgets by source length (2026-11-02)
+
+V2 now derives a conservative **character-based** analyzer budget in
+`ai/v2/analyzer-budget.js` before the Claude request. Length is measured in
+Unicode code points (`Array.from(text.trim()).length`), so an emoji is one
+character rather than two UTF-16 code units. Short messages, medium messages,
+and long multi-instruction messages receive different maximum JSON item counts:
+
+| Input characters | facts | terms | patterns | ambiguities | intent max chars |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1–80 | 6 | 8 | 3 | 2 | 220 |
+| 81–400 | 12 | 15 | 5 | 4 | 400 |
+| 401–2000 | 20 | 20 | 6 | 5 | 600 |
+
+The caps are ceilings, **not quotas to fill**. Claude must not hallucinate facts,
+invent vocabulary or flag immaterial ambiguities to reach a limit. Semantic
+fidelity (who did what, conditions, negations, payment instructions, timing,
+amounts) is more important than returning a very small JSON body. The
+`analysisLimits` field is added to the Claude user message, while the
+analyzer's system instructions are constant across the different length
+tiers for the same context. This is compatible with a future separately
+designed Anthropic prompt-caching system; caching is NOT enabled by this change.
+
+The analyzer's initial `max_tokens` is calculated from input character
+count, item caps and JSON headroom (between 1,050 and 3,600 tokens). On an
+incomplete/malformed JSON result, the original single retry receives larger
+headroom (1,800–5,500 tokens); no extra model pass is added on a successful
+initial response. `safeFrame` uses the same adaptive limits as the prompt,
+so longer valid analysis is not silently truncated by previous fixed
+8-term/4-pattern/12-fact caps. Study vocabulary now accepts up to 20
+analyzer terms and six patterns for a long sentence, preserving up to 26
+validated items without changing the 24-item V1 parsing default.
+
+The cache engine version is bumped to `v2.5.0` to prevent old V2 cache
+entries from masking the updated analyzer behavior. Changes do not affect
+V1, the approved MongoDB glossary priority, verification settings, or the
+Claude → MongoDB → GPT workflow. Node tests validate exact tier boundaries,
+Unicode counting, Claude JSON prompt/response limits, normal single-pass
+behavior, retry headroom and the expanded study-item parser. Benchmarks
+with paid APIs remain opt-in and have not been run as part of this change.
