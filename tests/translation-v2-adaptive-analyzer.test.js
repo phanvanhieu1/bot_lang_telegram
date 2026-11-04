@@ -59,7 +59,7 @@ test('Claude receives length-based limits as user data and same caps prune respo
       openai:async(system,input)=>{
         const data=JSON.parse(input),analysis=data.analysis;
         assert.equal(analysis.facts.length,b.limits.facts);
-        assert.equal(analysis.terms.length,b.limits.terms);
+        assert.equal(analysis.terms,undefined,'study-only lexical guesses stay out of GPT');
         assert.equal(analysis.patterns,undefined,
           'study-only patterns never need to enter the GPT translation prompt');
         assert.equal(analysis.ambiguities.length,b.limits.ambiguities);
@@ -81,7 +81,7 @@ test('Claude receives length-based limits as user data and same caps prune respo
       'dynamic limits must not create another AI stage');
     assert.equal(result.usage.totalInputTokens,400);
   }
-  assert.equal(ENGINE_VERSION,'v2.7.0','optimizer invalidates old V2 translation cache');
+  assert.equal(ENGINE_VERSION,'v2.8.0','entity classifier invalidates old V2 translation cache');
 });
 
 test('On malformed JSON, one retry receives bigger character-aware token headroom',async()=>{
