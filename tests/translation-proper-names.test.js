@@ -47,7 +47,7 @@ test('V2 extracts exact proprietary Chinese names and preserves them with identi
   assert.deepEqual(prompt.user.protectedNames,['芳华']);
   assert.equal(prompt.user.analysis.names,undefined,
     'protectedNames must not be repeated inside GPT analysis');
-  assert.match(prompt.system,/CHÉP Y NGUYÊN/);
+  assert.match(prompt.system,/preserve every occurrence/);
   for(const code of ['TX17935632022942941041','70','X855YC15','X855'])
     assert.ok(result.translation.includes(code),code);
 });
