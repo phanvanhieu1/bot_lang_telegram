@@ -65,6 +65,16 @@ async function postJson(url, headers, body, timeoutMs = 60000) {
   catch (_) { throw safeError('V2_PROVIDER_INVALID_JSON'); }
 }
 
+// OpenAI prompt caching is automatic for eligible prefixes; Responses API
+// reports the cached subset of input tokens separately.
+function openaiUsage(raw={}){
+  const input=Math.max(0,Number(raw.input_tokens)||0);
+  const cacheRead=Math.min(input,
+    Math.max(0,Number(raw.input_tokens_details?.cached_tokens)||0));
+  return {input,inputUncached:input-cacheRead,cacheRead,cacheWrite:0,
+    output:Math.max(0,Number(raw.output_tokens)||0)};
+}
+
 function claudeUsage(raw={}){
   const inputUncached=Math.max(0,Number(raw.input_tokens)||0);
   const cacheRead=Math.max(0,Number(raw.cache_read_input_tokens)||0);
@@ -134,8 +144,7 @@ function createProviders(env = process.env) {
       text, provider:'openai', model:data.model || model,
       responseStatus:String(data.status||'unknown').slice(0,40),
       incompleteReason:String(data.incomplete_details?.reason||'').slice(0,60),
-      usage:{ input:Number(data.usage?.input_tokens||0),
-        output:Number(data.usage?.output_tokens||0) }
+      usage:openaiUsage(data.usage)
     };
   }
 
@@ -199,4 +208,4 @@ function createProviders(env = process.env) {
   };
 }
 module.exports={createProviders,getV2ModelSettings,safeError,outputText,
-  buildClaudeBody,claudeUsage,DEFAULTS};
+  buildClaudeBody,claudeUsage,openaiUsage,DEFAULTS};
