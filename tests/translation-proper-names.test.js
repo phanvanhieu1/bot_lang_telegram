@@ -63,9 +63,10 @@ test('Named entity protection excludes conflicting Claude vocabulary hypotheses'
   },providers);
   assert.equal(result.status,'PASS');
   assert.deepEqual(providers.requests[1].user.protectedNames,['芳华']);
-  assert.ok(!providers.requests[1].user.analysis.terms.some(x=>x.source==='芳华'));
-  assert.ok(providers.requests[1].user.analysis.terms.some(x=>x.source==='核实'));
+  assert.equal(providers.requests[1].user.analysis.terms,undefined,
+    'Claude study terms should never be injected into the GPT prompt');
   assert.ok(!result.analysisTerms.some(x=>x.source==='芳华'));
+  assert.ok(result.analysisTerms.some(x=>x.source==='核实'));
 });
 
 test('V2 invokes at most its existing one-pass repair on omitted Chinese name',async()=>{
