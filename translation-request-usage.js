@@ -1,7 +1,15 @@
 'use strict';
 // Normalized per-click billing summary for the web UI.
 // Unknown provider charges must never be displayed as $0.
-const GPT4O_RATES={input:2.5,output:10}; // USD per 1M tokens
+const {PRICES}=require('./ai/v2/accounting');
+const GPT4O_RATES={input:2.5,output:10}; // legacy fallback USD per 1M tokens
+function paidStageCost(model,input,output,cacheRead=0){
+  const name=Object.keys(PRICES).find(key=>String(model||'').startsWith(key));
+  if(!name)return null;
+  const rate=PRICES[name],read=Math.min(input,Math.max(0,cacheRead));
+  return Number((((input-read)*rate.input+
+    read*(rate.cachedInput??rate.input)+output*rate.output)/1e6).toFixed(8));
+}
 
 function token(value){
   return typeof value==='number' && Number.isFinite(value) && value>=0
@@ -23,17 +31,23 @@ function proRequestUsage(usage,cached=false,trace=[]){
   const stages=knownStages.length?knownStages.map(stage=>{
     const i=token(stage.usage.input),o=token(stage.usage.output);
     const ready=i!==null&&o!==null;
+    const cached=token(stage.usage.cacheRead)??0;
+    const stageCost=ready?paidStageCost(stage.model||'gpt-4o',i,o,cached):null;
     return {provider:'openai',model:stage.model||'gpt-4o',
       role:stage.role||'translator',inputTokens:i,outputTokens:o,
+      cacheReadTokens:cached,
       ms:Number.isFinite(stage.ms)?stage.ms:null,
-      estimatedKnownPaidUsd:ready?Number(((i*2.5+o*10)/1e6).toFixed(8)):null,
-      pricingIncomplete:!ready};
+      estimatedKnownPaidUsd:stageCost,
+      pricingIncomplete:stageCost===null};
   }):[{provider:'openai',model:'gpt-4o',role:'translation / verification',
     inputTokens:input,outputTokens:output,
     estimatedKnownPaidUsd:cost,pricingIncomplete:!known}];
+  const summedStageCost=stages.every(s=>s.estimatedKnownPaidUsd!==null)
+    ?Number(stages.reduce((n,s)=>n+s.estimatedKnownPaidUsd,0).toFixed(8)):null;
   return {cached:false,inputTokens:input,outputTokens:output,
-    totalTokens:total,estimatedCostUsd:cost,
-    pricingIncomplete:!known,stages};
+    totalTokens:total,
+    estimatedCostUsd:knownStages.length?summedStageCost:cost,
+    pricingIncomplete:knownStages.length?summedStageCost===null:!known,stages};
 }
 function freeRequestUsage({usage,provider,cached}={}){
   if(cached)return hit();
