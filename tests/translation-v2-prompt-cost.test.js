@@ -83,3 +83,35 @@ test('English prompt remains identical across manual contexts and model changes 
   assert.equal(calls[3].meta.modelOverride,undefined);
   assert.equal(ENGINE_VERSION,'v2.9.0');
 });
+
+test('Provider sends Anthropic system cache + structured output and retains real usage',async()=>{
+  const previous=global.fetch,seen=[];
+  global.fetch=async(url,options)=>{
+    const body=JSON.parse(options.body);seen.push({url,body});
+    if(url.includes('anthropic'))return {ok:true,json:async()=>({
+      model:'claude-haiku-5-5',stop_reason:'end_turn',
+      content:[{type:'text',text:'{"domain":"daily"}'}],
+      usage:{input_tokens:20,cache_creation_input_tokens:600,
+        cache_read_input_tokens:0,output_tokens:40}})};
+    return {ok:true,json:async()=>({model:'gpt-4o-mini',
+      output_text:'{"translation":"Xin chào"}',status:'completed',
+      usage:{input_tokens:120,output_tokens:25}})};
+  };
+  try{
+    const providers=require('../ai/v2/providers').createProviders({
+      OPENAI_API_KEY:'test',CLAUDE_API_KEY:'test',
+      V2_TIERED_ROUTING:'true'});
+    const result=await providers.claude(ANALYZER_SYSTEM,
+      '{"original":"你好"}',{maxOutputTokens:900,jsonSchema:ANALYZER_JSON_SCHEMA});
+    assert.equal(result.usage.input,620);
+    assert.equal(result.usage.cacheWrite,600);
+    await providers.openai(TRANSLATOR_SYSTEM,'{"original":"你好"}',
+      {modelOverride:'gpt-4o-mini'});
+    assert.equal(seen[0].body.system[0].cache_control.type,'ephemeral');
+    assert.equal(seen[0].body.output_config.format.type,'json_schema');
+    assert.equal(seen[0].body.messages[0].content,'{"original":"你好"}');
+    assert.equal(seen[1].body.model,'gpt-4o-mini');
+    assert.equal(seen[1].body.instructions,TRANSLATOR_SYSTEM);
+    assert.equal(seen[1].body.reasoning,undefined);
+  }finally{global.fetch=previous;}
+});
