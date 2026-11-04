@@ -7,17 +7,16 @@ const openRouterClient = new OpenAI({
 });
 
 async function requestOpenRouter(prompt) {
+  const messages=typeof prompt==='string'
+    ?[{role:'user',content:prompt}]
+    :[{role:'system',content:prompt.system},{role:'user',content:prompt.user}];
   const { data, response } =
     await openRouterClient.chat.completions
       .create({
         model: 'google/gemma-4-31b-it:free',
-        messages: [
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        temperature: 0
+        messages,
+        temperature: 0,
+        ...(typeof prompt==='object'?{max_tokens:prompt.maxCompletionTokens||1200}:{})
       })
       .withResponse();
 
