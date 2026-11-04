@@ -13,7 +13,9 @@ test('V2 reuses V1 GPT-4o with Haiku 5.5 low effort and thinking disabled',()=>{
     claudeModel:'claude-haiku-5-5',
     openaiEffort:null,
     claudeEffort:'low',
-    claudeThinking:'disabled'
+    claudeThinking:'disabled',
+    tieredRouting:false,
+    simpleOpenaiModel:'gpt-4o-mini'
   });
   const deep=getV2ModelSettings({V2_CLAUDE_MODEL:'claude-sonnet-5-5',
     V2_OPENAI_MODEL:'gpt-6.1-sol'});
@@ -85,7 +87,8 @@ test('provider requests use Haiku low without thinking and GPT-4o without reason
     });
     assert.equal(analysis.model,'claude-haiku-5-5');
     assert.equal(translated.model,'gpt-4o');
-    assert.deepEqual(analysis.usage,{input:210,output:51});
+    assert.deepEqual(analysis.usage,{input:210,inputUncached:210,
+      cacheRead:0,cacheWrite:0,output:51});
     assert.deepEqual(translated.usage,{input:280,output:41});
     assert.equal(requests.length,2);
     const haiku=requests.find(r=>r.url.includes('anthropic.com')).body;
