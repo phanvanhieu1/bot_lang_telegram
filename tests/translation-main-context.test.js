@@ -79,7 +79,7 @@ test('V2 Claude and GPT share forced manual context and trace actual choices',as
   assert.match(stages[0].system,/NGỮ CẢNH DO NGƯỜI DÙNG CHỌN THỦ CÔNG/);
   assert.match(stages[1].system,/NGƯỜI NGHE: ĐỒNG NGHIỆP/);
   assert.equal(stages[1].input.analysis.domain,'work');
-  assert.deepEqual(stages[1].input.analysis.terms,[]);
+  assert.equal(stages[1].input.analysis.terms,undefined);
   assert.equal(stages[1].input.approvedTerminology[0].meaning,'PP');
   assert.equal(result.appliedTerms[0].source,'澎湃');
 });
