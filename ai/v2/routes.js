@@ -92,7 +92,7 @@ function createV2Router({translate=deepTranslate,env=process.env,cache=v2Cache,
       const trace=[];
       const translationCached=Boolean(hit);
       const translated=hit?hit.value:await translate({text:original,context,
-        backTranslation,vocabulary,
+        backTranslation,vocabulary,env,
         inspectStage:inspectAI?stage=>trace.push(stage):null,
         loadGlossary:(source,opts)=>lookupUserTerms(req.user._id,source,opts)});
 
