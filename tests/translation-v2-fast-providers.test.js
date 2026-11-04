@@ -89,7 +89,8 @@ test('provider requests use Haiku low without thinking and GPT-4o without reason
     assert.equal(translated.model,'gpt-4o');
     assert.deepEqual(analysis.usage,{input:210,inputUncached:210,
       cacheRead:0,cacheWrite:0,output:51});
-    assert.deepEqual(translated.usage,{input:280,output:41});
+    assert.deepEqual(translated.usage,{input:280,inputUncached:280,
+      cacheRead:0,cacheWrite:0,output:41});
     assert.equal(requests.length,2);
     const haiku=requests.find(r=>r.url.includes('anthropic.com')).body;
     const gpt4o=requests.find(r=>r.url.includes('openai.com')).body;
