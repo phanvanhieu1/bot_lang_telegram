@@ -81,3 +81,28 @@ test('New entity output protects a novel proper name with no extra model call',a
   assert.equal(calls[1].data.analysis.terms,undefined);
   assert.equal(ENGINE_VERSION,'v2.8.0');
 });
+
+test('Approved longer phrase does not cause an extra GPT repair for nearby standalone name',async()=>{
+  const source='芳华要联系芳华银行';
+  const glossary=[{source:'芳华银行',translation:'Ngân hàng FH',
+    domain:'work',offset:source.indexOf('芳华银行'),id:'approved-bank'}];
+  const target='芳华 cần liên hệ Ngân hàng FH.';
+  assert.deepEqual(missingProtectedNameOccurrences(source,target,['芳华'],glossary),[]);
+  const calls=[];
+  const result=await deepTranslate({text:source,context:'colleague',vocabulary:false,
+    backTranslation:false,loadGlossary:async()=>glossary},{
+    claude:async()=>{calls.push('claude');return {
+      text:JSON.stringify({domain:'work',intent:'Liên hệ ngân hàng',
+        facts:['Yêu cầu liên hệ'],names:['芳华'],entities:[]}),
+      usage:{input:100,output:60}
+    }},
+    openai:async()=>{calls.push('gpt');return {
+      text:JSON.stringify({translation:target,
+        semanticReviewRequired:false,uncertainties:[]}),
+      usage:{input:120,output:30}
+    }}
+  });
+  assert.equal(result.status,'PASS');
+  assert.deepEqual(result.analysis.names,['芳华']);
+  assert.deepEqual(calls,['claude','gpt'],'no paid repair when approved phrase translated correctly');
+});
