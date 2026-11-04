@@ -222,8 +222,7 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
   const protectedNames=entityPlan.protectedNames;
   // GPT receives semantic facts, not Claude's separate study vocabulary,
   // redundant source-name arrays or unverified lexical meanings.
-  const translationAnalysis=conciseTranslationAnalysis(
-    frame,resolvedDomain,glossary,protectedNames);
+  const translationAnalysis=conciseTranslationAnalysis(frame,resolvedDomain);
   // One canonical approved-terminology payload for both translator and repair.
   // Do not serialize the same glossary as a second system-prompt block.
   const approvedTerminology=glossary.map(t=>({
@@ -280,7 +279,7 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
   let issues=[
     ...validateAppliedTerms(translated.translation,glossary).map(x=>'Thuật ngữ chưa được áp dụng: '+x),
     ...missingProtected(sourceText,translated.translation).map(x=>'Có thể thiếu mã/số liệu: '+x),
-    ...missingProtectedNameOccurrences(sourceText,translated.translation,protectedNames)
+    ...missingProtectedNameOccurrences(sourceText,translated.translation,protectedNames,glossary)
       .map(x=>'Thiếu tên riêng/nhãn cần giữ nguyên: '+x)
   ];
   if(issues.length) {
@@ -301,7 +300,7 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
     issues=[
       ...validateAppliedTerms(translated.translation,glossary).map(x=>'Thuật ngữ chưa được áp dụng: '+x),
       ...missingProtected(sourceText,translated.translation).map(x=>'Có thể thiếu mã/số liệu: '+x),
-      ...missingProtectedNameOccurrences(sourceText,translated.translation,protectedNames)
+      ...missingProtectedNameOccurrences(sourceText,translated.translation,protectedNames,glossary)
         .map(x=>'Thiếu tên riêng/nhãn cần giữ nguyên: '+x)
     ];
   }
