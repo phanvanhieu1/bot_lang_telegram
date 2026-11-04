@@ -7,6 +7,7 @@ const {
 } = require('../prompts/pro.prompt');
 const {glossaryInstructions}=require('../terminology/resolver');
 const {optimizedProRequest}=require('../prompts/v1-optimized');
+const {v1ModelFor,V1_JSON_SCHEMA,parseV1Json}=require('../prompts/v1-output');
 
 // 3. CORE 1: Dịch thuật & Phân tích ảnh có FAILOVER (Chống sập)
 // Thêm tham số `history` vào hàm
@@ -43,6 +44,10 @@ async function translateFull(
 
   messages.push({ role: 'user', content: userContent });
 
+  const jsonMode=optimized&&process.env.V1_OPTIMIZED_JSON_SCHEMA==='true';
+  const model=optimized?v1ModelFor(text,{...options,history,imageUrl,
+    backTranslation:!isFastMode&&options.backTranslation!==false,
+    vocabulary:!isFastMode&&options.vocabulary!==false}):'gpt-4o';
   const clients = getShuffledOpenAIClients();
   if (!clients.length) throw new Error('Chưa cấu hình OPENAI_API_KEYS cho Telegram bot');
 
@@ -51,20 +56,27 @@ async function translateFull(
     try {
       const startedAt=Date.now();
       const response = await openai.chat.completions.create({
-        model:'gpt-4o',messages,temperature:0.3,
-        ...(optimized?{max_completion_tokens:request.maxCompletionTokens}:{})
+        model,messages,temperature:0.3,
+        ...(optimized?{max_completion_tokens:request.maxCompletionTokens}:{}),
+        ...(jsonMode?{response_format:{type:'json_schema',
+          json_schema:{name:'v1_translation',strict:true,schema:V1_JSON_SCHEMA}}}:{})
       });
-      const content = response.choices?.[0]?.message?.content?.trim();
-      if (!content) throw new Error('OpenAI returned an empty translation');
+      const rawContent=response.choices?.[0]?.message?.content?.trim();
+      if (!rawContent) throw new Error('OpenAI returned an empty translation');
+      const content=jsonMode?parseV1Json(rawContent,{
+        supplement:Boolean(options.existingTranslation),
+        backTranslation:!isFastMode&&options.backTranslation!==false,
+        vocabulary:!isFastMode&&options.vocabulary!==false
+      }):rawContent;
       // Exact provider-visible messages and raw output, captured only after
       // an explicitly requested V1 inspection. Never log or persist the trace.
       if(typeof options.inspectStage==='function'&&!imageUrl){
         options.inspectStage({
           role:options.existingTranslation?'supplement':'translator',
-          provider:'openai',model:response.model||'gpt-4o',
+          provider:'openai',model:response.model||model,
           system:systemPrompt,
           input:JSON.stringify(messages.slice(1)),
-          rawOutput:content,ms:Date.now()-startedAt,
+          rawOutput:rawContent,ms:Date.now()-startedAt,
           usage:{input:response.usage?.prompt_tokens||0,
             output:response.usage?.completion_tokens||0,
             cacheRead:response.usage?.prompt_tokens_details?.cached_tokens||0}
