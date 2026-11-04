@@ -6,6 +6,10 @@ function summarizeV2Usage(usage,estimate=estimateUsage(usage)){
     const cost=estimateUsage({stages:[x]});
     return {role:x.role,provider:x.provider,model:x.model,
       inputTokens:Number(x.usage.input)||0,outputTokens:Number(x.usage.output)||0,
+      cacheReadTokens:Number(x.usage.cacheRead)||0,
+      cacheWriteTokens:Number(x.usage.cacheWrite)||0,
+      uncachedInputTokens:Number.isFinite(x.usage.inputUncached)
+        ?Number(x.usage.inputUncached):null,
       estimatedKnownPaidUsd:cost.estimatedKnownPaidUsd,
       pricingIncomplete:cost.pricingIncomplete,
       ms:Number.isFinite(x.ms)&&x.ms>=0?x.ms:null};
