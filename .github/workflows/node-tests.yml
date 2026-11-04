@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - feature/telegram-premerge-cleanup
+      - feature/translation-engine-v2
   pull_request:
     branches:
       - main
