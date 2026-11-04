@@ -27,7 +27,10 @@ function estimateUsage(usage) {
         ?Math.max(0,Number(stage.usage.inputUncached))
         :Math.max(0,totalInput-cacheRead-cacheWrite);
       const isClaude=String(stage.provider||'')==='claude'||model.startsWith('claude-');
-      const readRate=isClaude?rates.input*0.1:(rates.cachedInput??rates.input);
+      // Haiku 5.5 cache reads are 0.1x; Sonnet 5.5 is 0.05x.
+      const readRate=isClaude
+        ?rates.input*(model==='claude-sonnet-5-5'?0.05:0.1)
+        :(rates.cachedInput??rates.input);
       const writeRate=isClaude?rates.input*1.25:rates.input;
       known+=(uncached*rates.input+cacheRead*readRate+
         cacheWrite*writeRate+(stage.usage.output||0)*rates.output)/1e6;
