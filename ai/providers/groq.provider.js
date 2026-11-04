@@ -7,17 +7,16 @@ const groqClient = new OpenAI({
 });
 
 async function requestGroq(prompt) {
+  const messages=typeof prompt==='string'
+    ?[{role:'user',content:prompt}]
+    :[{role:'system',content:prompt.system},{role:'user',content:prompt.user}];
   const { data, response } =
     await groqClient.chat.completions
       .create({
         model: 'qwen/qwen3.8-27b',
-        messages: [
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        temperature: 0
+        messages,
+        temperature: 0,
+        ...(typeof prompt==='object'?{max_completion_tokens:prompt.maxCompletionTokens||1200}:{})
       })
       .withResponse();
 
