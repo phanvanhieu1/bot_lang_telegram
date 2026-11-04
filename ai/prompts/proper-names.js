@@ -10,6 +10,10 @@ const NAME_PRESERVATION_RULES=[
   'Nếu chưa chắc một cụm là tên riêng hay từ thường, dựa vào cú pháp và vai trò trong câu; không tùy tiện Việt hóa thành tên khác. Không dịch toàn bộ câu nguyên văn, chỉ giữ nguyên những tên/nhãn cần bảo vệ.'
 ].join(' ');
 
+// A short V2-specific instruction: entities already come from source-checked
+// classification, so GPT does not need the longer V1 detection policy.
+const V2_NAME_RULES='protectedNames là các nhãn/tên riêng CHÉP Y NGUYÊN từ nguồn, kể cả chữ Hán. Không phiên âm, dịch nghĩa, đổi tên hay bỏ sót. approvedTerminology là ánh xạ do người dùng xác nhận và có ưu tiên cao hơn. Dịch đầy đủ phần còn lại của câu; giữ mã, số và quan hệ giữa các đối tượng.';
+
 function safeSourceName(source,name){
   return typeof name==='string'&&
     name.length>=2&&name.length<=40&&
@@ -79,5 +83,5 @@ function missingProtectedNames(translation,names){
   return (names||[]).filter(name=>!target.includes(name));
 }
 
-module.exports={NAME_PRESERVATION_RULES,extractSourceNames,
+module.exports={NAME_PRESERVATION_RULES,V2_NAME_RULES,extractSourceNames,
   sanitizeProperNames,missingProtectedNames};
