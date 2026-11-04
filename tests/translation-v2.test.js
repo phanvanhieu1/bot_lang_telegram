@@ -47,7 +47,7 @@ test('Claude analyzes first; DB approved glossary overrides Claude guessed termi
   assert.ok(calls[1].input.includes('đường dây bào khuyến mãi'));
   assert.equal(calls[1].input.includes('cái bàn chải'),false);
   assert.equal(JSON.parse(calls[1].input).analysis.domain,'work');
-  assert.ok(calls[1].sys.includes('ưu tiên'));
+  assert.ok(calls[1].sys.includes('override'));
 });
 test('No matching domain means do not force workplace meaning',async()=>{
   const rows=[term()];
@@ -138,10 +138,10 @@ test('Claude analysis output is bounded for short inputs',async()=>{
   const m=mocked();
   const r=await deepTranslate({text:'这是刷子吗'},m.providers);
   assert.equal(r.status,'PASS');
-  assert.match(m.calls[0].sys,/Tuân thủ analysisLimits/);
+  assert.match(m.calls[0].sys,/Follow analysisLimits/);
   assert.equal(JSON.parse(m.calls[0].input).analysisLimits.ambiguities,2);
   assert.equal(JSON.parse(m.calls[0].input).analysisLimits.facts,6);
-  assert.match(m.calls[0].sys,/Không liệt kê chi tiết/);
+  assert.match(m.calls[0].sys,/Never invent an unstated/);
 });
 test('Mixed automatic context is visible but does not force specialized terms',()=>{
   const rows=[term({domain:'work'}),term({domain:'it',translation:'module Brush'})];
@@ -156,9 +156,9 @@ test('Analyzer distinguishes organizational workflow from personal purchase with
   const m=mocked();
   await deepTranslate({text:'这笔钱怎么办？',context:'auto'},m.providers);
   const analyzer=m.calls.find(x=>x.which==='claude');
-  assert.match(analyzer.sys,/Phân loại theo HOẠT ĐỘNG/);
-  assert.match(analyzer.sys,/quy trình vận hành của tổ chức/);
-  assert.match(analyzer.sys,/giao dịch cá nhân/);
+  assert.match(analyzer.sys,/Classify domain by what the message actually does/);
+  assert.match(analyzer.sys,/organizational operations/);
+  assert.match(analyzer.sys,/personal life and purchases/);
   assert.doesNotMatch(analyzer.sys,/这笔提现额度不够/);
   assert.doesNotMatch(analyzer.sys,/C09/);
 });
@@ -166,8 +166,8 @@ test('Translator prompt provides generic Vietnamese aspect and fluency guidance'
   const m=mocked();
   await deepTranslate({text:'他已经开始处理了',context:'colleague'},m.providers);
   const system=m.calls.find(x=>x.which==='openai').sys;
-  assert.match(system,/phó từ chỉ thời và thể/);
-  assert.match(system,/đã bắt đầu và vẫn tiếp diễn/);
+  assert.match(system,/idiomatic Vietnamese/);
+  assert.match(system,/grammatical aspect/);
   assert.equal(system.includes('财务那边'),false);
 });
 test('Input and provider schema failures are bounded',async()=>{
@@ -209,7 +209,7 @@ test('Vietnamese to Chinese uses reversed approved term and Chinese-only transla
   assert.equal(calls[0].payload.targetLanguage,'zh');
   assert.equal(calls[1].payload.sourceLanguage,'vi');
   assert.deepEqual(calls[1].payload.approvedTerminology.map(x=>x.meaning),['刷子']);
-  assert.match(calls[1].system,/Dịch sang tiếng Trung giản thể/);
+  assert.match(calls[1].system,/Simplified Chinese/);
   assert.doesNotMatch(calls[1].system,/Diễn đạt tiếng Việt mạch lạc/);
 });
 test('Vietnamese input without two-way approval does not inherit unapproved reverse meaning',async()=>{
