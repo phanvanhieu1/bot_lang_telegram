@@ -14,7 +14,7 @@ test('V2 inspection shows actual Claude and GPT arguments and original raw JSON;
   const providers={
     claude:async(system,input)=>{
       claude++;
-      assert.match(system,/KHÔNG dịch/);
+      assert.match(system,/Analyze; do not translate/);
       assert.equal(JSON.parse(input).original,'我去超市');
       return {text:JSON.stringify({domain:'daily',intent:'đi mua đồ',tone:'bình thường',
         facts:[],terms:[{source:'超市',meaning:'siêu thị'}],
@@ -23,7 +23,7 @@ test('V2 inspection shows actual Claude and GPT arguments and original raw JSON;
     },
     openai:async(system,input)=>{
       gpt++;
-      assert.match(system,/biên dịch viên/);
+      assert.match(system,/professional Chinese/);
       const payload=JSON.parse(input);
       assert.equal(payload.original,'我去超市');
       assert.equal(payload.analysis.domain,'daily');
