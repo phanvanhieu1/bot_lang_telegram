@@ -44,7 +44,6 @@ async function translateFull(
 
   messages.push({ role: 'user', content: userContent });
 
-  const jsonMode=optimized&&process.env.V1_OPTIMIZED_JSON_SCHEMA==='true';
   const model=optimized?v1ModelFor(text,{...options,history,imageUrl,
     backTranslation:!isFastMode&&options.backTranslation!==false,
     vocabulary:!isFastMode&&options.vocabulary!==false}):'gpt-4o';
