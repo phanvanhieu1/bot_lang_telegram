@@ -31,6 +31,7 @@ const {
 
 const FREE_CACHE_TTL = 24 * 60 * 60 * 1000;
 const {glossaryInstructions,validateAppliedTerms}=require('../terminology/resolver');
+const {optimizedFreeRequest,outputBudget}=require('../prompts/v1-optimized');
 
 async function getFreeCachedTranslation(text,context='auto') {
   const cached = await getFreeCachedText(text,'zh',context);
@@ -154,8 +155,9 @@ async function translateWithProvider(
   requestProvider,
   customPrompt = null,context='auto'
 ) {
-  const prompt =
-    customPrompt || buildFreePrompt(text,context);
+  const prompt=customPrompt||
+    (process.env.V1_OPTIMIZED_PROMPTS==='true'
+      ?optimizedFreeRequest(text,context):buildFreePrompt(text,context));
 
   const result = await requestProvider(prompt);
 
@@ -181,7 +183,10 @@ async function runTranslationPipeline(
   const result = await translateWithProvider(
     text,
     requestProvider,
-    terms.length?buildFreePrompt(text,context)+glossaryInstructions(terms):null,
+    process.env.V1_OPTIMIZED_PROMPTS==='true'
+      ?{...optimizedFreeRequest(text,context,terms),
+        maxCompletionTokens:outputBudget(text,{backTranslation:!containsChinese(text)})}
+      :terms.length?buildFreePrompt(text,context)+glossaryInstructions(terms):null,
     context
   );
 
