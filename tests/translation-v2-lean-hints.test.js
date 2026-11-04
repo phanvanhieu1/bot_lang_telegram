@@ -100,5 +100,5 @@ test('Approved mappings are included exactly once in GPT user payload, not dupli
   assert.equal(gpt.data.analysis.names,undefined);
   assert.ok(!gpt.system.includes('"source":"芳华"'));
   assert.equal((JSON.stringify(gpt.data).match(/"meaning":"FH"/g)||[]).length,1);
-  assert.equal(ENGINE_VERSION,'v2.8.0');
+  assert.equal(ENGINE_VERSION,'v2.9.0');
 });
