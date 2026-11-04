@@ -20,12 +20,14 @@ async function translateFull(
   returnUsage = false,
   options = {}
 ) {
-  const systemPrompt = buildProPrompt(
-  text,
-  targetLangKey,
-  isFastMode,
-  options
-) + glossaryInstructions(options.terms||[]);
+  const optimized=process.env.V1_OPTIMIZED_PROMPTS==='true'&&!imageUrl;
+  const jsonMode=optimized&&process.env.V1_OPTIMIZED_JSON_SCHEMA==='true';
+  const request=optimized?optimizedProRequest(text,targetLangKey,isFastMode,{
+    ...options,jsonMode
+  }):null;
+  const systemPrompt=optimized?request.system:buildProPrompt(
+    text,targetLangKey,isFastMode,options
+  )+glossaryInstructions(options.terms||[]);
   const userContent = [];
   if (text) userContent.push({ type: 'text', text: optimized?request.user:text });
   if (imageUrl) {
@@ -78,7 +80,8 @@ async function translateFull(
           rawOutput:rawContent,ms:Date.now()-startedAt,
           usage:{input:response.usage?.prompt_tokens||0,
             output:response.usage?.completion_tokens||0,
-            cacheRead:response.usage?.prompt_tokens_details?.cached_tokens||0}
+            ...(optimized||response.usage?.prompt_tokens_details?.cached_tokens
+              ?{cacheRead:response.usage?.prompt_tokens_details?.cached_tokens||0}:{})}
         });
       }
       return returnUsage ? { content, usage: {...response.usage,
