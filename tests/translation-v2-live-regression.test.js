@@ -148,7 +148,7 @@ test('G01 real failure: Claude says daily but explicit colleague and confirmed D
   assert.equal(result.appliedTerms[0].source,'刷子');
   assert.equal(calls.length,1);
   assert.equal(calls[0].analysis.domain,'work');
-  assert.deepEqual(calls[0].analysis.terms,[],
+  assert.equal(calls[0].analysis.terms,undefined,
     'Do not let unapproved brush guess compete with confirmed DB terminology');
   assert.equal(calls[0].approvedTerminology[0].meaning,'đường dây bào khuyến mãi');
 });
