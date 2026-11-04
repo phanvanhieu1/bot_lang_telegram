@@ -6,6 +6,7 @@ const {
   buildProPrompt
 } = require('../prompts/pro.prompt');
 const {glossaryInstructions}=require('../terminology/resolver');
+const {optimizedProRequest}=require('../prompts/v1-optimized');
 
 // 3. CORE 1: Dịch thuật & Phân tích ảnh có FAILOVER (Chống sập)
 // Thêm tham số `history` vào hàm
@@ -25,7 +26,7 @@ async function translateFull(
   options
 ) + glossaryInstructions(options.terms||[]);
   const userContent = [];
-  if (text) userContent.push({ type: 'text', text: text });
+  if (text) userContent.push({ type: 'text', text: optimized?request.user:text });
   if (imageUrl) {
     userContent.push({ type: 'text', text: 'Dịch văn bản trong ảnh.' });
     userContent.push({ type: 'image_url', image_url: { url: imageUrl } });
@@ -50,7 +51,8 @@ async function translateFull(
     try {
       const startedAt=Date.now();
       const response = await openai.chat.completions.create({
-        model: 'gpt-4o', messages, temperature: 0.3
+        model:'gpt-4o',messages,temperature:0.3,
+        ...(optimized?{max_completion_tokens:request.maxCompletionTokens}:{})
       });
       const content = response.choices?.[0]?.message?.content?.trim();
       if (!content) throw new Error('OpenAI returned an empty translation');
@@ -64,7 +66,8 @@ async function translateFull(
           input:JSON.stringify(messages.slice(1)),
           rawOutput:content,ms:Date.now()-startedAt,
           usage:{input:response.usage?.prompt_tokens||0,
-            output:response.usage?.completion_tokens||0}
+            output:response.usage?.completion_tokens||0,
+            cacheRead:response.usage?.prompt_tokens_details?.cached_tokens||0}
         });
       }
       return returnUsage ? { content, usage: response.usage } : content;
