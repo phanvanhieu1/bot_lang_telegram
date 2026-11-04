@@ -79,7 +79,7 @@ test('New entity output protects a novel proper name with no extra model call',a
   assert.deepEqual(calls[1].data.protectedNames,['芳华']);
   assert.equal(calls[1].data.analysis.entities,undefined);
   assert.equal(calls[1].data.analysis.terms,undefined);
-  assert.equal(ENGINE_VERSION,'v2.8.0');
+  assert.equal(ENGINE_VERSION,'v2.9.0');
 });
 
 test('Approved longer phrase does not cause an extra GPT repair for nearby standalone name',async()=>{
