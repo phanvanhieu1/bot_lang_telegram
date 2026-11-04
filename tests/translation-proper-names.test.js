@@ -16,7 +16,7 @@ function fakeProviders({translations=[preserved],names=['芳华'],terms=[]}={}){
   return {requests,
     claude:async(system,user,meta)=>{
       requests.push({role:'claude',system,user,meta});
-      assert.match(system,/names/);
+      assert.match(system,/entities/);
       return {model:'claude-mock',usage:{input:500,output:125},
         text:JSON.stringify({domain:'work',intent:'Nhờ kiểm tra phần dư trong giao dịch',
           tone:'colleague',facts:['Cần kiểm tra'],terms,patterns:[],
