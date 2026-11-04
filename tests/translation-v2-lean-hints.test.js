@@ -72,7 +72,7 @@ test('Vocabulary off does not request Claude study terms or pass study patterns 
   assert.equal(p.calls[0].data.analysisLimits.terms,0);
   assert.equal(p.calls[0].data.analysisLimits.patterns,0);
   assert.equal(p.calls[1].data.analysis.patterns,undefined);
-  assert.deepEqual(p.calls[1].data.analysis.terms,[]);
+  assert.equal(p.calls[1].data.analysis.terms,undefined);
   assert.deepEqual(p.calls[1].data.protectedNames,['芳华']);
   assert.deepEqual(r.analysisTerms,[]);
   assert.equal(r.analysisPatterns.length,0);
@@ -100,5 +100,5 @@ test('Approved mappings are included exactly once in GPT user payload, not dupli
   assert.equal(gpt.data.analysis.names,undefined);
   assert.ok(!gpt.system.includes('"source":"芳华"'));
   assert.equal((JSON.stringify(gpt.data).match(/"meaning":"FH"/g)||[]).length,1);
-  assert.equal(ENGINE_VERSION,'v2.7.0');
+  assert.equal(ENGINE_VERSION,'v2.8.0');
 });
