@@ -24,7 +24,10 @@ function getV2ModelSettings(env = process.env) {
   // Keep an explicit override for experiments that value deeper reasoning.
   const claudeThinking = env.V2_CLAUDE_THINKING ||
     (claudeModel === 'claude-haiku-5-5' ? 'disabled' : 'default');
-  return { openaiModel, claudeModel, openaiEffort, claudeEffort, claudeThinking };
+  const tieredRouting=env.V2_TIERED_ROUTING==='true';
+  const simpleOpenaiModel=env.V2_OPENAI_SIMPLE_MODEL||'gpt-4o-mini';
+  return {openaiModel,claudeModel,openaiEffort,claudeEffort,claudeThinking,
+    tieredRouting,simpleOpenaiModel};
 }
 
 function safeError(code, status) {
@@ -62,8 +65,39 @@ async function postJson(url, headers, body, timeoutMs = 60000) {
   catch (_) { throw safeError('V2_PROVIDER_INVALID_JSON'); }
 }
 
+function claudeUsage(raw={}){
+  const inputUncached=Math.max(0,Number(raw.input_tokens)||0);
+  const cacheRead=Math.max(0,Number(raw.cache_read_input_tokens)||0);
+  const cacheWrite=Math.max(0,Number(raw.cache_creation_input_tokens)||0);
+  return {input:inputUncached+cacheRead+cacheWrite,
+    inputUncached,cacheRead,cacheWrite,
+    output:Math.max(0,Number(raw.output_tokens)||0)};
+}
+
+// Keep the fixed prefix in SYSTEM, never prepend it to user messages.
+// cache_control is on the stable system block (not the varying user input).
+function buildClaudeBody({model,system,user,maxOutputTokens=1800,
+  effort=null,thinking='default',cacheSystem=true,jsonSchema=null}){
+  const body={
+    model,max_tokens:maxOutputTokens,
+    system:cacheSystem?[{type:'text',text:system,
+      cache_control:{type:'ephemeral'}}]:system,
+    messages:[{role:'user',content:user}]
+  };
+  if(effort&&/claude-(?:haiku|sonnet|opus)-5-5/.test(model))
+    body.output_config={effort};
+  if(jsonSchema){
+    body.output_config={...(body.output_config||{}),
+      format:{type:'json_schema',schema:jsonSchema}};
+  }
+  if(model==='claude-haiku-5-5'&&thinking==='disabled')
+    body.thinking={type:'disabled'};
+  return body;
+}
+
 function createProviders(env = process.env) {
-  const { openaiModel, claudeModel, openaiEffort, claudeEffort, claudeThinking } = getV2ModelSettings(env);
+  const {openaiModel,claudeModel,openaiEffort,claudeEffort,claudeThinking,
+    tieredRouting,simpleOpenaiModel}=getV2ModelSettings(env);
   const groqModel = env.V2_GROQ_MODEL || DEFAULTS.groq;
   const routerModel = env.V2_OPENROUTER_MODEL || DEFAULTS.openrouter;
   const allowFree = env.V2_ALLOW_FREE_PROVIDERS !== 'false';
@@ -75,15 +109,18 @@ function createProviders(env = process.env) {
 
   async function openai(system, user, meta={}) {
     if (!openaiKey) throw safeError('V2_MISSING_OPENAI_KEY');
-    const body = {
-      model: openaiModel, instructions: system,
-      input: [{role:'user',content:[{type:'input_text',text:user}]}],
-      max_output_tokens: meta.maxOutputTokens || 2400
+    // The only permitted override is this server-configured simple model.
+    // Repair and all complex translations continue using the base model.
+    const model=tieredRouting&&meta.modelOverride===simpleOpenaiModel
+      ?simpleOpenaiModel:openaiModel;
+    const body={
+      model,instructions:system,
+      input:[{role:'user',content:[{type:'input_text',text:user}]}],
+      max_output_tokens:meta.maxOutputTokens||2400
     };
-    // GPT-4o/4.1 do not accept a reasoning.effort override.
-    if (/^(gpt-[56]|o[1-9])/.test(openaiModel)) {
-      body.reasoning = { effort: openaiEffort };
-    }
+    // GPT-4o and GPT-4o-mini do not accept reasoning.effort.
+    if(/^(gpt-[56]|o[1-9])/.test(model))
+      body.reasoning={effort:model===openaiModel?openaiEffort:'medium'};
     if(meta.jsonSchema){
       body.text={format:{type:'json_schema',name:'translation_v2',
         strict:true,schema:meta.jsonSchema}};
@@ -94,7 +131,7 @@ function createProviders(env = process.env) {
     const text = outputText(data);
     if (!text) throw safeError('V2_OPENAI_EMPTY');
     return {
-      text, provider:'openai', model:data.model || openaiModel,
+      text, provider:'openai', model:data.model || model,
       responseStatus:String(data.status||'unknown').slice(0,40),
       incompleteReason:String(data.incomplete_details?.reason||'').slice(0,60),
       usage:{ input:Number(data.usage?.input_tokens||0),
@@ -104,16 +141,11 @@ function createProviders(env = process.env) {
 
   async function claude(system, user, meta={}) {
     if (!claudeKey) throw safeError('V2_MISSING_CLAUDE_KEY');
-    const body={
-      model: claudeModel, max_tokens: meta.maxOutputTokens || 1800,
-      system, messages: [{role:'user',content:user}]
-    };
-    // Send effort only for the current Claude 5.5 family. Older overrides
-    // continue using their original request shape.
-    if(claudeEffort && /claude-(?:haiku|sonnet|opus)-5-5/.test(claudeModel))
-      body.output_config={effort:claudeEffort};
-    if(claudeModel === 'claude-haiku-5-5' && claudeThinking === 'disabled')
-      body.thinking={type:'disabled'};
+    const body=buildClaudeBody({model:claudeModel,system,user,
+      maxOutputTokens:meta.maxOutputTokens||1800,
+      effort:claudeEffort,thinking:claudeThinking,
+      cacheSystem:env.V2_CLAUDE_PROMPT_CACHE!=='false',
+      jsonSchema:env.V2_CLAUDE_JSON_SCHEMA==='false'?null:meta.jsonSchema});
     const data = await postJson('https://api.anthropic.com/v1/messages', {
       'x-api-key': claudeKey,
       'anthropic-version': '2023-06-01'
@@ -125,8 +157,7 @@ function createProviders(env = process.env) {
       // Anthropic explicitly reports max_tokens when a response is cut off.
       // Expose only the finish reason; do not retain/log raw response text.
       stopReason:String(data.stop_reason||'unknown').slice(0,40),
-      usage:{input:Number(data.usage?.input_tokens||0),
-        output:Number(data.usage?.output_tokens||0)}
+      usage:claudeUsage(data.usage)
     };
   }
 
@@ -167,4 +198,5 @@ function createProviders(env = process.env) {
     deepl
   };
 }
-module.exports = { createProviders, getV2ModelSettings, safeError, outputText, DEFAULTS };
+module.exports={createProviders,getV2ModelSettings,safeError,outputText,
+  buildClaudeBody,claudeUsage,DEFAULTS};
