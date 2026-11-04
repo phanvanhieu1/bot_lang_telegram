@@ -39,7 +39,8 @@ function keyForRequest({owner,text,context,signature,env=process.env,
   backTranslation=true,vocabulary=true}){
   if(!owner||typeof text!=='string'||!signature)throw Error('V2_CACHE_INVALID_KEY');
   const direction=detectDirection(text);
-  const {openaiModel,claudeModel,openaiEffort,claudeEffort,claudeThinking}=getV2ModelSettings(env);
+  const {openaiModel,claudeModel,openaiEffort,claudeEffort,claudeThinking,
+    tieredRouting,simpleOpenaiModel}=getV2ModelSettings(env);
   return digest([
     'v2-cache-4',String(owner),text.trim(),context,
     direction.source,direction.target,ENGINE_VERSION,
@@ -47,7 +48,8 @@ function keyForRequest({owner,text,context,signature,env=process.env,
     // optional Chinese learning content from GPT-4o in the SAME translation call.
     direction.source==='vi'?Boolean(backTranslation):null,
     direction.source==='vi'?Boolean(vocabulary):null,
-    openaiModel,claudeModel,openaiEffort,claudeEffort,claudeThinking,signature
+    openaiModel,claudeModel,openaiEffort,claudeEffort,claudeThinking,
+    tieredRouting,tieredRouting?simpleOpenaiModel:null,signature
   ]);
 }
 async function getCached({owner,key},CacheModel=Model){
