@@ -81,7 +81,8 @@ async function translateFull(
             cacheRead:response.usage?.prompt_tokens_details?.cached_tokens||0}
         });
       }
-      return returnUsage ? { content, usage: response.usage } : content;
+      return returnUsage ? { content, usage: {...response.usage,
+        model:response.model||model} } : content;
     } catch (error) {
       lastError = error;
       // Invalid input will fail for every key; do not burn retries.
