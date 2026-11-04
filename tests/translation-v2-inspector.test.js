@@ -27,7 +27,7 @@ test('V2 inspection shows actual Claude and GPT arguments and original raw JSON;
       const payload=JSON.parse(input);
       assert.equal(payload.original,'我去超市');
       assert.equal(payload.analysis.domain,'daily');
-      assert.equal(payload.analysis.terms[0].source,'超市');
+      assert.equal(payload.analysis.terms,undefined,'Claude study terms should not pollute GPT');
       return {text:JSON.stringify({translation:'Tôi đi siêu thị.',
         backTranslation:'',vocabulary:'',
         semanticReviewRequired:false,uncertainties:[]}),
@@ -45,7 +45,7 @@ test('V2 inspection shows actual Claude and GPT arguments and original raw JSON;
   assert.equal(JSON.parse(captured[0].input).original,'我去超市');
   assert.equal(JSON.parse(captured[0].rawOutput).terms[0].source,'超市');
   assert.equal(captured[1].role,'translator');
-  assert.equal(JSON.parse(captured[1].input).analysis.terms[0].source,'超市');
+  assert.equal(JSON.parse(captured[1].input).analysis.terms,undefined);
   assert.equal(JSON.parse(captured[1].rawOutput).translation,'Tôi đi siêu thị.');
   assert.equal(captured[1].usage.output,40);
   assert.ok(!JSON.stringify(captured).includes('apiKey'));
