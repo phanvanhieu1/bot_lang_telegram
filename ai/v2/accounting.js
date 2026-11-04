@@ -4,12 +4,13 @@
 // despite a "free" plan. Never present these estimates as exact invoices.
 const PRICES = Object.freeze({
   // Same GPT-4o tariff as V1 PRO: 2.50 / 10 USD per million tokens.
-  'gpt-4o':{input:2.5,output:10},
-  'gpt-6.1-sol': {input:2,output:10},
-  'gpt-6.1-terra':{input:1,output:5},
+  'gpt-4o-mini':{input:0.15,cachedInput:0.075,output:0.6},
+  'gpt-4o':{input:2.5,cachedInput:1.25,output:10},
+  'gpt-6.1-sol': {input:2,cachedInput:0.1,output:10},
+  'gpt-6.1-terra':{input:1,cachedInput:0.05,output:5},
   'claude-sonnet-5-5':{input:2,output:10},
-  // Haiku 5.5 standard text price for prompts <=100K tokens (V2 <=2K chars).
-  // Excludes any future prompt-cache and volume discounts.
+  // Anthropic ephemeral cache reads cost 10% of standard input, and
+  // 5-minute writes cost 125% of standard input.
   'claude-haiku-5-5':{input:0.10,output:0.50}
 });
 function estimateUsage(usage) {
@@ -19,7 +20,17 @@ function estimateUsage(usage) {
     const model=Object.keys(PRICES).find(id=>String(stage.model||'').startsWith(id));
     if(model) {
       const rates=PRICES[model];
-      known+=((stage.usage.input||0)*rates.input+(stage.usage.output||0)*rates.output)/1e6;
+      const totalInput=Math.max(0,Number(stage.usage.input)||0);
+      const cacheRead=Math.max(0,Number(stage.usage.cacheRead)||0);
+      const cacheWrite=Math.max(0,Number(stage.usage.cacheWrite)||0);
+      const uncached=Number.isFinite(stage.usage.inputUncached)
+        ?Math.max(0,Number(stage.usage.inputUncached))
+        :Math.max(0,totalInput-cacheRead-cacheWrite);
+      const isClaude=String(stage.provider||'')==='claude'||model.startsWith('claude-');
+      const readRate=isClaude?rates.input*0.1:(rates.cachedInput??rates.input);
+      const writeRate=isClaude?rates.input*1.25:rates.input;
+      known+=(uncached*rates.input+cacheRead*readRate+
+        cacheWrite*writeRate+(stage.usage.output||0)*rates.output)/1e6;
     } else if(stage.provider!=='deepl' && ((stage.usage.input||0)+(stage.usage.output||0))>0) {
       unknown=true;
     } else if(stage.provider==='deepl') {
@@ -28,4 +39,4 @@ function estimateUsage(usage) {
   }
   return {estimatedKnownPaidUsd:Number(known.toFixed(7)),pricingIncomplete:unknown};
 }
-module.exports={estimateUsage};
+module.exports={estimateUsage,PRICES};
