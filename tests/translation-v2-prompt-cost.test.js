@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {buildClaudeBody,claudeUsage,getV2ModelSettings}=require('../ai/v2/providers');
+const {buildClaudeBody,claudeUsage,openaiUsage,getV2ModelSettings}=require('../ai/v2/providers');
 const {estimateUsage}=require('../ai/v2/accounting');
 const {summarizeV2Usage}=require('../ai/v2/request-usage');
 const {ANALYZER_SYSTEM,ANALYZER_JSON_SCHEMA,TRANSLATOR_SYSTEM}=require('../ai/v2/prompts-en');
@@ -114,4 +114,14 @@ test('Provider sends Anthropic system cache + structured output and retains real
     assert.equal(seen[1].body.instructions,TRANSLATOR_SYSTEM);
     assert.equal(seen[1].body.reasoning,undefined);
   }finally{global.fetch=previous;}
+});
+
+test('Automatic OpenAI input cache is tracked separately at cached price',()=>{
+  const usage=openaiUsage({input_tokens:1200,output_tokens:90,
+    input_tokens_details:{cached_tokens:1024}});
+  assert.deepEqual(usage,{input:1200,inputUncached:176,
+    cacheRead:1024,cacheWrite:0,output:90});
+  const stage={role:'translator',provider:'openai',model:'gpt-4o-mini',usage};
+  const estimated=estimateUsage({stages:[stage]});
+  assert.equal(estimated.estimatedKnownPaidUsd,0.0001572);
 });
