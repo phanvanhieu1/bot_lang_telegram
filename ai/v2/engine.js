@@ -255,12 +255,17 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
         ms:x.ms,usage:x.usage||{input:0,output:0}}))};
     throw failed;
   }
-  let issues=[
-    ...validateAppliedTerms(translated.translation,glossary).map(x=>'Thuật ngữ chưa được áp dụng: '+x),
-    ...missingProtected(sourceText,translated.translation).map(x=>'Có thể thiếu mã/số liệu: '+x),
-    ...missingProtectedNameOccurrences(sourceText,translated.translation,protectedNames,glossary)
-      .map(x=>'Thiếu tên riêng/nhãn cần giữ nguyên: '+x)
-  ];
+  // A repair is a candidate, not automatically a better translation.
+  // Compare the same deterministic constraints before replacing the original.
+  function verifiedIssues(candidate) {
+    return [
+      ...validateAppliedTerms(candidate,glossary).map(x=>'Thuật ngữ chưa được áp dụng: '+x),
+      ...missingProtected(sourceText,candidate).map(x=>'Có thể thiếu mã/số liệu: '+x),
+      ...missingProtectedNameOccurrences(sourceText,candidate,protectedNames,glossary)
+        .map(x=>'Thiếu tên riêng/nhãn cần giữ nguyên: '+x)
+    ];
+  }
+  let issues=verifiedIssues(translated.translation);
   if(issues.length) {
     // One targeted correction only; never silently replace a confirmed
     // glossary meaning with an AI guess or loop until both models agree.
@@ -271,17 +276,26 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
         includeBackTranslation:backTranslation&&direction.source==='vi',
         includeChineseVocabulary:vocabulary&&direction.source==='vi',
         approvedTerminology});
-      translated=cleanTranslation((await stage('repair','openai',()=>
+      const repairResponse=await stage('repair','openai',()=>
         providers.openai(repairSystem,repairInput,
           {maxOutputTokens:1200,jsonSchema}),
-        {system:repairSystem,input:repairInput})).text);
+        {system:repairSystem,input:repairInput});
+      if(repairResponse.responseStatus==='incomplete')
+        throw safeError('V2_OPENAI_REPAIR_INCOMPLETE');
+      const candidate=cleanTranslation(repairResponse.text);
+      const candidateIssues=verifiedIssues(candidate.translation);
+      const newIssues=candidateIssues.filter(issue=>!issues.includes(issue));
+      // Never accept a correction that adds a new verified failure, or one
+      // that fails to fix any original failure. A semantic warning is sticky.
+      if(!newIssues.length&&candidateIssues.length<issues.length){
+        candidate.semanticReviewRequired ||= translated.semanticReviewRequired;
+        candidate.uncertainties=[...new Set([
+          ...translated.uncertainties,...candidate.uncertainties
+        ])].slice(0,3);
+        translated=candidate;
+        issues=candidateIssues;
+      }
     }catch(_){/* keep original, mark review below */}
-    issues=[
-      ...validateAppliedTerms(translated.translation,glossary).map(x=>'Thuật ngữ chưa được áp dụng: '+x),
-      ...missingProtected(sourceText,translated.translation).map(x=>'Có thể thiếu mã/số liệu: '+x),
-      ...missingProtectedNameOccurrences(sourceText,translated.translation,protectedNames,glossary)
-        .map(x=>'Thiếu tên riêng/nhãn cần giữ nguyên: '+x)
-    ];
   }
   // Analyst hypotheses do not automatically mean the translation is wrong.
   // Preserve them for transparency; only verified constraints or a *material*
