@@ -81,7 +81,7 @@ test('Claude receives length-based limits as user data and same caps prune respo
       'dynamic limits must not create another AI stage');
     assert.equal(result.usage.totalInputTokens,400);
   }
-  assert.equal(ENGINE_VERSION,'v2.8.0','entity classifier invalidates old V2 translation cache');
+  assert.equal(ENGINE_VERSION,'v2.9.0','English structured prompts invalidate old V2 translation cache');
 });
 
 test('On malformed JSON, one retry receives bigger character-aware token headroom',async()=>{
