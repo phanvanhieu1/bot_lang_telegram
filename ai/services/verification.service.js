@@ -5,7 +5,8 @@ const {
 async function verifyTranslation(
   original,
   translation,
-  context = 'auto'
+  context = 'auto',
+  inspection = null
 ) {
   const client = getRandomOpenAIClient();
 
@@ -70,6 +71,7 @@ Chỉ trả về JSON hợp lệ theo đúng cấu trúc sau, không dùng Markd
 }
 `;
 
+  const startedAt=Date.now();
   const response = await client.chat.completions.create({
     model: 'gpt-4o',
     messages: [
@@ -95,6 +97,14 @@ Chỉ trả về JSON hợp lệ theo đúng cấu trúc sau, không dùng Markd
     .trim();
 
   const verification = JSON.parse(cleaned);
+  if(typeof inspection?.onInspect==='function'){
+    inspection.onInspect({
+      role:'verification',provider:'openai',model:response.model||'gpt-4o',
+      system:'',input:prompt,rawOutput:content,ms:Date.now()-startedAt,
+      usage:{input:response.usage?.prompt_tokens||0,
+        output:response.usage?.completion_tokens||0}
+    });
+  }
 
   return {
     verification,

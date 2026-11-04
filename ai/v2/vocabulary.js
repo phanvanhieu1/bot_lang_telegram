@@ -1,0 +1,56 @@
+'use strict';
+// Claude's semantic term hypotheses are learning suggestions, NEVER approved
+// terminology. Only source-grounded Chinese words/phrases may enter the
+// existing MongoDB study library; Vietnamese source terms are display-only.
+const {parseAi1Items}=require('../../web-vocabulary/ai-items');
+const {normalize,isSafeTerm,removeSensitiveSegments}=require('../../web-vocabulary/extractor');
+
+const MAX_TERMS=8;
+function sanitizeClaudeTerms(raw,sourceText,sourceLanguage,maxTerms=MAX_TERMS){
+  const limit=Math.max(0,Math.min(20,Number.isFinite(maxTerms)?Math.floor(maxTerms):MAX_TERMS));
+  if(!Array.isArray(raw)||!['zh','vi'].includes(sourceLanguage))return [];
+  const source=removeSensitiveSegments(String(sourceText||'')).slice(0,2000);
+  const unique=new Set(),result=[];
+  for(const row of raw.slice(0,24)){
+    if(!row||typeof row.source!=='string'||typeof row.meaning!=='string')continue;
+    const term=row.source.trim().normalize('NFKC').slice(0,80);
+    const meaning=removeSensitiveSegments(row.meaning).trim().slice(0,160);
+    if(!term||!meaning||meaning.length<2||
+       /[\r\n:@#<>]/u.test(term)||/[\r\n<>]/u.test(meaning)||
+       !source.includes(term)||unique.has(term))continue;
+    if(sourceLanguage==='zh'){
+      const key=normalize(term,'zh',term.length>4?'phrase':'word');
+      if(!isSafeTerm(key,'zh',term.length>4?'phrase':'word'))continue;
+    }else{
+      if(!/[\p{L}]/u.test(term)||/[\d]/u.test(term))continue;
+    }
+    unique.add(term);
+    result.push({source:term,meaning});
+    if(result.length>=limit)break;
+  }
+  return result;
+}
+
+function toStudyVocabulary(terms,sourceText,sourceLanguage,patterns=[],maxPatterns=4){
+  if(sourceLanguage!=='zh')return '';
+  const lines=(terms||[]).map(row=>{
+    const kind=row.source.length>4?'PHRASE':'WORD';
+    return '['+kind+'] '+row.source+' : '+row.meaning;
+  });
+  const patternLimit=Math.max(0,Math.min(6,
+    Number.isFinite(maxPatterns)?Math.floor(maxPatterns):4));
+  for(const row of (patterns||[]).slice(0,patternLimit)){
+    if(!row||typeof row.source!=='string'||typeof row.meaning!=='string')continue;
+    const key=row.source.trim().slice(0,80),meaning=row.meaning.trim().slice(0,160);
+    if(!key||!meaning||/[\r\n<>]/u.test(key)||/[\r\n<>]/u.test(meaning))continue;
+    lines.push('[PATTERN] '+key+' : '+meaning);
+  }
+  // Reuse V1's lexical grounding before any MongoDB write, including grammar.
+  // V2 long input may contain 20 terms + 6 patterns; the parser's V1
+  // default remains 24, but this call can preserve all 26 selected items.
+  const parsed=parseAi1Items(lines.join('\n'),sourceText,'zh',
+    Math.min(32,(terms||[]).length+patternLimit));
+  return parsed.map(row=>'['+row.type.toUpperCase()+'] '+row.text+' : '+row.meaning).join('\n');
+}
+
+module.exports={sanitizeClaudeTerms,toStudyVocabulary};

@@ -12,3 +12,6 @@ sessions.sqlite-wal
 # Isolated Telegram test bot token & state
 .env.telegram-test
 .telegram-test-data/
+
+# Live quality eval outputs: possibly sensitive; never publish
+benchmarks/results/

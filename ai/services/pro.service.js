@@ -5,6 +5,7 @@ const {
 const {
   buildProPrompt
 } = require('../prompts/pro.prompt');
+const {glossaryInstructions}=require('../terminology/resolver');
 
 // 3. CORE 1: Dịch thuật & Phân tích ảnh có FAILOVER (Chống sập)
 // Thêm tham số `history` vào hàm
@@ -22,7 +23,7 @@ async function translateFull(
   targetLangKey,
   isFastMode,
   options
-);
+) + glossaryInstructions(options.terms||[]);
   const userContent = [];
   if (text) userContent.push({ type: 'text', text: text });
   if (imageUrl) {
@@ -47,11 +48,25 @@ async function translateFull(
   let lastError = null;
   for (const openai of clients) {
     try {
+      const startedAt=Date.now();
       const response = await openai.chat.completions.create({
         model: 'gpt-4o', messages, temperature: 0.3
       });
       const content = response.choices?.[0]?.message?.content?.trim();
       if (!content) throw new Error('OpenAI returned an empty translation');
+      // Exact provider-visible messages and raw output, captured only after
+      // an explicitly requested V1 inspection. Never log or persist the trace.
+      if(typeof options.inspectStage==='function'&&!imageUrl){
+        options.inspectStage({
+          role:options.existingTranslation?'supplement':'translator',
+          provider:'openai',model:response.model||'gpt-4o',
+          system:systemPrompt,
+          input:JSON.stringify(messages.slice(1)),
+          rawOutput:content,ms:Date.now()-startedAt,
+          usage:{input:response.usage?.prompt_tokens||0,
+            output:response.usage?.completion_tokens||0}
+        });
+      }
       return returnUsage ? { content, usage: response.usage } : content;
     } catch (error) {
       lastError = error;

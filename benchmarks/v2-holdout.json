@@ -1,0 +1,330 @@
+{
+  "version": 1,
+  "description": "Unseen semantic holdout: do not embed these literal cases into model prompts. Human review required.",
+  "cases": [
+    {
+      "id": "C01",
+      "domain": "work",
+      "source": "审核提现时如果发现同一个会员短时间内提交多笔申请，先核对记录，确认后再处理。",
+      "checks": [
+        "Điều kiện kiểm tra nhiều yêu cầu rút tiền",
+        "Xác minh lịch sử trước khi xử lý"
+      ]
+    },
+    {
+      "id": "C02",
+      "domain": "work",
+      "source": "刚才那笔出款不要重复操作，财务那边已经在跟进了。",
+      "checks": [
+        "Không thao tác lặp giao dịch chi tiền",
+        "Bộ phận tài chính đã theo dõi"
+      ]
+    },
+    {
+      "id": "C03",
+      "domain": "work",
+      "source": "今晚体育维护，投注入口暂时关闭，其他游戏不受影响。",
+      "checks": [
+        "Bảo trì mảng thể thao",
+        "Chỉ tắt cửa cược thể thao",
+        "Các game khác không ảnh hưởng"
+      ]
+    },
+    {
+      "id": "C04",
+      "domain": "work",
+      "source": "中奖名单核对完发我一份，不急，明早之前就行。",
+      "checks": [
+        "Gửi danh sách người trúng sau khi đối chiếu",
+        "Hạn trước sáng mai",
+        "Không khẩn"
+      ]
+    },
+    {
+      "id": "C05",
+      "domain": "work",
+      "source": "这个会员充值成功了，但余额还没到账，查一下是不是回调延迟。",
+      "checks": [
+        "Nạp thành công nhưng chưa ghi số dư",
+        "Yêu cầu điều tra callback chậm"
+      ]
+    },
+    {
+      "id": "C06",
+      "domain": "work",
+      "source": "风控没通过的先放着，别直接取消，等主管回复。",
+      "checks": [
+        "Hồ sơ chưa qua kiểm soát rủi ro tạm giữ",
+        "Không được hủy ngay",
+        "Chờ cấp trên"
+      ]
+    },
+    {
+      "id": "C07",
+      "domain": "work",
+      "source": "转人工的订单先别分配到自动出款通道。",
+      "checks": [
+        "Các đơn chuyển thủ công",
+        "Không phân vào luồng xuất tiền tự động"
+      ]
+    },
+    {
+      "id": "C08",
+      "domain": "work",
+      "source": "查一下昨天的派奖记录，有重复的单独整理出来。",
+      "checks": [
+        "Yêu cầu kiểm tra lịch sử phát thưởng hôm qua",
+        "Tách các trường hợp trùng"
+      ]
+    },
+    {
+      "id": "C09",
+      "domain": "work",
+      "source": "这笔提现额度不够，不是系统故障，先跟客服确认一下。",
+      "checks": [
+        "Hạn mức rút không đủ",
+        "Không phải sự cố hệ thống",
+        "Xác nhận với CSKH trước"
+      ]
+    },
+    {
+      "id": "C10",
+      "domain": "work",
+      "source": "活动明天才开始，今天看到的链接只是测试用的，先不要发会员群。",
+      "checks": [
+        "Chương trình bắt đầu ngày mai",
+        "Link hiện tại chỉ thử nghiệm",
+        "Không gửi vào nhóm hội viên hôm nay"
+      ]
+    },
+    {
+      "id": "F01",
+      "domain": "friend",
+      "source": "我刚睡醒，脑子还没开机，晚点再聊吧。",
+      "checks": [
+        "Vừa ngủ dậy, chưa tỉnh táo",
+        "Đề nghị nói chuyện sau, khẩu ngữ"
+      ]
+    },
+    {
+      "id": "F02",
+      "domain": "friend",
+      "source": "你也太夸张了吧，我哪有这么厉害。",
+      "checks": [
+        "Phủ nhận lời khen hơi phóng đại",
+        "Thân mật hoặc trêu đùa"
+      ]
+    },
+    {
+      "id": "F03",
+      "domain": "friend",
+      "source": "饭都凉了，你还在那儿刷手机。",
+      "checks": [
+        "Đồ ăn đã nguội",
+        "Người nghe còn lướt điện thoại, sắc thái nhắc/trêu"
+      ]
+    },
+    {
+      "id": "F04",
+      "domain": "friend",
+      "source": "别急，等雨小一点我们再出门。",
+      "checks": [
+        "Đừng vội",
+        "Chờ mưa nhỏ rồi ra ngoài"
+      ]
+    },
+    {
+      "id": "F05",
+      "domain": "friend",
+      "source": "今天有点不舒服，可能就不去了，你们玩得开心点。",
+      "checks": [
+        "Người nói không khỏe",
+        "Có thể không đi",
+        "Chúc người khác vui"
+      ]
+    },
+    {
+      "id": "F06",
+      "domain": "friend",
+      "source": "你刚那句话是认真的吗？我还以为你在逗我呢。",
+      "checks": [
+        "Hỏi người kia có nói nghiêm túc không",
+        "Tưởng là đang trêu"
+      ]
+    },
+    {
+      "id": "F07",
+      "domain": "friend",
+      "source": "这家店也不是不好吃，就是有点贵。",
+      "checks": [
+        "Không phủ nhận quán ngon",
+        "Phàn nàn giá hơi đắt"
+      ]
+    },
+    {
+      "id": "F08",
+      "domain": "friend",
+      "source": "昨天说好一起跑步的，怎么又睡过头了？",
+      "checks": [
+        "Nhắc thỏa thuận chạy bộ hôm qua",
+        "Hỏi việc ngủ quá giờ"
+      ]
+    },
+    {
+      "id": "F09",
+      "domain": "friend",
+      "source": "别总把事情想得那么复杂，有时候简单一点就好。",
+      "checks": [
+        "Lời khuyên không nên nghĩ phức tạp",
+        "Đôi khi đơn giản là đủ"
+      ]
+    },
+    {
+      "id": "F10",
+      "domain": "friend",
+      "source": "我回到家给你发消息，别在外面一直等我。",
+      "checks": [
+        "Về đến nhà sẽ nhắn",
+        "Đừng đợi bên ngoài"
+      ]
+    },
+    {
+      "id": "T01",
+      "domain": "it",
+      "source": "这次 deploy 只改了配置，业务逻辑没动，先别回滚。",
+      "checks": [
+        "Deploy chỉ thay cấu hình",
+        "Không đổi logic nghiệp vụ",
+        "Chưa rollback"
+      ]
+    },
+    {
+      "id": "T02",
+      "domain": "it",
+      "source": "线上接口偶发超时，但 staging 一直正常，先对比一下日志。",
+      "checks": [
+        "Production đôi khi timeout",
+        "Staging bình thường",
+        "Yêu cầu so sánh log"
+      ]
+    },
+    {
+      "id": "T03",
+      "domain": "it",
+      "source": "缓存清了还是复现，应该不是 Redis 的问题。",
+      "checks": [
+        "Xóa cache vẫn lỗi",
+        "Có lẽ không do Redis"
+      ]
+    },
+    {
+      "id": "T04",
+      "domain": "it",
+      "source": "别把 token 写进日志里，测试环境也不行。",
+      "checks": [
+        "Cấm ghi token trong log",
+        "Ngay cả môi trường test"
+      ]
+    },
+    {
+      "id": "T05",
+      "domain": "it",
+      "source": "这个 callback 可能被重试了两次，但数据库只应该写入一条记录。",
+      "checks": [
+        "Callback có thể retry hai lần",
+        "DB chỉ được ghi một dòng"
+      ]
+    },
+    {
+      "id": "T06",
+      "domain": "it",
+      "source": "请求已经到网关了，后端没收到，先看一下路由规则。",
+      "checks": [
+        "Gateway nhận request",
+        "Backend chưa nhận",
+        "Xem quy tắc routing"
+      ]
+    },
+    {
+      "id": "T07",
+      "domain": "it",
+      "source": "先把错误码和 request id 发我，不用贴完整的用户数据。",
+      "checks": [
+        "Gửi mã lỗi và request id",
+        "Không cần gửi dữ liệu người dùng đầy đủ"
+      ]
+    },
+    {
+      "id": "T08",
+      "domain": "it",
+      "source": "这个接口返回的是 403，不是 401，权限逻辑可能有问题。",
+      "checks": [
+        "Phân biệt 403 với 401",
+        "Khả năng vấn đề quyền truy cập"
+      ]
+    },
+    {
+      "id": "T09",
+      "domain": "it",
+      "source": "如果 webhook 验签失败就直接拒绝，不要进后面的业务流程。",
+      "checks": [
+        "Nếu xác thực chữ ký webhook lỗi",
+        "Từ chối ngay, không chạy flow nghiệp vụ"
+      ]
+    },
+    {
+      "id": "T10",
+      "domain": "it",
+      "source": "先确认是不是前端缓存导致的，暂时别动生产数据库。",
+      "checks": [
+        "Xác minh lỗi có thể do cache frontend",
+        "Không đụng DB production"
+      ]
+    },
+    {
+      "id": "M01",
+      "domain": "mixed",
+      "source": "老板让我先确认提现接口是不是坏了，确认完再回他消息。",
+      "checks": [
+        "Sếp yêu cầu xác minh API rút tiền có lỗi hay không",
+        "Sau đó trả lời sếp"
+      ]
+    },
+    {
+      "id": "M02",
+      "domain": "mixed",
+      "source": "你今晚下班要不要一起吃饭？有空的话顺便聊聊那个 bug。",
+      "checks": [
+        "Rủ đi ăn sau giờ làm",
+        "Nếu có thời gian nói về bug"
+      ]
+    },
+    {
+      "id": "M03",
+      "domain": "mixed",
+      "source": "我今天不加班了，系统没问题的话明天再检查。",
+      "checks": [
+        "Không làm thêm hôm nay",
+        "Nếu hệ thống ổn thì mai kiểm tra"
+      ]
+    },
+    {
+      "id": "M04",
+      "domain": "mixed",
+      "source": "他是说先别处理，不是叫你把订单取消掉。",
+      "checks": [
+        "Chỉ yêu cầu tạm dừng xử lý",
+        "Không phải hủy đơn"
+      ]
+    },
+    {
+      "id": "M05",
+      "domain": "mixed",
+      "source": "那个账号还在测试，别拿真实会员的数据跑。",
+      "checks": [
+        "Tài khoản đang test",
+        "Không dùng dữ liệu hội viên thật"
+      ]
+    }
+  ]
+}

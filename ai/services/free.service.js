@@ -30,9 +30,10 @@ const {
 } = require('../utils/validator');
 
 const FREE_CACHE_TTL = 24 * 60 * 60 * 1000;
+const {glossaryInstructions,validateAppliedTerms}=require('../terminology/resolver');
 
-async function getFreeCachedTranslation(text) {
-  const cached = await getFreeCachedText(text);
+async function getFreeCachedTranslation(text,context='auto') {
+  const cached = await getFreeCachedText(text,'zh',context);
 
   if (!cached) return null;
 
@@ -82,19 +83,19 @@ async function getFreeCachedTranslation(text) {
   };
 }
 
-async function setFreeCachedTranslation(text, content, parsed) {
+async function setFreeCachedTranslation(text, content, parsed,context='auto') {
   await setFreeCachedText(text, {
     content,
     parsed,
     createdAt: Date.now()
-  });
+  },'zh',context);
 }
 
 // A successful provider response must not trigger a second paid AI request
 // merely because the database failed to persist the cache.
-async function persistFreeCache(text, result) {
+async function persistFreeCache(text, result,context='auto') {
   try {
-    await setFreeCachedTranslation(text, result.content, result.parsed);
+    await setFreeCachedTranslation(text, result.content, result.parsed,context);
   } catch (error) {
     console.error('FREE MongoDB cache write error:', error);
   }
@@ -151,10 +152,10 @@ function classifyProviderError(error, provider) {
 async function translateWithProvider(
   text,
   requestProvider,
-  customPrompt = null
+  customPrompt = null,context='auto'
 ) {
   const prompt =
-    customPrompt || buildFreePrompt(text);
+    customPrompt || buildFreePrompt(text,context);
 
   const result = await requestProvider(prompt);
 
@@ -166,18 +167,22 @@ async function translateWithProvider(
     content: result.content,
     parsed,
     provider: result.provider,
-    rateLimit: result.rateLimit
+    rateLimit: result.rateLimit,
+    usage: result.usage||null
   };
 }
 
 async function runTranslationPipeline(
   text,
-  requestProvider
+  requestProvider,
+  terms=[],context='auto'
 ) {
   // Groq / OpenRouter: both directions are generated in ONE AI request.
   const result = await translateWithProvider(
     text,
-    requestProvider
+    requestProvider,
+    terms.length?buildFreePrompt(text,context)+glossaryInstructions(terms):null,
+    context
   );
 
   const inputIsChinese = containsChinese(text);
@@ -204,6 +209,7 @@ async function runTranslationPipeline(
     },
     provider: result.provider,
     cached: false,
+    usage:result.usage||null,
     rateLimit: result.rateLimit
   };
 }
@@ -244,12 +250,15 @@ async function runDeepLPipeline(text) {
     parsed,
     provider: 'deepl',
     cached: false,
+    usage:null,
     rateLimit: null
   };
 }
 
-async function translateFree(text) {
-  const cachedResult = await getFreeCachedTranslation(text);
+async function translateFree(text,options={}) {
+  const terms=options.terms||[],context=options.context||'auto';
+  // Shared cache cannot hold user-specific dictionary translations.
+  const cachedResult = terms.length?null:await getFreeCachedTranslation(text,context);
 
   if (cachedResult) {
     return {
@@ -257,6 +266,7 @@ async function translateFree(text) {
       parsed: cachedResult.parsed,
       provider: 'cache',
       cached: true,
+      usage:null,
       rateLimit: null
     };
   }
@@ -266,10 +276,11 @@ async function translateFree(text) {
   try {
     const result = await runTranslationPipeline(
       text,
-      requestGroq
+      requestGroq,
+      terms,context
     );
 
-    await persistFreeCache(text, result);
+    if(!terms.length)await persistFreeCache(text, result,context);
 
     return result;
   } catch (error) {
@@ -282,10 +293,11 @@ async function translateFree(text) {
   try {
     const result = await runTranslationPipeline(
       text,
-      requestOpenRouter
+      requestOpenRouter,
+      terms,context
     );
 
-    await persistFreeCache(text, result);
+    if(!terms.length)await persistFreeCache(text, result,context);
 
     return result;
   } catch (error) {
@@ -300,9 +312,15 @@ async function translateFree(text) {
     );
 
     try {
+  // DeepL cannot receive required glossary instructions; never silently
+  // ignore approved user terminology during fallback.
+  if(terms.length||context!=='auto'){
+    const e=new Error('Glossary cannot be enforced with DeepL; explicit context also requires prompt-capable AI');
+    e.code='TERMINOLOGY_REQUIRED';throw e;
+  }
   const result = await runDeepLPipeline(text);
 
-  await persistFreeCache(text, result);
+  await persistFreeCache(text, result,context);
 
   return result;
 } catch (error) {

@@ -11,7 +11,10 @@ test('compact CSS is loaded after legacy translator styles',()=>{
   const order=[
     '/style.css','/translator.css','/google-style.css',
     '/translation-vocab.css','/compact-layout.css'
-  ].map(file=>html.indexOf('href="'+file+'"'));
+  ].map(file=>{
+    const bare=html.indexOf('href="'+file+'"');
+    return bare>=0?bare:html.indexOf('href="'+file+'?');
+  });
   assert.ok(order.every(index=>index>=0), 'All stylesheets are present');
   assert.deepEqual(order,[...order].sort((a,b)=>a-b),
     'Compact style must come last to override hardcoded pane heights');
@@ -63,7 +66,7 @@ test('the full library and grammar classifier remain independent from visual res
   assert.doesNotMatch(js,/fetch\(|\/api\//);
   assert.doesNotMatch(js,/localStorage|mongoose|VocabularyEntry/);
   assert.match(read('translation-vocab.js'),/\/api\/vocabulary\/lookup/);
-  assert.match(read('index.html'),/<script src="\/app\.js"><\/script>/);
+  assert.match(read('index.html'),/<script src="\/app\.js(?:\?[^"]*)?"><\/script>/);
   assert.match(read('index.html'),/<script src="\/compact-layout\.js"><\/script>/);
 });
 
