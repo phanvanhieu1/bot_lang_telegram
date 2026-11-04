@@ -25,8 +25,9 @@ function proRequestUsage(usage,cached=false,trace=[]){
   const output=token(usage?.completion_tokens??usage?.completionTokens);
   const known=input!==null&&output!==null;
   const total=known?input+output:null;
-  const cost=known?Number(((input*GPT4O_RATES.input+
-    output*GPT4O_RATES.output)/1e6).toFixed(8)):null;
+  const actualModel=usage?.model||'gpt-4o';
+  const cachedInput=token(usage?.prompt_tokens_details?.cached_tokens)??0;
+  const cost=known?paidStageCost(actualModel,input,output,cachedInput):null;
   const knownStages=Array.isArray(trace)?trace.filter(x=>x&&x.usage):[];
   const stages=knownStages.length?knownStages.map(stage=>{
     const i=token(stage.usage.input),o=token(stage.usage.output);
@@ -39,15 +40,15 @@ function proRequestUsage(usage,cached=false,trace=[]){
       ms:Number.isFinite(stage.ms)?stage.ms:null,
       estimatedKnownPaidUsd:stageCost,
       pricingIncomplete:stageCost===null};
-  }):[{provider:'openai',model:'gpt-4o',role:'translation / verification',
-    inputTokens:input,outputTokens:output,
-    estimatedKnownPaidUsd:cost,pricingIncomplete:!known}];
+  }):[{provider:'openai',model:actualModel,role:'translation / verification',
+    inputTokens:input,outputTokens:output,cacheReadTokens:cachedInput,
+    estimatedKnownPaidUsd:cost,pricingIncomplete:cost===null}];
   const summedStageCost=stages.every(s=>s.estimatedKnownPaidUsd!==null)
     ?Number(stages.reduce((n,s)=>n+s.estimatedKnownPaidUsd,0).toFixed(8)):null;
   return {cached:false,inputTokens:input,outputTokens:output,
     totalTokens:total,
     estimatedCostUsd:knownStages.length?summedStageCost:cost,
-    pricingIncomplete:knownStages.length?summedStageCost===null:!known,stages};
+    pricingIncomplete:knownStages.length?summedStageCost===null:cost===null,stages};
 }
 function freeRequestUsage({usage,provider,cached}={}){
   if(cached)return hit();
