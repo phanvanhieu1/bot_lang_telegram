@@ -15,7 +15,7 @@ const {resolveTranslationVocabulary}=require('../../web-vocabulary/resolver');
 const {toStudyVocabulary}=require('./vocabulary');
 const {analyzerBudget}=require('./analyzer-budget');
 const v2Cache=require('./cache');
-const {translationLanguageIssue}=require('../utils/translation-language');
+const {translationLanguageIssue,backTranslationLanguageIssue}=require('../utils/translation-language');
 
 function createV2Router({translate=deepTranslate,env=process.env,cache=v2Cache,
   recordUsage=addUsage,resolveVocabulary=resolveTranslationVocabulary,
@@ -95,10 +95,19 @@ function createV2Router({translate=deepTranslate,env=process.env,cache=v2Cache,
       if(hit&&translationLanguageIssue(original,hit.value?.translation))hit=null;
       const trace=[];
       const translationCached=Boolean(hit);
-      const translated=hit?hit.value:await translate({text:original,context,
+      let translated=hit?hit.value:await translate({text:original,context,
         backTranslation,vocabulary,translationModel,env,
         inspectStage:inspectAI?stage=>trace.push(stage):null,
         loadGlossary:(source,opts)=>lookupUserTerms(req.user._id,source,opts)});
+      // Also guard legacy cache rows created before the back-translation fix.
+      let backTranslationWarning=translated.backTranslationWarning||null;
+      if(backTranslation&&translated.sourceLanguage==='vi'&&translated.backTranslation){
+        const issue=backTranslationLanguageIssue(original,translated.backTranslation);
+        if(issue){
+          backTranslationWarning=issue;
+          translated={...translated,backTranslation:''};
+        }
+      }
 
       // Miss: preserve only validated PASS content in owner-isolated cache.
       const estimate=translationCached?null:estimateUsage(translated.usage);
@@ -155,6 +164,7 @@ function createV2Router({translate=deepTranslate,env=process.env,cache=v2Cache,
         translationNotes:translated.translationNotes||[],
         appliedTerms:translated.appliedTerms||[],
         backTranslation:translated.backTranslation||'',
+        ...(backTranslationWarning?{backTranslationWarning}:{}),
         studyVocabulary:translated.studyVocabulary||'',
         verification:verified,
         sourceLanguage:translated.sourceLanguage,targetLanguage:translated.targetLanguage,
@@ -196,6 +206,7 @@ function createV2Router({translate=deepTranslate,env=process.env,cache=v2Cache,
         appliedTerms:translated.appliedTerms||[],
         sourceLanguage:translated.sourceLanguage,targetLanguage:translated.targetLanguage,
         cached:translationCached,usage:responseUsage,requestUsage:usage,
+        ...(backTranslationWarning?{backTranslationWarning}:{}),
         translationModel:translationModel||null,
         ...(inspectAI?{inspection:{
           cacheHit:translationCached,
