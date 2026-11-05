@@ -1701,6 +1701,7 @@ window.addEventListener('learning-language-change', () => {
   window.renderV2Inspection?.(null);
   window.renderV2ClaudeTerms?.([]);
   renderV2AnalysisDetails();
+  renderTranslationDetailsSummary();
   translation.innerHTML = '<div class="translation-placeholder"><span class="translation-placeholder-icon">文</span><p>Bản dịch sẽ xuất hiện tại đây</p></div>';
   copyBtn.hidden = true;
   document.getElementById('outputSpeakBtn').hidden = true;
