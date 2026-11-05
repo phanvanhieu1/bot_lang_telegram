@@ -108,3 +108,38 @@ test('V1 mini usage is priced at its own tariff, not GPT-4o tariff',()=>{
   assert.equal(mini.estimatedCostUsd,0.00021);
   assert.equal(full.estimatedCostUsd,0.0035);
 });
+
+test('V2 provider sends selected model to Responses API, without tier routing or prompt changes',async()=>{
+  const {createProviders}=require('../ai/v2/providers');
+  const priorFetch=global.fetch;
+  const requests=[];
+  global.fetch=async(_url,options)=>{
+    const body=JSON.parse(options.body);
+    requests.push(body);
+    return {ok:true,json:async()=>({model:body.model,status:'completed',
+      output_text:'{"translation":"Xin chào"}',
+      usage:{input_tokens:300,output_tokens:30}})};
+  };
+  try{
+    const provider=createProviders({OPENAI_API_KEY:'test',
+      V2_OPENAI_MODEL:'gpt-4o',V2_TIERED_ROUTING:'false'});
+    const first=await provider.openai('stable instructions','{}',{
+      translationModel:'gpt-4o-mini'});
+    const second=await provider.openai('stable instructions','{}',{});
+    assert.equal(first.model,'gpt-4o-mini');
+    assert.equal(second.model,'gpt-4o');
+    assert.deepEqual(requests.map(x=>x.model),['gpt-4o-mini','gpt-4o']);
+    assert.equal(requests[0].instructions,requests[1].instructions);
+    await assert.rejects(provider.openai('stable instructions','{}',{
+      translationModel:'unapproved-model'}),{code:'V2_INVALID_TRANSLATION_MODEL'});
+    assert.equal(requests.length,2);
+  }finally{global.fetch=priorFetch;}
+});
+
+test('model API input is allowlisted and kept separate from FREE and English flows',()=>{
+  const server=read('server.js'),v2Route=read('ai/v2/routes.js');
+  assert.match(server,/!\['gpt-4o','gpt-4o-mini'\]\.includes\(translationModel\)/);
+  assert.match(v2Route,/!\['gpt-4o','gpt-4o-mini'\]\.includes\(translationModel\)/);
+  assert.match(server,/text\.trim\(\),targetLang,fastMode,context,translationModel/);
+  assert.match(v2Route,/backTranslation,vocabulary,translationModel/);
+});
