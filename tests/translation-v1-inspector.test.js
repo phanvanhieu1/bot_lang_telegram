@@ -109,7 +109,8 @@ test('V1 PRO route returns trace only on opt-in and forbids forcing refresh with
   assert.match(server,/forceRefresh&&!inspectAI/);
   assert.match(server,/const trace=\[\]/);
   assert.match(server,/inspectStage:onInspect/);
-  assert.match(server,/let cachedData = appliedTerms\.length\|\|forceRefresh \? null/);
+  assert.match(server,/const termScope=proTermScope\(req\.user\._id,appliedTerms\)/);
+  assert.match(server,/let cachedData = forceRefresh \? null : await getWebCachedText/);
   // Wrong-language cached responses must be rejected before reuse.
   assert.match(server,/translationLanguageIssue\(inputText,cachedData\.translation\)/);
   assert.match(server,/cachedData=null/);
