@@ -213,9 +213,19 @@ function setEngineControlsBusy(busy){
   if(translationModelSelect)translationModelSelect.disabled=busy;
 }
 let preferredEngine=localStorage.getItem('translationEngine')==='v2'?'v2':'v1';
-const savedTranslatorModel=localStorage.getItem('translationModel');
-if(translationModelSelect)translationModelSelect.value=
-  ['gpt-4o','gpt-4o-mini'].includes(savedTranslatorModel)?savedTranslatorModel:'gpt-4o-mini';
+// One-time rollout: migrate the previous GPT-4o default to GPT-4o mini.
+// Subsequent explicit choices persist normally.
+const translatorModelPreferenceVersion='mini-default-1';
+const savedTranslatorModel=
+  localStorage.getItem('translationModelPreferenceVersion')===translatorModelPreferenceVersion
+    ?localStorage.getItem('translationModel'):null;
+if(translationModelSelect){
+  translationModelSelect.value=
+    ['gpt-4o','gpt-4o-mini'].includes(savedTranslatorModel)
+      ?savedTranslatorModel:'gpt-4o-mini';
+  localStorage.setItem('translationModel',translationModelSelect.value);
+  localStorage.setItem('translationModelPreferenceVersion',translatorModelPreferenceVersion);
+}
 translationModelSelect?.addEventListener('change',()=>{
   if(!['gpt-4o','gpt-4o-mini'].includes(translationModelSelect.value))
     translationModelSelect.value='gpt-4o-mini';
