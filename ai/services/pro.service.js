@@ -8,7 +8,7 @@ const {
 const {glossaryInstructions}=require('../terminology/resolver');
 const {optimizedProRequest}=require('../prompts/v1-optimized');
 const {v1ModelFor,V1_JSON_SCHEMA,parseV1Json}=require('../prompts/v1-output');
-const {translationLanguageIssue}=require('../utils/translation-language');
+const {translationLanguageIssue,sanitizeV1BackTranslation}=require('../utils/translation-language');
 
 // 3. CORE 1: Dịch thuật & Phân tích ảnh có FAILOVER (Chống sập)
 // Thêm tham số `history` vào hàm
@@ -79,6 +79,10 @@ async function translateFull(
         vocabulary:!isFastMode&&options.vocabulary!==false
       }):raw;
       let content=parseContent(rawContent);
+      // Validate auxiliary Vietnamese output independently of TRANSLATION.
+      // Never retry a paid API call or overwrite a valid Chinese translation.
+      const backCheck=sanitizeV1BackTranslation(content,text);
+      content=backCheck.content;
       const extractedTranslation=raw=>{
         const lines=String(raw||'').split(String.fromCharCode(10));
         const index=lines.findIndex(line=>line.trim().toUpperCase().startsWith('TRANSLATION:'));
@@ -116,7 +120,8 @@ async function translateFull(
         });
       }
       return returnUsage ? { content, usage: {...aggregateUsage,
-        model:response.model||model} } : content;
+        model:response.model||model},
+        ...(backCheck.issue?{backTranslationWarning:backCheck.issue}:{}) } : content;
     } catch (error) {
       lastError = error;
       // Invalid input will fail for every key; do not burn retries.
