@@ -484,3 +484,15 @@ html[data-theme] #saveTranslationBtn:disabled{opacity:.5;cursor:wait}
 
 /* Keep the history-only destructive action out of Saved view. */
 .clear-history-btn[hidden]{display:none!important}
+
+
+/* Optional main GPT translator model; deliberately compact and PRO-only. */
+.translation-model-picker[hidden]{display:none!important}
+.translation-model-picker{display:flex;align-items:center;gap:8px;min-width:0}
+.translation-model-picker>label{font-size:12px;font-weight:650;white-space:nowrap;color:var(--ui-text,inherit)}
+.translation-model-picker select{width:auto;min-width:118px;padding:8px 26px 8px 9px;font-size:12px;line-height:1.4;
+  border:1px solid var(--ui-border,#cbd5e1);border-radius:10px;
+  background:var(--ui-subtle,#fff);color:var(--ui-text,inherit);cursor:pointer}
+.translation-model-picker select:disabled{opacity:.6;cursor:wait}
+@media(max-width:520px){.translation-model-picker{gap:6px}.translation-model-picker>label{font-size:11px}
+  .translation-model-picker select{min-width:106px;font-size:11px}}
