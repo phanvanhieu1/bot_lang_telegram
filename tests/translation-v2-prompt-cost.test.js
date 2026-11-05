@@ -62,7 +62,7 @@ test('English prompt remains identical across manual contexts and model changes 
         model:'mock-claude',usage:{input:100,output:20}};
     },
     openai:async(system,user,meta)=>{
-      calls.push({role:'openai',system,meta});
+      calls.push({role:'openai',system,meta,user:JSON.parse(user)});
       return {text:JSON.stringify({translation:'Xin chào.',
         semanticReviewRequired:false,uncertainties:[]}),
         model:'mock-gpt',usage:{input:100,output:15}};
@@ -80,6 +80,9 @@ test('English prompt remains identical across manual contexts and model changes 
   assert.notEqual(calls[0].user.context,calls[2].user.context);
   assert.deepEqual(calls[0].meta.jsonSchema,ANALYZER_JSON_SCHEMA);
   assert.equal(calls[1].meta.modelOverride,'gpt-4o-mini');
+  assert.equal(calls[1].user.sourceLanguage,'zh');
+  assert.equal(calls[1].user.targetLanguage,'vi');
+  assert.equal(calls[1].user.outputLanguageName,'Vietnamese');
   assert.equal(calls[3].meta.modelOverride,undefined);
   assert.equal(ENGINE_VERSION,'v2.9.0');
 });
