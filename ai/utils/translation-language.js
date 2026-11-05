@@ -7,14 +7,22 @@ const VI=new Set(('tôi bạn anh chị em chúng ta họ những các của v�
 const englishPhrases=/\b(?:the\s+\w+|of\s+the|for\s+(?:those|the|third)|with\s+the|do\s+not|don't\s+|should\s+|would\s+)\b/iu;
 function clearEnglishInsteadOfVietnamese(value){
   const text=String(value||'').trim();
-  if(!text||/[\u3400-\u9fff]/u.test(text))return false;
+  if(!text)return false;
+  // An English sentence may contain approved Chinese names (e.g. 芳华).
+  // Ignore just those spans when detecting the sentence's language.
+  const candidate=text.replace(/[\u3400-\u9fff]+/gu,' ');
   // Vietnamese diacritics have strong precedence over English stopwords.
-  if(/[ăâđêôơưĂÂĐÊÔƠƯ]|[àáảãạằắẳẵặầấẩẫậèéẻẽẹềếểễệìíỉĩịòóỏõọồốổỗộờớởỡợùúủũụừứửữựỳýỷỹỵ]/iu.test(text))return false;
-  const words=text.toLowerCase().match(/[a-z]+(?:'[a-z]+)?/g)||[];
-  if(words.length<7)return false;
+  if(/[ăâđêôơưĂÂĐÊÔƠƯ]|[àáảãạằắẳẵặầấẩẫậèéẻẽẹềếểễệìíỉĩịòóỏõọồốổỗộờớởỡợùúủũụừứửữựỳýỷỹỵ]/iu.test(candidate))return false;
+  const words=candidate.toLowerCase().match(/[a-z]+(?:'[a-z]+)?/g)||[];
+  const shortEnglishPhrase=/\b(?:can it be|could you|is it okay|has been|have been|i want to|there is|we need to)\b/iu;
+  if(words.length<7)
+    return words.length>=4&&shortEnglishPhrase.test(candidate)&&
+      words.filter(w=>EN.has(w)).length>=2&&
+      !words.some(w=>VI.has(w));
   const en=words.filter(w=>EN.has(w)).length;
   const vi=words.filter(w=>VI.has(w)).length;
-  return en>=3&&en>vi*2&&en/words.length>=0.18&&englishPhrases.test(text);
+  return en>=3&&en>vi*2&&en/words.length>=0.18&&
+    (englishPhrases.test(candidate)||shortEnglishPhrase.test(candidate));
 }
 // Chinese proper names may remain in an otherwise Vietnamese sentence.
 // Reject only a substantial, still-Chinese sentence or paragraph.
