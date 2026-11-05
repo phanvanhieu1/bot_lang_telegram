@@ -323,7 +323,7 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
         approvedTerminology});
       const repairResponse=await stage('repair','openai',()=>
         providers.openai(repairSystem,repairInput,
-          {maxOutputTokens:1200,jsonSchema}),
+          {maxOutputTokens:1200,jsonSchema,translationModel:'gpt-4o-mini'}),
         {system:repairSystem,input:repairInput});
       if(repairResponse.responseStatus==='incomplete')
         throw safeError('V2_OPENAI_REPAIR_INCOMPLETE');
