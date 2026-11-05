@@ -8,12 +8,15 @@ function historySnapshot({engine,context='auto',options={},response={}}={}){
     backTranslation:options.backTranslation!==false,
     pronunciation:options.pronunciation!==false,
     vocabulary:options.vocabulary!==false,
-    verification:options.verification===true
+    verification:options.verification===true,
+    translationModel:['gpt-4o','gpt-4o-mini'].includes(options.translationModel)
+      ?options.translationModel:null
   };
   const keys=['result','vocabularyItems','vocabularyError','cached','provider',
     'requestUsage','appliedTerms','terminologyWarnings','issues',
     'analysis','analysisTerms','translationNotes','sourceLanguage',
-    'targetLanguage','needsReview','verificationError','verification'];
+    'targetLanguage','needsReview','verificationError','verification',
+    'translationModel'];
   const payload={};
   for(const key of keys){
     if(Object.hasOwn(response,key))payload[key]=response[key];
