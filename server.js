@@ -584,9 +584,9 @@ function parseTranslationResult(content) {
   return data;
 }
 
-async function persistProCache(text, lang, isFast, context, fields) {
+async function persistProCache(text, lang, isFast, context, fields, translationModel = null) {
   try {
-    await setWebCachedText(text, lang, isFast, context, fields);
+    await setWebCachedText(text, lang, isFast, context, fields, translationModel);
   } catch (error) {
     // Never make users repeat a paid translation if only cache persistence fails.
     console.error('PRO MongoDB cache write error:', error);
@@ -836,8 +836,15 @@ app.post('/api/translate',requirePro, async (req, res) => {
       verification = false,
       context = 'auto',
       inspectAI = false,
-      forceRefresh = false
+      forceRefresh = false,
+      translationModel = null
      } = req.body || {};
+    // Explicit model selection applies to Chinese/Vietnamese PRO translation.
+    // The English route remains unchanged, and legacy callers may omit it.
+    if(translationModel!==null&&
+       !['gpt-4o','gpt-4o-mini'].includes(translationModel))
+      return res.status(400).json({success:false,
+        message:'Model dịch chính không được hỗ trợ.'});
     if(typeof inspectAI!=='boolean'||typeof forceRefresh!=='boolean'||
        (forceRefresh&&!inspectAI)){
       return res.status(400).json({success:false,
@@ -925,7 +932,7 @@ const shouldBackTranslate =
   // Bypass global shared cache when per-user terminology was matched;
   // never read or persist customized translations in the shared cache.
   let cachedData = appliedTerms.length||forceRefresh ? null : await getWebCachedText(
-  text.trim(),targetLang,fastMode,context
+  text.trim(),targetLang,fastMode,context,translationModel
 );
 // Old cache may contain English although the selected target was Vietnamese.
 if(cachedData&&translationLanguageIssue(inputText,cachedData.translation))
@@ -966,6 +973,7 @@ if (hasMissingData) {
       existingTranslation: cachedData?.translation || null,
       terms:appliedTerms,
       context,
+      translationModel,
       inspectStage:onInspect
     }
   );
@@ -1019,7 +1027,8 @@ if (result) {
   targetLang,
   fastMode,
   context,
-  newData
+  newData,
+  translationModel
 );
 
   finalCache = {
@@ -1053,7 +1062,8 @@ if (
   context,
   {
     pronunciation: localPinyin
-  }
+  },
+  translationModel
 );
   }
 }
@@ -1091,7 +1101,8 @@ if (
     context,
     {
       verification: verificationData
-    }
+    },
+    translationModel
   );
 
   hasValidVerification = true;
@@ -1193,6 +1204,7 @@ const responseBody={
   vocabularyError:personal.error,
   cached: !result && !verificationUsage,
   usage,
+  translationModel:translationModel||result?.usage?.model||null,
   requestUsage:{...proRequestUsage(usage,!result && !verificationUsage,trace),
     elapsedMs:Date.now()-requestStarted},
   ...inspectionFor(!result),
@@ -1202,7 +1214,7 @@ const responseBody={
 const historyId=await recordTranslationHistorySafely({userId:req.user._id,text:text.trim(),targetLang,
   learningLang:'zh',result:responseContent,
   details:historySnapshot({engine:'v1',context,
-    options:{backTranslation,pronunciation,vocabulary,verification,inspectAI},
+    options:{backTranslation,pronunciation,vocabulary,verification,inspectAI,translationModel},
     response:responseBody})});
 return res.json({...responseBody,historyId});
 
