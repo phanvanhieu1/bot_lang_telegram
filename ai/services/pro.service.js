@@ -73,8 +73,17 @@ async function translateFull(
       }):raw;
       let content=parseContent(rawContent);
       const extractedTranslation=raw=>{
-        const match=String(raw||'').match(/(?:^|\\n)TRANSLATION:\\s*([\\s\\S]*?)(?=\\n(?:BACK_TRANSLATION|VOCABULARY|VERIFICATION):|$)/i);
-        return match?.[1]?.trim()||'';
+        const lines=String(raw||'').split(String.fromCharCode(10));
+        const index=lines.findIndex(line=>line.trim().toUpperCase().startsWith('TRANSLATION:'));
+        if(index<0)return '';
+        const first=lines[index].slice(lines[index].indexOf(':')+1).trim();
+        const remaining=[];
+        for(const line of lines.slice(index+1)){
+          const upper=line.trim().toUpperCase();
+          if(['BACK_TRANSLATION:','VOCABULARY:','VERIFICATION:'].some(x=>upper.startsWith(x)))break;
+          remaining.push(line);
+        }
+        return [first,...remaining].join(String.fromCharCode(10)).trim();
       };
       let aggregateUsage={...response.usage};
       if(!options.existingTranslation&&translationLanguageIssue(text,extractedTranslation(content))){
