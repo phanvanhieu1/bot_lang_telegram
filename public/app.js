@@ -806,10 +806,13 @@ const response = await fetch(translateEndpoint, {
       }));
     }
     const glossaryMissing=Array.isArray(data.terminologyWarnings) && data.terminologyWarnings.length;
-    status.textContent = glossaryMissing
-      ? '⚠ Bản dịch có thuật ngữ chưa khớp từ điển đã lưu'
-      : '✓ Dịch thành công';
-    status.className = glossaryMissing ? 'status error' : 'status success';
+    status.textContent = data.backTranslationWarning
+      ? '⚠ AI trả sai ngôn ngữ dịch ngược; bản dịch chính vẫn được giữ, không gọi lại API.'
+      : glossaryMissing
+        ? '⚠ Bản dịch có thuật ngữ chưa khớp từ điển đã lưu'
+        : '✓ Dịch thành công';
+    status.className = (glossaryMissing||data.backTranslationWarning)
+      ? 'status error' : 'status success';
 
     // Cập nhật thống kê sau khi dịch
     loadUsage();
