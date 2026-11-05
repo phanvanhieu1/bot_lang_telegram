@@ -215,10 +215,10 @@ function setEngineControlsBusy(busy){
 let preferredEngine=localStorage.getItem('translationEngine')==='v2'?'v2':'v1';
 const savedTranslatorModel=localStorage.getItem('translationModel');
 if(translationModelSelect)translationModelSelect.value=
-  ['gpt-4o','gpt-4o-mini'].includes(savedTranslatorModel)?savedTranslatorModel:'gpt-4o';
+  ['gpt-4o','gpt-4o-mini'].includes(savedTranslatorModel)?savedTranslatorModel:'gpt-4o-mini';
 translationModelSelect?.addEventListener('change',()=>{
   if(!['gpt-4o','gpt-4o-mini'].includes(translationModelSelect.value))
-    translationModelSelect.value='gpt-4o';
+    translationModelSelect.value='gpt-4o-mini';
   localStorage.setItem('translationModel',translationModelSelect.value);
   // A model switch changes the cache namespace on the next user translation.
   window.renderV2Inspection?.(null);
@@ -719,7 +719,7 @@ vocabulary.textContent = '';
         vocabulary: vocabularyToggle.checked,
         verification: verificationToggle.checked,
         context: contextSelect.value,
-        translationModel:translationModelSelect?.value||'gpt-4o',
+        translationModel:translationModelSelect?.value||'gpt-4o-mini',
         inspectAI:v1InspectToggle?.checked===true,
         forceRefresh:forceRefresh===true
       };
@@ -996,7 +996,7 @@ async function translateV2(forceRefresh=false){
         pronunciation:pronunciationToggle.checked,
         vocabulary:vocabularyToggle.checked,
         verification:verificationToggle.checked,
-        translationModel:translationModelSelect?.value||'gpt-4o',
+        translationModel:translationModelSelect?.value||'gpt-4o-mini',
         inspectAI:v2InspectToggle?.checked===true,
         forceRefresh})
     });
