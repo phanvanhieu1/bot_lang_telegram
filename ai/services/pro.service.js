@@ -21,7 +21,7 @@ async function translateFull(
   returnUsage = false,
   options = {}
 ) {
-  const optimized=process.env.V1_OPTIMIZED_PROMPTS==='true'&&!imageUrl;
+  const optimized=process.env.V1_OPTIMIZED_PROMPTS==='true'&&!imageUrl&&targetLangKey==='zh';
   const jsonMode=optimized&&process.env.V1_OPTIMIZED_JSON_SCHEMA==='true';
   const request=optimized?optimizedProRequest(text,targetLangKey,isFastMode,{
     ...options,jsonMode
@@ -85,32 +85,14 @@ async function translateFull(
         }
         return [first,...remaining].join(String.fromCharCode(10)).trim();
       };
-      let aggregateUsage={...response.usage};
+      // Validate the requested output language locally, without another API call.
+      // Wrong-language results fail closed and cannot enter the translation cache.
       if(!options.existingTranslation&&translationLanguageIssue(text,extractedTranslation(content))){
-        // One bounded retry; do not store or return output in the wrong language.
-        const correction=[...messages,{role:'user',content:
-          'The previous output was NOT Vietnamese (it was English or Chinese). Translate the ORIGINAL Chinese text into natural Vietnamese ONLY, using Vietnamese sentences and Vietnamese wording, not a Chinese paraphrase. Preserve codes, quantities, names and approved terminology. Keep the exact required output format.'}];
-        const corrected=await openai.chat.completions.create({...callBody,
-          messages:correction});
-        const correctedRaw=corrected.choices?.[0]?.message?.content?.trim();
-        if(!correctedRaw)throw new Error('V1_WRONG_TARGET_LANGUAGE');
-        const correctedText=parseContent(correctedRaw);
-        if(translationLanguageIssue(text,extractedTranslation(correctedText))){
-          const err=new Error('V1_WRONG_TARGET_LANGUAGE');err.code='V1_WRONG_TARGET_LANGUAGE';
-          throw err;
-        }
-        aggregateUsage={
-          prompt_tokens:(response.usage?.prompt_tokens||0)+(corrected.usage?.prompt_tokens||0),
-          completion_tokens:(response.usage?.completion_tokens||0)+(corrected.usage?.completion_tokens||0),
-          total_tokens:(response.usage?.total_tokens||0)+(corrected.usage?.total_tokens||0),
-          prompt_tokens_details:{cached_tokens:
-            (response.usage?.prompt_tokens_details?.cached_tokens||0)+
-            (corrected.usage?.prompt_tokens_details?.cached_tokens||0)}
-        };
-        response=corrected;
-        rawContent=correctedRaw;
-        content=correctedText;
+        const error=new Error('V1_WRONG_TARGET_LANGUAGE');
+        error.code='V1_WRONG_TARGET_LANGUAGE';
+        throw error;
       }
+      const aggregateUsage={...response.usage};
       // Exact provider-visible messages and raw output, captured only after
       // an explicitly requested V1 inspection. Never log or persist the trace.
       if(typeof options.inspectStage==='function'&&!imageUrl){
