@@ -83,7 +83,9 @@ test('V1 and V2 both use the same resolver without cross-user shared cache',()=>
   assert.match(server,/app\.use\('\/api\/terminology',glossaryRoutes\)/);
   assert.match(server,/lookupUserTerms\(req\.user\._id,inputText/);
   assert.match(server,/lookupUserTerms\(req\.user\._id,text\.trim\(\)/);
-  assert.match(server,/const cachedData = appliedTerms\.length\|\|forceRefresh \? null/);
+  assert.match(server,/let cachedData = appliedTerms\.length\|\|forceRefresh \? null/);
+  assert.match(server,/translationLanguageIssue\(inputText,cachedData\.translation\)/);
+  assert.match(server,/cachedData=null/);
   assert.match(server,/if\(!appliedTerms\.length\) await persistProCache/);
   assert.match(free,/const cachedResult = terms\.length\?null/);
   assert.match(free,/if\(!terms\.length\)await persistFreeCache/);
