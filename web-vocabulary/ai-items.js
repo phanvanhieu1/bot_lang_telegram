@@ -55,7 +55,13 @@ function parseAi1Items(vocabulary, foreignText, language, maxItems=MAX_AI1_ITEMS
   const unique = new Map();
   const lines = vocabulary.split(/\r?\n/).slice(0,60);
   for (const original of lines) {
-    const line = original.trim().replace(/^[-•*]\s*/, '');
+    // Small GPT models sometimes wrap otherwise valid selected entries in
+    // Markdown or number them. Normalize markup, not semantic content:
+    // source-occurrence and sensitive-term guards remain authoritative.
+    const line = original.trim()
+      .replace(/^(?:[-•*]|\d{1,2}[.)])\s*/u,'')
+      .replace(/^\*\*(?=\[|[\p{Script=Han}])/u,'')
+      .replace(/\*\*$/u,'').trim();
     if (!line) continue;
     // New format: [WORD] 工资 : tiền lương
     // Legacy format: 工资 (gōng zī) : tiền lương
