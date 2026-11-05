@@ -51,7 +51,7 @@ test('Fingerprint lookup is owner-scoped and approved-only',async()=>{
   assert.deepEqual(calls,[{owner:OWNER1,status:'approved'}]);
 });
 
-test('Cache only persists PASS and reads require owner and unexpired TTL',async()=>{
+test('Cache preserves PASS and completed REVIEW, rejects invalid or failed output, scopes owner and TTL',async()=>{
   const writes=[],reads=[];
   const mock={
     updateOne:async(...args)=>{writes.push(args);},
@@ -60,11 +60,17 @@ test('Cache only persists PASS and reads require owner and unexpired TTL',async(
     })};}
   };
   assert.equal(await storeCached({owner:OWNER1,key:'k',value:{
-    status:'REVIEW',translation:'Chưa chắc chắn'}},mock),false);
+    status:'REVIEW',translation:'Chưa chắc chắn'}},mock),false,
+  'A REVIEW without recorded reasons must not be cached');
+  assert.equal(await storeCached({owner:OWNER1,key:'k',value:{
+    status:'FAIL',translation:'Sai'}},mock),false);
   assert.equal(writes.length,0);
   assert.equal(await storeCached({owner:OWNER1,key:'k',value:{
+    status:'REVIEW',needsReview:true,issues:['Thiếu thuật ngữ PP'],
+    translation:'Chưa chắc chắn'}},mock),true);
+  assert.equal(await storeCached({owner:OWNER1,key:'k',value:{
     status:'PASS',translation:'Đã xác nhận'}},mock),true);
-  assert.equal(writes.length,1);
+  assert.equal(writes.length,2);
   const hit=await getCached({owner:OWNER1,key:'k'},mock);
   assert.equal(hit.value.translation,'Đã xác nhận');
   assert.equal(reads[0].owner,OWNER1);
