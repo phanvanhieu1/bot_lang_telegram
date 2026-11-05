@@ -66,6 +66,9 @@ async function getFreeCachedTranslation(text,context='auto') {
     }
   }
 
+  // Reject old cache entries that saved English in place of Vietnamese.
+  try{validateFreeTranslation(text,parsed);}catch(_){return null;}
+
   // Cache Việt → Trung phải có bản dịch ngược.
   // Cache cũ thiếu dữ liệu sẽ được tạo lại.
   if (
