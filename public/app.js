@@ -3,6 +3,8 @@ const textInput = document.getElementById('text');
 const targetLang = document.getElementById('targetLang');
 const translateBtn = document.getElementById('translateBtn');
 const translationEnginePicker=document.getElementById('translationEnginePicker');
+const translationModelPicker=document.getElementById('translationModelPicker');
+const translationModelSelect=document.getElementById('translationModelSelect');
 const engineV1=document.querySelector('input[name="translationEngine"][value="v1"]');
 const engineV2=document.querySelector('input[name="translationEngine"][value="v2"]');
 const v2InspectLabel = document.getElementById('v2InspectLabel');
@@ -208,11 +210,25 @@ function selectedEngine(){
 function setEngineControlsBusy(busy){
   contextSelect.disabled=busy;
   engineV1.disabled=busy;engineV2.disabled=busy;
+  if(translationModelSelect)translationModelSelect.disabled=busy;
 }
 let preferredEngine=localStorage.getItem('translationEngine')==='v2'?'v2':'v1';
+const savedTranslatorModel=localStorage.getItem('translationModel');
+if(translationModelSelect)translationModelSelect.value=
+  ['gpt-4o','gpt-4o-mini'].includes(savedTranslatorModel)?savedTranslatorModel:'gpt-4o';
+translationModelSelect?.addEventListener('change',()=>{
+  if(!['gpt-4o','gpt-4o-mini'].includes(translationModelSelect.value))
+    translationModelSelect.value='gpt-4o';
+  localStorage.setItem('translationModel',translationModelSelect.value);
+  // A model switch changes the cache namespace on the next user translation.
+  window.renderV2Inspection?.(null);
+  window.renderRequestUsage?.(null);
+});
 function refreshV2Button(){
   const eligible=v2Eligible();
   translationEnginePicker.hidden=!eligible;
+  if(translationModelPicker)
+    translationModelPicker.hidden=!(translatorMode==='pro'&&targetLang.value==='zh');
   // Preserve the preferred engine across temporary FREE/English selection.
   engineV2.checked=eligible&&preferredEngine==='v2';
   engineV1.checked=!engineV2.checked;
@@ -703,6 +719,7 @@ vocabulary.textContent = '';
         vocabulary: vocabularyToggle.checked,
         verification: verificationToggle.checked,
         context: contextSelect.value,
+        translationModel:translationModelSelect?.value||'gpt-4o',
         inspectAI:v1InspectToggle?.checked===true,
         forceRefresh:forceRefresh===true
       };
@@ -979,6 +996,7 @@ async function translateV2(forceRefresh=false){
         pronunciation:pronunciationToggle.checked,
         vocabulary:vocabularyToggle.checked,
         verification:verificationToggle.checked,
+        translationModel:translationModelSelect?.value||'gpt-4o',
         inspectAI:v2InspectToggle?.checked===true,
         forceRefresh})
     });
