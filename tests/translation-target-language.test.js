@@ -9,7 +9,7 @@ const {PRO_SYSTEM,PRO_JSON_SYSTEM}=require('../ai/prompts/v1-optimized');
 
 const original='代收的看一下记录 代付成功率高的三方 上3个代收收多一点钱 那些代付不稳定的三方代收就不要挂上去收那么多钱';
 const bad='Check the records of the collection agents. For third-party payment agents with a high success rate, use three collection agents to collect more money. For those third-party payment agents with unstable collection, do not list them to collect so much money.';
-const good='Kiểm tra lịch sử của các bên thu hộ. Với các bên thứ ba có tỷ lệ chi hộ thành công cao, hãy đưa ba bên thu hộ lên để thu thêm tiền; những bên không ổn định thì đừng đưa lên thu quá nhiều tiền.';
+const good='Kiểm tra lịch sử của các bên thu hộ. Với các bên thứ ba có tỷ lệ chi hộ thành công cao, hãy đưa 3 bên thu hộ lên để thu thêm tiền; những bên không ổn định thì đừng đưa lên thu quá nhiều tiền.';
 
 test('the exact reported English output is blocked without rejecting Vietnamese or IDs',()=>{
   assert.equal(translationLanguageIssue(original,bad),'EXPECTED_VIETNAMESE_GOT_ENGLISH');
