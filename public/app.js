@@ -1435,6 +1435,9 @@ async function openHistoryDetail(item){
     if(['auto','friend','colleague','superior'].includes(detail?.context)){
       contextSelect.value=detail.context;
     }
+    const historicalModel=options?.translationModel||payload?.translationModel;
+    if(translationModelSelect&&['gpt-4o','gpt-4o-mini'].includes(historicalModel))
+      translationModelSelect.value=historicalModel;
     // The V2 preference is visual only; history replay never invokes V2.
     if(['v1','v2'].includes(historicalEngine)&&v2Eligible()){
       preferredEngine=historicalEngine;
