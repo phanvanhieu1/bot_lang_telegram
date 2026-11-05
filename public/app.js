@@ -1502,7 +1502,8 @@ async function openHistoryDetail(item){
     }
     if(detail&&Array.isArray(payload.vocabularyItems)){
       window.renderTranslationVocabularySnapshot?.(
-        payload.vocabularyItems,payload.vocabularyError||''
+        payload.vocabularyItems,payload.vocabularyError||'',
+        vocabularyToggle.checked
       );
     }else{
       // Legacy rows have only the raw VOCABULARY text. Preserve that.
