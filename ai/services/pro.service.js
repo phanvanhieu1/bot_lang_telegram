@@ -47,12 +47,13 @@ async function translateFull(
 
   messages.push({ role: 'user', content: userContent });
 
-  // Manual model selection applies to the primary V1 GPT call only.
+  // Manual model selection applies to the primary V1 translation only.
+  // Existing supplemental vocabulary/back-translation uses the prior model.
   // Legacy clients without a selection retain existing tier rules.
   if(options.translationModel!=null&&
      !['gpt-4o','gpt-4o-mini'].includes(options.translationModel))
     throw new Error('V1_INVALID_TRANSLATION_MODEL');
-  const model=options.translationModel||
+  const model=(!options.existingTranslation&&options.translationModel)||
     (optimized?v1ModelFor(text,{...options,history,imageUrl,
       backTranslation:!isFastMode&&options.backTranslation!==false,
       vocabulary:!isFastMode&&options.vocabulary!==false}):'gpt-4o');
