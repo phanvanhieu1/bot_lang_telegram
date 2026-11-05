@@ -1037,7 +1037,10 @@ async function translateV2(forceRefresh=false){
       ? 'Việt → Trung' : data.sourceLanguage === 'zh' && data.targetLanguage === 'vi'
         ? 'Trung → Việt' : 'Trung ↔ Việt';
     const count = Array.isArray(data.appliedTerms) ? data.appliedTerms.length : 0;
-    if (data.verificationError && verificationToggle.checked) {
+    if (data.backTranslationWarning) {
+      status.textContent = '⚠ Bản dịch ngược sai ngôn ngữ đã bị loại; bản dịch chính vẫn được giữ, không gọi thêm API.';
+      status.className = 'status error';
+    } else if (data.verificationError && verificationToggle.checked) {
       status.textContent = '⚠ Dịch V2 thành công, nhưng kiểm chứng độc lập chưa hoàn thành';
       status.className = 'status error';
     } else if (data.needsReview) {
