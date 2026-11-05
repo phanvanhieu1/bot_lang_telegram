@@ -50,6 +50,7 @@ function keyForRequest({owner,text,context,signature,env=process.env,
     direction.source==='vi'?Boolean(vocabulary):null,
     openaiModel,claudeModel,openaiEffort,claudeEffort,claudeThinking,
     tieredRouting,tieredRouting?simpleOpenaiModel:null,signature,
+    'repair-model-gpt-4o-mini-v1',
     ...(translationModel?['manual-translation-model-1',translationModel]:[])
   ]);
 }
