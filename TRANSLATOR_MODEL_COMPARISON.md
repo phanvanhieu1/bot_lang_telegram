@@ -38,3 +38,24 @@ History snapshots preserve the selected model for faithful replay.
 
 Run `npm test` locally after pulling; no paid provider benchmark or full
 local test run was executed by this GitHub edit.
+
+
+## Cache semantics (fix)
+
+- V1 PRO without a matched glossary term keeps using the existing shared
+  per-model cache. When a personal approved glossary term matches (for example
+  an approved PP mapping), V1 now caches the translation and extras under a
+  private key derived from the **user ID + matched term IDs/versions/meanings**.
+  Identical subsequent clicks reuse the result; a glossary edit, model switch,
+  different user or context cannot reuse an incompatible translation.
+- V2 caches completed `PASS` and `REVIEW` results per user. A cached
+  `REVIEW` retains its issues and warning; it is not converted to `PASS`.
+  `FAIL`, incomplete output, and invalid `REVIEW` results are excluded.
+- Both modes bypass the cache only on the explicitly requested live
+  `forceRefresh` action. Merely enabling the inspector is not a refresh.
+- V1 keeps its back-translation-language warning in the cached record; a
+  previously sanitized English reverse translation cannot trigger repeated
+  GPT calls. Any optional verification requested for the first time can
+  incur a call, but a completed verification is cached.
+- Model choice, direction and glossary correctness checks stay in place.
+
