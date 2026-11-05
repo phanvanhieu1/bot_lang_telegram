@@ -247,9 +247,16 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
     if(modelTranslation.responseStatus==='incomplete')
       throw safeError('V2_OPENAI_TRANSLATION_INCOMPLETE');
     translated=cleanTranslation(modelTranslation.text);
+    // Wrong-language output must never trigger a second, paid translator call.
+    // The user-requested target language is authoritative over analyzer prose.
+    if(translationLanguageIssue(sourceText,translated.translation))
+      throw safeError('V2_WRONG_TARGET_LANGUAGE');
   }catch(error){
-    const failed=safeError(error?.code==='V2_OPENAI_TRANSLATION_INCOMPLETE'
-      ?'V2_OPENAI_TRANSLATION_INCOMPLETE':'V2_OPENAI_TRANSLATION_INVALID_JSON');
+    const failed=safeError(
+      error?.code==='V2_OPENAI_TRANSLATION_INCOMPLETE'
+        ?'V2_OPENAI_TRANSLATION_INCOMPLETE':
+      error?.code==='V2_WRONG_TARGET_LANGUAGE'
+        ?'V2_WRONG_TARGET_LANGUAGE':'V2_OPENAI_TRANSLATION_INVALID_JSON');
     failed.diagnostics={stage:'openai_translation',attempts:1,
       lastError:error?.code||'UNKNOWN',
       stages:stages.map(x=>({role:x.role,provider:x.provider,model:x.model,
@@ -261,7 +268,6 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
   function verifiedIssues(candidate) {
     return [
       ...validateAppliedTerms(candidate,glossary).map(x=>'Thuật ngữ chưa được áp dụng: '+x),
-      ...(translationLanguageIssue(sourceText,candidate)?['Bản dịch sai ngôn ngữ đích: cần tiếng Việt, không phải tiếng Anh hoặc tiếng Trung.']:[]),
       ...missingProtected(sourceText,candidate).map(x=>'Có thể thiếu mã/số liệu: '+x),
       ...missingProtectedNameOccurrences(sourceText,candidate,protectedNames,glossary)
         .map(x=>'Thiếu tên riêng/nhãn cần giữ nguyên: '+x)
@@ -300,7 +306,7 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
     }catch(_){/* keep original, mark review below */}
   }
   // A wrong-language output is never an acceptable translation or cache entry.
-  // After one targeted repair, fail closed instead of showing English as Vietnamese.
+  // After a different, verified-term repair, fail closed if the result changes language.
   if(translationLanguageIssue(sourceText,translated.translation))
     throw safeError('V2_WRONG_TARGET_LANGUAGE');
   // Analyst hypotheses do not automatically mean the translation is wrong.
