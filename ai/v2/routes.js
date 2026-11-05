@@ -109,7 +109,8 @@ function createV2Router({translate=deepTranslate,env=process.env,cache=v2Cache,
         }
       }
 
-      // Miss: preserve only validated PASS content in owner-isolated cache.
+      // Miss: preserve completed PASS or REVIEW output in owner-isolated cache.
+      // REVIEW remains visibly marked for human review on subsequent hits.
       const estimate=translationCached?null:estimateUsage(translated.usage);
       const usage=translationCached
         ?cachedV2Usage(translated.originalUsage||null)
@@ -171,7 +172,8 @@ function createV2Router({translate=deepTranslate,env=process.env,cache=v2Cache,
         originalUsage:translated.originalUsage||(translationCached?null:
           summarizeV2Usage(translated.usage,estimate))
       };
-      if(translated.status==='PASS'&&(!translationCached||verified&&!hit.value.verification)){
+      if(['PASS','REVIEW'].includes(translated.status)&&
+         (!translationCached||verified&&!hit.value.verification)){
         try{
           const current=await cache.signatureForOwner(owner);
           if(current===signature)await cache.storeCached({owner,key,value:cachedValue});
