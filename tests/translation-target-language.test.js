@@ -18,8 +18,8 @@ test('the exact reported English output is blocked without rejecting Vietnamese 
   assert.equal(clearEnglishInsteadOfVietnamese('Xem giúp tôi, đây có phải đường dây bào khuyến mãi không?'),false);
   assert.throws(()=>validateFreeTranslation(original,{translation:bad}),{code:'INVALID_OUTPUT'});
   assert.doesNotThrow(()=>validateFreeTranslation(original,{translation:good}));
-  assert.match(PRO_SYSTEM,/NEVER English/);
-  assert.match(PRO_JSON_SYSTEM,/NEVER English/);
+  assert.match(PRO_SYSTEM,/TRANSLATION must be natural Vietnamese/);
+  assert.match(PRO_JSON_SYSTEM,/TRANSLATION must be natural Vietnamese/);
 });
 
 function v2Mocks(first,second){
@@ -34,29 +34,29 @@ function v2Mocks(first,second){
     }),model:'mock-openai',usage:{input:100,output:50}};}
   }};
 }
-test('V2 repairs English into Vietnamese and charges for repair',async()=>{
+test('V2 rejects English immediately without an extra paid translator call',async()=>{
   const m=v2Mocks(bad,good);
-  const result=await deepTranslate({text:original,context:'colleague',vocabulary:false,
-    backTranslation:false,loadGlossary:async()=>[]},m.providers);
-  assert.equal(result.translation,good);
-  assert.equal(result.status,'PASS');
-  assert.equal(m.calls(),2);
-  assert.equal(result.usage.stages.filter(x=>x.role==='repair').length,1);
+  await assert.rejects(deepTranslate({text:original,context:'colleague',
+    vocabulary:false,backTranslation:false,loadGlossary:async()=>[]},m.providers),
+    {code:'V2_WRONG_TARGET_LANGUAGE'});
+  assert.equal(m.calls(),1);
 });
-test('V2 never returns persistent English as a valid Vietnamese translation',async()=>{
+test('V2 fails closed even when next fake response would be English',async()=>{
   const m=v2Mocks(bad,bad);
   await assert.rejects(deepTranslate({text:original,context:'colleague',
     vocabulary:false,backTranslation:false,loadGlossary:async()=>[]},m.providers),
     {code:'V2_WRONG_TARGET_LANGUAGE'});
-  assert.equal(m.calls(),2);
+  assert.equal(m.calls(),1);
 });
-test('V1 PRO retries wrong language once using original source and legacy format',async()=>{
-  const key='V1_OPTIMIZED_PROMPTS',previous=process.env[key];
+test('V1 PRO never calls GPT twice solely to correct output language',async()=>{
   const provider=require('../ai/providers/openai.provider');
   const old=provider.getShuffledOpenAIClients;
   const path=require.resolve('../ai/services/pro.service');
+  const keys=['V1_OPTIMIZED_PROMPTS','V1_OPTIMIZED_JSON_SCHEMA'];
+  const previous=Object.fromEntries(keys.map(key=>[key,process.env[key]]));
+  process.env.V1_OPTIMIZED_PROMPTS='true';
+  process.env.V1_OPTIMIZED_JSON_SCHEMA='false';
   let attempts=0;
-  process.env[key]='true';
   provider.getShuffledOpenAIClients=()=>[{chat:{completions:{create:async()=>({
     model:'gpt-4o',choices:[{message:{content:'TRANSLATION: '+(++attempts===1?bad:good)}}],
     usage:{prompt_tokens:100,completion_tokens:70,total_tokens:170}
@@ -64,15 +64,16 @@ test('V1 PRO retries wrong language once using original source and legacy format
   delete require.cache[path];
   try{
     const {translateFull}=require(path);
-    const result=await translateFull(original,'zh',false,null,[],true,{
-      backTranslation:false,vocabulary:false,context:'colleague'});
-    assert.equal(attempts,2);
-    assert.equal(result.content,'TRANSLATION: '+good);
-    assert.equal(result.usage.prompt_tokens,200);
-    assert.equal(result.usage.completion_tokens,140);
+    await assert.rejects(translateFull(original,'zh',false,null,[],true,{
+      backTranslation:false,vocabulary:false,context:'colleague'}),
+      {code:'V1_WRONG_TARGET_LANGUAGE'});
+    assert.equal(attempts,1);
   }finally{
     provider.getShuffledOpenAIClients=old;
-    if(previous===undefined)delete process.env[key];else process.env[key]=previous;
+    for(const key of keys){
+      if(previous[key]===undefined)delete process.env[key];
+      else process.env[key]=previous[key];
+    }
     delete require.cache[path];
   }
 });
@@ -92,18 +93,17 @@ test('Chinese protected names in a Vietnamese translation are allowed',()=>{
   assert.equal(translationLanguageIssue(chineseSource,'Kiểm tra đơn GU55 tại PP.'),null);
   assert.equal(translationLanguageIssue(chineseSource,'Kiểm tra nhãn 第三方支付平台 và đối chiếu lại hồ sơ.'),null);
 });
-test('V2 repairs Chinese paraphrase into Vietnamese',async()=>{
+test('V2 rejects Chinese paraphrase without a second GPT call',async()=>{
   const m=v2Mocks(chineseWrong,chineseCorrect);
-  const result=await deepTranslate({text:chineseSource,context:'colleague',vocabulary:false,
-    backTranslation:false,loadGlossary:async()=>[]},m.providers);
-  assert.equal(result.translation,chineseCorrect);
-  assert.equal(result.status,'PASS');
-  assert.equal(m.calls(),2);
+  await assert.rejects(deepTranslate({text:chineseSource,context:'colleague',
+    vocabulary:false,backTranslation:false,loadGlossary:async()=>[]},m.providers),
+    {code:'V2_WRONG_TARGET_LANGUAGE'});
+  assert.equal(m.calls(),1);
 });
 test('V2 rejects repeated Chinese paraphrase instead of marking PASS',async()=>{
   const m=v2Mocks(chineseWrong,chineseWrong);
   await assert.rejects(deepTranslate({text:chineseSource,context:'colleague',
     vocabulary:false,backTranslation:false,loadGlossary:async()=>[]},m.providers),
     {code:'V2_WRONG_TARGET_LANGUAGE'});
-  assert.equal(m.calls(),2);
+  assert.equal(m.calls(),1);
 });
