@@ -23,7 +23,8 @@ test('V2 inspection shows actual Claude and GPT arguments and original raw JSON;
     },
     openai:async(system,input)=>{
       gpt++;
-      assert.match(system,/professional Chinese/);
+      assert.match(system,/targetLanguage from user JSON/);
+      assert.match(system,/translation string MUST be Vietnamese/);
       const payload=JSON.parse(input);
       assert.equal(payload.original,'我去超市');
       assert.equal(payload.analysis.domain,'daily');
