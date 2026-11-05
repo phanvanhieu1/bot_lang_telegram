@@ -17,6 +17,18 @@ test('V1 stable prefixes are identical across source, audience and glossary',()=
   assert.match(b.user,/PP/);
   assert.match(JSON.parse(b.user).glossary,/PP/);
   assert.equal(JSON.parse(a.user).context,'friend');
+  assert.equal(JSON.parse(a.user).sourceLanguage,'zh');
+  assert.equal(JSON.parse(a.user).targetLanguage,'vi');
+  assert.equal(JSON.parse(a.user).learningLanguage,'zh');
+  const reversed=JSON.parse(optimizedProRequest('Kiểm tra lịch sử','zh',false,{
+    context:'colleague',backTranslation:false,vocabulary:false
+  }).user);
+  assert.equal(reversed.sourceLanguage,'vi');
+  assert.equal(reversed.targetLanguage,'zh');
+  assert.equal(reversed.learningLanguage,'zh');
+  const free=JSON.parse(optimizedFreeRequest('你好','colleague').user);
+  assert.equal(free.sourceLanguage,'zh');
+  assert.equal(free.targetLanguage,'vi');
   assert.equal(optimizedFreeRequest('你好','friend').system,
     optimizedFreeRequest('澎湃','colleague').system);
   assert.ok(outputBudget('你好')<outputBudget('a'.repeat(1000),{
