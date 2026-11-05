@@ -941,14 +941,14 @@ if(cachedData&&translationLanguageIssue(inputText,cachedData.translation))
   cachedData=null;
 // Older PRO cache rows may contain an English BACK_TRANSLATION from GPT mini.
 // Sanitize them without another model request; preserve the main translation.
-let backTranslationWarning=null;
+let backTranslationWarning=cachedData?.backTranslationWarning||null;
 if(shouldBackTranslate&&cachedData?.backTranslation){
   const issue=backTranslationLanguageIssue(inputText,cachedData.backTranslation);
   if(issue){
     backTranslationWarning=issue;
     cachedData={...cachedData,backTranslation:''};
     await persistProCache(inputText,targetLang,
-      fastMode,context,{backTranslation:''},translationModel,termScope);
+      fastMode,context,{backTranslation:'',backTranslationWarning:issue},translationModel,termScope);
   }
 }
 
@@ -1004,6 +1004,9 @@ if (result) {
     const issue=backTranslationLanguageIssue(inputText,newData.backTranslation);
     if(issue){backTranslationWarning=issue;newData.backTranslation='';}
   }
+  // Persist the same warning with a cached result and clear stale warnings on
+  // a fresh valid translation, without requiring another paid model request.
+  newData.backTranslationWarning=backTranslationWarning||null;
   // Previously cached translations contain legacy WORD-only vocabulary.
   // Upgrade only the lexical field, preserving the already cached translation.
   if (missing.vocabulary) newData.vocabularyVersion = 2;
