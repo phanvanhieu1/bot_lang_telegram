@@ -47,9 +47,15 @@ async function translateFull(
 
   messages.push({ role: 'user', content: userContent });
 
-  const model=optimized?v1ModelFor(text,{...options,history,imageUrl,
-    backTranslation:!isFastMode&&options.backTranslation!==false,
-    vocabulary:!isFastMode&&options.vocabulary!==false}):'gpt-4o';
+  // Manual model selection applies to the primary V1 GPT call only.
+  // Legacy clients without a selection retain existing tier rules.
+  if(options.translationModel!=null&&
+     !['gpt-4o','gpt-4o-mini'].includes(options.translationModel))
+    throw new Error('V1_INVALID_TRANSLATION_MODEL');
+  const model=options.translationModel||
+    (optimized?v1ModelFor(text,{...options,history,imageUrl,
+      backTranslation:!isFastMode&&options.backTranslation!==false,
+      vocabulary:!isFastMode&&options.vocabulary!==false}):'gpt-4o');
   const clients = getShuffledOpenAIClients();
   if (!clients.length) throw new Error('Chưa cấu hình OPENAI_API_KEYS cho Telegram bot');
 
