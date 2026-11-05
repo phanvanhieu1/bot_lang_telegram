@@ -59,9 +59,14 @@ test('V1 passes user-selected GPT model into the primary provider without modify
     }
     assert.deepEqual(requests.map(x=>x.model),['gpt-4o-mini','gpt-4o']);
     assert.equal(requests[0].messages[0].content,requests[1].messages[0].content);
+    await translateFull('你好','zh',false,null,[],true,{
+      translationModel:'gpt-4o-mini',existingTranslation:'Xin chào',
+      backTranslation:false,vocabulary:true});
+    assert.equal(requests[2].model,'gpt-4o',
+      'supplemental AI should retain its previous model');
     await assert.rejects(translateFull('你好','zh',false,null,[],true,{
       translationModel:'not-allowed'}),/V1_INVALID_TRANSLATION_MODEL/);
-    assert.equal(requests.length,2);
+    assert.equal(requests.length,3);
   }finally{
     provider.getShuffledOpenAIClients=old;
     if(previous===undefined)delete process.env.V1_OPTIMIZED_PROMPTS;
