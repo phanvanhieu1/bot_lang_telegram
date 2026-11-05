@@ -60,7 +60,7 @@ function proKey(text, lang, isFast, context = 'auto', translationModel = null) {
   // A manually chosen translator model has its own namespace. Requests from
   // older clients without a choice continue to use their legacy cache keys.
   return hashKey([
-    translationModel?'pro-model-choice-1':lang==='zh'?'pro-context-3-names':'pro-context-2',
+    translationModel?'pro-model-choice-2-vietnamese-backtranslation':lang==='zh'?'pro-context-3-names':'pro-context-2',
     String(text).trim(),
     String(lang),
     Boolean(isFast),
