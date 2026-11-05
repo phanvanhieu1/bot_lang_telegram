@@ -122,7 +122,8 @@ async function translateFull(
     } catch (error) {
       lastError = error;
       // Invalid input will fail for every key; do not burn retries.
-      if ([400, 413, 422].includes(error?.status)) throw error;
+      if ([400, 413, 422].includes(error?.status)||
+          error?.code==='V1_WRONG_TARGET_LANGUAGE') throw error;
       console.error('[Telegram translation] OpenAI attempt failed:', error?.status || error?.code || 'UNKNOWN');
     }
   }
