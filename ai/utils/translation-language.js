@@ -37,4 +37,28 @@ function translationLanguageIssue(source,translation){
     return 'EXPECTED_VIETNAMESE_GOT_ENGLISH';
   return null;
 }
-module.exports={clearEnglishInsteadOfVietnamese,clearChineseInsteadOfVietnamese,translationLanguageIssue};
+// For Vietnamese -> Chinese requests, BACK_TRANSLATION is a new Vietnamese
+// translation of the generated Chinese. It must never silently become English.
+// Allow embedded Chinese proper nouns and codes (e.g. PP, 芳华).
+function backTranslationLanguageIssue(source,backTranslation){
+  if(/[\u3400-\u9fff]/u.test(String(source||'')))return null;
+  if(clearEnglishInsteadOfVietnamese(backTranslation))
+    return 'EXPECTED_VIETNAMESE_BACK_TRANSLATION_GOT_ENGLISH';
+  if(clearChineseInsteadOfVietnamese(backTranslation))
+    return 'EXPECTED_VIETNAMESE_BACK_TRANSLATION_GOT_CHINESE';
+  return null;
+}
+// Used on the normalized V1 output after optional JSON-to-label conversion.
+// Return the original string unchanged unless the back-translation is clearly
+// in the wrong language. Never modify the primary TRANSLATION or vocabulary.
+function sanitizeV1BackTranslation(content,source){
+  const raw=String(content||'');
+  const match=/(^|\n)(BACK_TRANSLATION:\s*)([^\n]*(?:\n(?!TRANSLATION:|VOCABULARY:|PRONUNCIATION:|VERIFICATION:)[^\n]*)*)/i.exec(raw);
+  if(!match)return {content:raw,issue:null};
+  const issue=backTranslationLanguageIssue(source,match[3].trim());
+  if(!issue)return {content:raw,issue:null};
+  return {content:raw.slice(0,match.index)+match[1]+'BACK_TRANSLATION: '+
+    raw.slice(match.index+match[0].length),issue};
+}
+module.exports={clearEnglishInsteadOfVietnamese,clearChineseInsteadOfVietnamese,
+  translationLanguageIssue,backTranslationLanguageIssue,sanitizeV1BackTranslation};
