@@ -22,6 +22,24 @@ Branch: feature/translation-engine-v2. This is NOT a production rollout.
 - Explicit tests for optimized prefix stability, schema adapter, token estimates
   and routing safeguards.
 
+## Correct output language and one-call policy (2026-11-05)
+- Fixed a V1 Pro optimized-prompt regression: `targetLanguage` had contained the
+  selected learning language ("tiếng Trung Giản thể") even when the source
+  was Chinese. It now contains the **actual translation target**: Chinese
+  source -> `vi`; Vietnamese source -> `zh`.
+- `learningLanguage` remains a separate field and never controls the
+  translation target. V1 FREE optimized payloads use the same direction fields.
+- Both V1 Pro and V2 prompts now explicitly prioritize the target translation
+  language over the language of the prompt, metadata, or Claude analysis.
+- Wrong-language outputs fail closed and are not cached. The extra GPT call
+  added solely for language correction has been removed from V1 Pro and V2.
+- V2 retains its existing optional targeted repair for **other** independently
+  verified issues (for example, a missing approved glossary term).
+- Provider failover in V1 FREE is a separate, pre-existing behavior. No new
+  language-repair model call was introduced for FREE.
+- The optimized prompt remains opt-in; enable in staging, compare real
+  translations and confirm all tests before production deployment.
+
 ## Feature flags (ALL off by default)
 - V1_OPTIMIZED_PROMPTS=true
   Enables system/user JSON separation and English prompt on Pro, Groq and OpenRouter.
