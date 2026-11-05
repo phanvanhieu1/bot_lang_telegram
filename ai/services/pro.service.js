@@ -87,9 +87,9 @@ async function translateFull(
       };
       let aggregateUsage={...response.usage};
       if(!options.existingTranslation&&translationLanguageIssue(text,extractedTranslation(content))){
-        // One bounded retry; do not store or return clear English as Vietnamese.
+        // One bounded retry; do not store or return output in the wrong language.
         const correction=[...messages,{role:'user',content:
-          'The previous output was in English. Translate the ORIGINAL Chinese text into Vietnamese ONLY. Preserve all codes, quantities, names and approved terminology. Keep the exact required output format.'}];
+          'The previous output was NOT Vietnamese (it was English or Chinese). Translate the ORIGINAL Chinese text into natural Vietnamese ONLY, using Vietnamese sentences and Vietnamese wording, not a Chinese paraphrase. Preserve codes, quantities, names and approved terminology. Keep the exact required output format.'}];
         const corrected=await openai.chat.completions.create({...callBody,
           messages:correction});
         const correctedRaw=corrected.choices?.[0]?.message?.content?.trim();
