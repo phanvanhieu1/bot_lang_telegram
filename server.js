@@ -15,6 +15,7 @@ const {
   destroySession
 } = require('./web-maintenance');
 const { translateEnglishFree, translateEnglishPro, evaluateEnglish } = require('./web-english');
+const {translationLanguageIssue}=require('./ai/utils/translation-language');
 const express = require('express');
 const path = require('path');
 const session = require('express-session');
@@ -923,9 +924,12 @@ const shouldBackTranslate =
 
   // Bypass global shared cache when per-user terminology was matched;
   // never read or persist customized translations in the shared cache.
-  const cachedData = appliedTerms.length||forceRefresh ? null : await getWebCachedText(
+  let cachedData = appliedTerms.length||forceRefresh ? null : await getWebCachedText(
   text.trim(),targetLang,fastMode,context
 );
+// Old cache may contain English although the selected target was Vietnamese.
+if(cachedData&&translationLanguageIssue(inputText,cachedData.translation))
+  cachedData=null;
 
 const missing = {
   translation: !cachedData?.translation,
