@@ -48,7 +48,7 @@ const FREE_SYSTEM=[
 ].join('\n');
 
 function directionFor(text){
-  const sourceLanguage=/[\\u3400-\\u9fff]/u.test(String(text||''))?'zh':'vi';
+  const sourceLanguage=/\p{Script=Han}/u.test(String(text||''))?'zh':'vi';
   return {sourceLanguage,targetLanguage:sourceLanguage==='zh'?'vi':'zh'};
 }
 function optimizedProRequest(text,targetLangKey,isFastMode,options={}){
