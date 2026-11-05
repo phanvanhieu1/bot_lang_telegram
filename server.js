@@ -46,7 +46,8 @@ const {
 } = require('./ai');
 const {
   getWebCachedText,
-  setWebCachedText
+  setWebCachedText,
+  proTermScope
 } = require('./web-cache');
 
 const {
@@ -584,9 +585,9 @@ function parseTranslationResult(content) {
   return data;
 }
 
-async function persistProCache(text, lang, isFast, context, fields, translationModel = null) {
+async function persistProCache(text, lang, isFast, context, fields, translationModel = null, termScope = null) {
   try {
-    await setWebCachedText(text, lang, isFast, context, fields, translationModel);
+    await setWebCachedText(text, lang, isFast, context, fields, translationModel, termScope);
   } catch (error) {
     // Never make users repeat a paid translation if only cache persistence fails.
     console.error('PRO MongoDB cache write error:', error);
@@ -929,10 +930,11 @@ const shouldBackTranslate =
   !inputIsChinese &&
   targetLang === 'zh';
 
-  // Bypass global shared cache when per-user terminology was matched;
-  // never read or persist customized translations in the shared cache.
-  let cachedData = appliedTerms.length||forceRefresh ? null : await getWebCachedText(
-  text.trim(),targetLang,fastMode,context,translationModel
+  // Match-specific glossary cache is private to the owner and its approved
+  // term versions. Never reuse this result across accounts or glossary edits.
+  const termScope=proTermScope(req.user._id,appliedTerms);
+  let cachedData = forceRefresh ? null : await getWebCachedText(
+  text.trim(),targetLang,fastMode,context,translationModel,termScope
 );
 // Old cache may contain English although the selected target was Vietnamese.
 if(cachedData&&translationLanguageIssue(inputText,cachedData.translation))
@@ -945,8 +947,8 @@ if(shouldBackTranslate&&cachedData?.backTranslation){
   if(issue){
     backTranslationWarning=issue;
     cachedData={...cachedData,backTranslation:''};
-    if(!appliedTerms.length)await persistProCache(inputText,targetLang,
-      fastMode,context,{backTranslation:''},translationModel);
+    await persistProCache(inputText,targetLang,
+      fastMode,context,{backTranslation:''},translationModel,termScope);
   }
 }
 
@@ -1041,13 +1043,14 @@ if (result) {
     newData.vocabulary = '';
   }
 
-  if(!appliedTerms.length) await persistProCache(
+  await persistProCache(
   text.trim(),
   targetLang,
   fastMode,
   context,
   newData,
-  translationModel
+  translationModel,
+  termScope
 );
 
   finalCache = {
@@ -1074,7 +1077,7 @@ if (
 
     finalCache.pronunciation = localPinyin;
 
-    if(!appliedTerms.length) await persistProCache(
+    await persistProCache(
   text.trim(),
   targetLang,
   fastMode,
@@ -1082,7 +1085,8 @@ if (
   {
     pronunciation: localPinyin
   },
-  translationModel
+  translationModel,
+  termScope
 );
   }
 }
@@ -1113,7 +1117,7 @@ if (
 
   finalCache.verification = verificationData;
 
-  if(!appliedTerms.length) await persistProCache(
+  await persistProCache(
     inputText,
     targetLang,
     fastMode,
@@ -1121,7 +1125,8 @@ if (
     {
       verification: verificationData
     },
-    translationModel
+    translationModel,
+    termScope
   );
 
   hasValidVerification = true;
