@@ -8,10 +8,11 @@ function historySnapshot({engine,context='auto',options={},response={}}={}){
     backTranslation:options.backTranslation!==false,
     pronunciation:options.pronunciation!==false,
     vocabulary:options.vocabulary!==false,
-    verification:options.verification===true,
-    translationModel:['gpt-4o','gpt-4o-mini'].includes(options.translationModel)
-      ?options.translationModel:null
+    verification:options.verification===true
   };
+  // Legacy history snapshots remain byte-compatible when no model was chosen.
+  if(['gpt-4o','gpt-4o-mini'].includes(options.translationModel))
+    uiOptions.translationModel=options.translationModel;
   const keys=['result','vocabularyItems','vocabularyError','cached','provider',
     'requestUsage','appliedTerms','terminologyWarnings','issues',
     'analysis','analysisTerms','translationNotes','sourceLanguage',
