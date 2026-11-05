@@ -56,13 +56,16 @@ function freeKey(text, lang = 'zh', context = 'auto') {
     : hashKey(['free-context-2', lang, normalizedText, String(context)]);
 }
 
-function proKey(text, lang, isFast, context = 'auto') {
+function proKey(text, lang, isFast, context = 'auto', translationModel = null) {
+  // A manually chosen translator model has its own namespace. Requests from
+  // older clients without a choice continue to use their legacy cache keys.
   return hashKey([
-    lang==='zh'?'pro-context-3-names':'pro-context-2',
+    translationModel?'pro-model-choice-1':lang==='zh'?'pro-context-3-names':'pro-context-2',
     String(text).trim(),
     String(lang),
     Boolean(isFast),
-    String(context)
+    String(context),
+    ...(translationModel?[translationModel]:[])
   ]);
 }
 
@@ -90,9 +93,9 @@ async function setFreeCachedText(text, value, lang = 'zh', context = 'auto') {
   );
 }
 
-async function getWebCachedText(text, lang, isFast, context = 'auto') {
+async function getWebCachedText(text, lang, isFast, context = 'auto', translationModel = null) {
   const item = await WebTranslationCache.findOne({
-    key: proKey(text, lang, isFast, context),
+    key: proKey(text, lang, isFast, context, translationModel),
     mode: 'pro'
   }).select('value').lean();
 
@@ -114,7 +117,7 @@ const PRO_FIELDS = new Set([
   'verification'
 ]);
 
-async function setWebCachedText(text, lang, isFast, context = 'auto', data) {
+async function setWebCachedText(text, lang, isFast, context = 'auto', data, translationModel = null) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
     throw new TypeError('PRO cache data must be an object');
   }
@@ -132,7 +135,7 @@ async function setWebCachedText(text, lang, isFast, context = 'auto', data) {
   if (!Object.keys(fields).length) return;
 
   await upsertCache(
-    { key: proKey(text, lang, isFast, context), mode: 'pro' },
+    { key: proKey(text, lang, isFast, context, translationModel), mode: 'pro' },
     { $set: fields }
   );
 }
