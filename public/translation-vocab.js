@@ -52,10 +52,10 @@
       'Chủ đề: '+(topicNames[item.category]||topicNames.unclassified)+
       (pending?' · Đang phân loại':''));
   }
-  function paint(items,message) {
+  function paint(items,message,showEmpty=false) {
     root.replaceChildren();
     const all=Array.isArray(items)?items:[];
-    if(!all.length&&!message) {
+    if(!all.length&&!message&&!showEmpty) {
       root.hidden=true;
       raw.hidden=true;
       wrapper.classList.add('hidden');
@@ -65,6 +65,9 @@
     root.hidden=false;
     wrapper.classList.remove('hidden');
     if(message)node(root,'div','translation-vocab-error',message);
+    else if(!all.length&&showEmpty)
+      node(root,'p','translation-vocab-note',
+        'AI chưa chọn được từ, cụm từ hoặc mẫu câu hợp lệ từ lượt dịch này.');
     for(const type of ['word','phrase','pattern']) {
       const values=all.filter(item=>item.type===type);
       // Keep all three groups visible, even when AI1 supplied no items in one.
@@ -91,14 +94,14 @@
         more.addEventListener('click',()=>{
           if(expandedTypes.has(type))expandedTypes.delete(type);
           else expandedTypes.add(type);
-          paint(items,message);
+          paint(items,message,showEmpty);
           root.querySelector('#translation-vocab-more-'+type)?.focus();
         });
       }
     }
   }
 
-  function render(items,error='',language='zh') {
+  function render(items,error='',language='zh',showEmpty=false) {
     version++;
     activeRefresh=null;
     expandedTypes.clear();
@@ -108,7 +111,7 @@
       return; // compatibility with a legacy server response
     }
     let current=items.map(item=>({...item}));
-    paint(current,error);
+    paint(current,error,showEmpty);
     if(!current.length)return;
     // AI2 runs independently after the translation; refresh category ONLY.
     // This endpoint never records additional encounters.
@@ -131,7 +134,7 @@
             const updated=map.get(item.type+':'+item.key);
             return {...item,...updated,isNew:item.isNew};
           });
-        paint(current,error);
+        paint(current,error,showEmpty);
       }catch(_){}
     };
     activeRefresh=refresh;
