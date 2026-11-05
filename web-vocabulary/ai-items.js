@@ -59,7 +59,8 @@ function parseAi1Items(vocabulary, foreignText, language, maxItems=MAX_AI1_ITEMS
     // Markdown or number them. Normalize markup, not semantic content:
     // source-occurrence and sensitive-term guards remain authoritative.
     const line = original.trim()
-      .replace(/^(?:[-•*]|\d{1,2}[.)])\s*/u,'')
+      .replace(/^(?:[-•]|\d{1,2}[.)])\s*/u,'')
+      .replace(/^\*\s+(?=\[|[\p{Script=Han}])/u,'')
       .replace(/^\*\*(?=\[|[\p{Script=Han}])/u,'')
       .replace(/\*\*$/u,'').trim();
     if (!line) continue;
