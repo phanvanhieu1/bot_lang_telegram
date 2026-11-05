@@ -233,6 +233,7 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
     required:['translation','backTranslation','vocabulary','semanticReviewRequired','uncertainties']};
   const userPayload=JSON.stringify({original:sourceText,context,
     sourceLanguage:direction.source,targetLanguage:direction.target,
+    outputLanguageName:direction.target==='vi'?'Vietnamese':'Simplified Chinese',
     analysis:translationAnalysis,
     protectedNames,
     includeBackTranslation:backTranslation&&direction.source==='vi',
