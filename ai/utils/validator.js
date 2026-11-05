@@ -1,3 +1,4 @@
+const {translationLanguageIssue}=require('./translation-language');
 
 const {
   containsChinese
@@ -17,6 +18,9 @@ function validateFreeTranslation(
     containsChinese(originalText);
 
   if (inputIsChinese) {
+    if(translationLanguageIssue(originalText,parsed.translation)){
+      throw createInvalidOutputError('Expected Vietnamese, received English');
+    }
     // Trung → Việt: kết quả không được chứa chữ Hán
     if (containsChinese(parsed.translation)) {
       throw createInvalidOutputError(
