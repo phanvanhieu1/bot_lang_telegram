@@ -1,7 +1,6 @@
 'use strict';
 // V1 optimization is opt-in until a live quality regression has passed.
 // Static English instructions are isolated from all per-request user data.
-const {LANG_CONFIG}=require('../../config');
 const {glossaryInstructions}=require('../terminology/resolver');
 const {normalizeContext}=require('./context-policy');
 
@@ -14,7 +13,7 @@ const PRO_SYSTEM=[
   'Preserve unknown proper nouns, platform names and internal labels in their original script when no verified mapping exists.',
   'User-approved glossary mappings in the request override ordinary dictionary meanings. Conditional mappings apply only when the actual domain matches. Never assume every ambiguous word is a business term.',
   'Audience is selected in user JSON: friend = familiar; colleague = concise professional; superior = respectful professional; auto = infer only from evidence in the source.',
-  'Language routing is strict: source containing Chinese Han characters MUST produce a natural Vietnamese translation, NEVER English or a Chinese paraphrase. Source Vietnamese MUST produce Simplified Chinese. targetLanguage in metadata identifies the learning language (Chinese), not English. English is NEVER a valid output language for this Chinese/Vietnamese engine.',
+  'Language direction is explicit in user JSON: sourceLanguage is the input language; targetLanguage is the REQUIRED language of translation, NOT the language being studied. zh -> vi: TRANSLATION must be natural Vietnamese (not English or Chinese rewording). vi -> zh: TRANSLATION must be natural Simplified Chinese. Only glossary-protected proper names, codes and labels may retain their original script.',
   'If backTranslation is enabled: for Telegram, always translate the produced translation back to the original language; for Web, only do so for Vietnamese to Chinese, and otherwise leave it blank. Never copy the original Vietnamese as back-translation.',
   'If vocabulary is enabled, extract at most 8 Chinese WORDs, 5 PHRASEs and 4 real PATTERNs from the source Chinese or generated Chinese. Each item has a short Vietnamese explanation; no invented entries or pinyin.',
   'If existingTranslation is present, DO NOT translate or change it; return only the requested supplemental back-translation and/or vocabulary.',
@@ -42,17 +41,23 @@ const FREE_SYSTEM=[
   'Preserve exact speaker, action, conditions, negation, numbers, names, instructions and certainty. Do not invent facts.',
   'Translate colloquial speech naturally, respecting intended audience (friend, colleague, superior, or auto).',
   'Preserve unknown proper nouns, labels and IDs. Apply approved user terminology exactly when applicable; conditional glossary hints are NOT mandatory outside their matching domain.',
-  'If source is Chinese, translate to Vietnamese and return TRANSLATION: only.',
-  'If source is Vietnamese, translate to Simplified Chinese and back-translate the newly produced Chinese to Vietnamese. Return TRANSLATION: and BACK_TRANSLATION:.',
+  'Read sourceLanguage and targetLanguage in the user JSON as strict translation direction, NOT learning-language settings.',
+  'zh -> vi: TRANSLATION must be natural Vietnamese, not English and not a Chinese paraphrase. Return TRANSLATION: only.',
+  'vi -> zh: TRANSLATION must be Simplified Chinese, then back-translate it into Vietnamese. Return TRANSLATION: and BACK_TRANSLATION:.',
   'Return no reasoning, markdown, notes, or invented details.'
 ].join('\n');
 
+function directionFor(text){
+  const sourceLanguage=/[\\u3400-\\u9fff]/u.test(String(text||''))?'zh':'vi';
+  return {sourceLanguage,targetLanguage:sourceLanguage==='zh'?'vi':'zh'};
+}
 function optimizedProRequest(text,targetLangKey,isFastMode,options={}){
   const isSupplement=Boolean(options.existingTranslation);
   const backTranslation=!isFastMode&&options.backTranslation!==false;
   const vocabulary=!isFastMode&&options.vocabulary!==false;
   const metadata={
-    targetLanguage:LANG_CONFIG[targetLangKey]?.promptName||'Chinese',
+    ...directionFor(text),
+    learningLanguage:targetLangKey,
     context:normalizeContext(options.context),
     backTranslation,vocabulary,
     telegramMode:options.telegramMode===true,
@@ -65,7 +70,7 @@ function optimizedProRequest(text,targetLangKey,isFastMode,options={}){
 }
 function optimizedFreeRequest(text,context='auto',terms=[]){
   return {system:FREE_SYSTEM,
-    user:JSON.stringify({source:text,context:normalizeContext(context),
+    user:JSON.stringify({source:text,...directionFor(text),context:normalizeContext(context),
       glossary:glossaryInstructions(terms)})};
 }
 function outputBudget(text,{backTranslation=false,vocabulary=false,isSupplement=false}={}){
@@ -75,4 +80,4 @@ function outputBudget(text,{backTranslation=false,vocabulary=false,isSupplement=
     (isSupplement?80:160);
   return Math.max(200,Math.min(2600,estimated));
 }
-module.exports={PRO_SYSTEM,PRO_JSON_SYSTEM,FREE_SYSTEM,optimizedProRequest,optimizedFreeRequest,outputBudget};
+module.exports={PRO_SYSTEM,PRO_JSON_SYSTEM,FREE_SYSTEM,directionFor,optimizedProRequest,optimizedFreeRequest,outputBudget};
