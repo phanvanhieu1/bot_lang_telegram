@@ -14,7 +14,7 @@
 <link href="/maintenance-ui.css" rel="stylesheet"/>
 <link href="/vocabulary-ui.css" rel="stylesheet"/>
 <link href="/translation-vocab.css" rel="stylesheet"/>
-<link href="/compact-layout.css?v=saved-translation-1" rel="stylesheet"/></head>
+<link href="/compact-layout.css?v=translator-model-1" rel="stylesheet"/></head>
 <body>
 <main class="container">
 <header class="header gt-header">
@@ -223,6 +223,13 @@
     <label><input type="radio" name="translationEngine" value="v1" checked><span>V1</span></label>
     <label><input type="radio" name="translationEngine" value="v2"><span>V2</span></label>
   </fieldset>
+  <div class="translation-model-picker" id="translationModelPicker" hidden>
+    <label for="translationModelSelect">AI dịch chính</label>
+    <select id="translationModelSelect" aria-label="Chọn model GPT dùng để dịch">
+      <option value="gpt-4o" selected>GPT-4o</option>
+      <option value="gpt-4o-mini">GPT-4o mini</option>
+    </select>
+  </div>
 </div>
 <div class="translation-workspace">
 <div class="translation-source">
@@ -522,7 +529,7 @@
 <script src="/terminology.js"></script>
 <script src="/translation-usage.js?v=v2-v1-parity-1"></script>
 <script src="/v2-inspector.js?v=history-replay-1"></script>
-<script src="/app.js?v=saved-translation-1"></script>
+<script src="/app.js?v=translator-model-1"></script>
 <script src="/google-style.js"></script>
 <script src="/practice-audio.js"></script>
 <script src="/image-translate.js"></script>
