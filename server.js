@@ -1171,14 +1171,25 @@ if (verificationUsage) {
     verificationUsage.total_tokens || 0;
 }
 
-// Tính tổng cost
-const inputCost =
-  usage.promptTokens * 2.5 / 1_000_000;
-
-const outputCost =
-  usage.completionTokens * 10 / 1_000_000;
-
-usage.cost = inputCost + outputCost;
+// Charge each actual GPT stage at its own model rate. The verification
+// service stays on GPT-4o even when the primary translation uses GPT-4o-mini.
+const billableStages=[];
+if(result?.usage) billableStages.push({
+  role:cachedData?.translation?'supplement':'translator',
+  provider:'openai',model:result.usage.model||translationModel||'gpt-4o',
+  usage:{input:result.usage.prompt_tokens||0,
+    output:result.usage.completion_tokens||0,
+    cacheRead:result.usage.prompt_tokens_details?.cached_tokens||0}
+});
+if(verificationUsage) billableStages.push({
+  role:'verification',provider:'openai',model:'gpt-4o',
+  usage:{input:verificationUsage.prompt_tokens||0,
+    output:verificationUsage.completion_tokens||0}
+});
+usage.model=result?.usage?.model||translationModel||'gpt-4o';
+const requestCostSummary=proRequestUsage(usage,!result&&!verificationUsage,
+  trace.length?trace:billableStages);
+usage.cost=requestCostSummary.estimatedCostUsd??0;
 
 // Chỉ ghi usage nếu request này thực sự gọi OpenAI
 if (usage.totalTokens > 0) {
@@ -1205,7 +1216,7 @@ const responseBody={
   cached: !result && !verificationUsage,
   usage,
   translationModel:translationModel||result?.usage?.model||null,
-  requestUsage:{...proRequestUsage(usage,!result && !verificationUsage,trace),
+  requestUsage:{...requestCostSummary,
     elapsedMs:Date.now()-requestStarted},
   ...inspectionFor(!result),
   appliedTerms:termHighlights(finalCache.translation||'',appliedTerms),
