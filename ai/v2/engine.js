@@ -6,6 +6,7 @@ const {createProviders,safeError}=require('./providers');
 const {termHighlights,validateAppliedTerms,contextDomain}=require('../terminology/resolver');
 const {sanitizeClaudeTerms}=require('./vocabulary');
 const {analyzerBudget}=require('./analyzer-budget');
+const {translationLanguageIssue}=require('../utils/translation-language');
 const {sanitizeProperNames}=require('../prompts/proper-names');
 const {ANALYZER_SYSTEM,ANALYZER_JSON_SCHEMA,TRANSLATOR_SYSTEM}=
   require('./prompts-en');
@@ -260,6 +261,7 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
   function verifiedIssues(candidate) {
     return [
       ...validateAppliedTerms(candidate,glossary).map(x=>'Thuật ngữ chưa được áp dụng: '+x),
+      ...(translationLanguageIssue(sourceText,candidate)?['Bản dịch sai ngôn ngữ đích: cần tiếng Việt, không phải tiếng Anh.']:[]),
       ...missingProtected(sourceText,candidate).map(x=>'Có thể thiếu mã/số liệu: '+x),
       ...missingProtectedNameOccurrences(sourceText,candidate,protectedNames,glossary)
         .map(x=>'Thiếu tên riêng/nhãn cần giữ nguyên: '+x)
@@ -270,7 +272,7 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
     // One targeted correction only; never silently replace a confirmed
     // glossary meaning with an AI guess or loop until both models agree.
     try{
-      const repairSystem=translating+'\nCHỈ sửa các lỗi đã được đối chiếu trong danh sách.';
+      const repairSystem=translating+'\nRepair ONLY the verified issues in the user JSON. For targetLanguage vi, the translation must be Vietnamese, NOT English.';
       const repairInput=JSON.stringify({original:sourceText,current:translated.translation,
         errors:issues,protectedNames,
         includeBackTranslation:backTranslation&&direction.source==='vi',
@@ -297,6 +299,10 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
       }
     }catch(_){/* keep original, mark review below */}
   }
+  // A wrong-language output is never an acceptable translation or cache entry.
+  // After one targeted repair, fail closed instead of showing English as Vietnamese.
+  if(translationLanguageIssue(sourceText,translated.translation))
+    throw safeError('V2_WRONG_TARGET_LANGUAGE');
   // Analyst hypotheses do not automatically mean the translation is wrong.
   // Preserve them for transparency; only verified constraints or a *material*
   // unresolved semantic choice from the translator trigger REVIEW.
