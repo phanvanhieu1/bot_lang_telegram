@@ -64,12 +64,14 @@ function createV2Router({translate=deepTranslate,env=process.env,cache=v2Cache,
     });
     const {text,context='auto',targetLang='zh',vocabulary=true,
       backTranslation=true,pronunciation=true,verification=false,
-      inspectAI=false,forceRefresh=false}=req.body||{};
+      inspectAI=false,forceRefresh=false,translationModel=null}=req.body||{};
     if(targetLang!=='zh'||typeof text!=='string'||!text.trim()||text.length>2000||
        [vocabulary,backTranslation,pronunciation,verification,inspectAI,forceRefresh]
          .some(flag=>typeof flag!=='boolean')||
        (forceRefresh&&!inspectAI)||
-       !['auto','friend','colleague','superior'].includes(context)){
+       !['auto','friend','colleague','superior'].includes(context)||
+       (translationModel!==null&&
+        !['gpt-4o','gpt-4o-mini'].includes(translationModel))){
       return res.status(400).json({success:false,code:'V2_INVALID_INPUT',
         message:'V2 hiện hỗ trợ Trung–Việt, tối đa 2.000 ký tự.'});
     }
@@ -82,7 +84,7 @@ function createV2Router({translate=deepTranslate,env=process.env,cache=v2Cache,
       // Cache read cannot bypass the user's current approved glossary.
       const signature=await cache.signatureForOwner(owner);
       const key=cache.keyForRequest({owner:id,text:original,context,signature,env,
-        backTranslation,vocabulary});
+        backTranslation,vocabulary,translationModel});
       let hit=null;
       // A live run to inspect model traffic is chargeable and must only be
       // initiated by the user's explicit force-refresh control.
@@ -94,7 +96,7 @@ function createV2Router({translate=deepTranslate,env=process.env,cache=v2Cache,
       const trace=[];
       const translationCached=Boolean(hit);
       const translated=hit?hit.value:await translate({text:original,context,
-        backTranslation,vocabulary,env,
+        backTranslation,vocabulary,translationModel,env,
         inspectStage:inspectAI?stage=>trace.push(stage):null,
         loadGlossary:(source,opts)=>lookupUserTerms(req.user._id,source,opts)});
 
@@ -194,6 +196,7 @@ function createV2Router({translate=deepTranslate,env=process.env,cache=v2Cache,
         appliedTerms:translated.appliedTerms||[],
         sourceLanguage:translated.sourceLanguage,targetLanguage:translated.targetLanguage,
         cached:translationCached,usage:responseUsage,requestUsage:usage,
+        translationModel:translationModel||null,
         ...(inspectAI?{inspection:{
           cacheHit:translationCached,
           // The opt-in transcript may be archived in the private owner-only
@@ -211,7 +214,7 @@ function createV2Router({translate=deepTranslate,env=process.env,cache=v2Cache,
         const archived=await recordHistory({userId:owner,text:original,targetLang,
           learningLang:'zh',result,details:historySnapshot({
             engine:'v2',context,options:{backTranslation,pronunciation,
-              vocabulary,verification,inspectAI},
+              vocabulary,verification,inspectAI,translationModel},
             response:responseBody})});
         historyId=archived?.id||null;
       }catch(_){console.warn('[V2] translation history unavailable');}
