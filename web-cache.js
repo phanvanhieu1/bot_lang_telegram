@@ -56,16 +56,33 @@ function freeKey(text, lang = 'zh', context = 'auto') {
     : hashKey(['free-context-2', lang, normalizedText, String(context)]);
 }
 
-function proKey(text, lang, isFast, context = 'auto', translationModel = null) {
-  // A manually chosen translator model has its own namespace. Requests from
-  // older clients without a choice continue to use their legacy cache keys.
+// Matched personal glossary items must not bypass cache entirely: isolate
+// their results by owner AND a versioned fingerprint of applied terminology.
+// The returned opaque scope never stores raw user text or glossary contents.
+function proTermScope(owner,terms) {
+  if(!Array.isArray(terms)||terms.length===0)return null;
+  if(!owner)throw new Error('PRO_TERMINOLOGY_CACHE_REQUIRES_OWNER');
+  const signature=terms.map(t=>[
+    String(t.id||''),String(t.source||''),String(t.translation||''),
+    String(t.domain||''),t.conditional===true,
+    Number(t.priority||0),Number(t.version||0)
+  ]).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)));
+  return hashKey(['pro-user-terms-v1',String(owner),signature]);
+}
+function proKey(text, lang, isFast, context = 'auto', translationModel = null,
+  termScope = null) {
+  // Preserve exact legacy keys when there is no personal glossary match.
+  // This lets Telegram and old web requests reuse their existing entries.
   return hashKey([
-    translationModel?'pro-model-choice-2-vietnamese-backtranslation':lang==='zh'?'pro-context-3-names':'pro-context-2',
+    termScope?'pro-personal-terms-1':
+      translationModel?'pro-model-choice-2-vietnamese-backtranslation':
+        lang==='zh'?'pro-context-3-names':'pro-context-2',
     String(text).trim(),
     String(lang),
     Boolean(isFast),
     String(context),
-    ...(translationModel?[translationModel]:[])
+    ...(translationModel?[translationModel]:[]),
+    ...(termScope?[String(termScope)]:[])
   ]);
 }
 
@@ -93,9 +110,9 @@ async function setFreeCachedText(text, value, lang = 'zh', context = 'auto') {
   );
 }
 
-async function getWebCachedText(text, lang, isFast, context = 'auto', translationModel = null) {
+async function getWebCachedText(text, lang, isFast, context = 'auto', translationModel = null, termScope = null) {
   const item = await WebTranslationCache.findOne({
-    key: proKey(text, lang, isFast, context, translationModel),
+    key: proKey(text, lang, isFast, context, translationModel, termScope),
     mode: 'pro'
   }).select('value').lean();
 
@@ -117,7 +134,7 @@ const PRO_FIELDS = new Set([
   'verification'
 ]);
 
-async function setWebCachedText(text, lang, isFast, context = 'auto', data, translationModel = null) {
+async function setWebCachedText(text, lang, isFast, context = 'auto', data, translationModel = null, termScope = null) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
     throw new TypeError('PRO cache data must be an object');
   }
@@ -135,13 +152,14 @@ async function setWebCachedText(text, lang, isFast, context = 'auto', data, tran
   if (!Object.keys(fields).length) return;
 
   await upsertCache(
-    { key: proKey(text, lang, isFast, context, translationModel), mode: 'pro' },
+    { key: proKey(text, lang, isFast, context, translationModel, termScope), mode: 'pro' },
     { $set: fields }
   );
 }
 
 module.exports = {
   proKey,
+  proTermScope,
   getFreeCachedText,
   setFreeCachedText,
   getWebCachedText,
