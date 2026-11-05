@@ -81,7 +81,10 @@ test('V1/V2 web translator uses one vocabulary renderer and one detail layout wi
     assert.ok(html.includes('id="'+id+'"'));
   assert.match(app,/renderTranslationDetailsSummary\(data,'v1'\)/);
   assert.match(app,/renderTranslationDetailsSummary\(data,'v2'\)/);
+  assert.match(app,/renderV2AnalysisDetails\(data,'v1'\)/);
   assert.match(app,/renderV2AnalysisDetails\(data\)/);
+  assert.match(app,/V1 dịch trực tiếp bằng GPT/);
+  assert.match(app,/Phân tích V2 · Claude/);
   assert.match(app,/selectedLang,\s*selectedLang==='zh'\s*\)/);
   assert.match(app,/vocabularyToggle\.checked\s*\);/);
   assert.match(app,/renderTranslationVocabularySnapshot\?\.\(/);
@@ -94,7 +97,7 @@ test('V1/V2 web translator uses one vocabulary renderer and one detail layout wi
 test('V1 and V2 historical translations restore one set of vocabulary cards and detail metadata',()=>{
   const app=read('public/app.js'),vocab=read('public/translation-vocab.js');
   assert.match(app,/historicalEngine==='free'\?null:\{/);
-  assert.match(app,/historicalEngine==='v2'\?payload:null/);
+  assert.match(app,/historicalEngine==='v2'\|\|historicalEngine==='v1'/);
   assert.match(app,/payload\.vocabularyItems,payload\.vocabularyError\|\|''/);
   assert.match(vocab,/renderTranslationVocabularySnapshot=\(items,error='',showEmpty=false\)/);
 });
