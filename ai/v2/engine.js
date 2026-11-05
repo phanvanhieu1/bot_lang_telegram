@@ -130,11 +130,15 @@ function cleanTranslation(raw) {
       value.uncertainties.filter(x=>typeof x==='string').slice(0,3).map(x=>x.slice(0,180)):[]};
 }
 async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
-  backTranslation=true,vocabulary=true,inspectStage=null,env=process.env},
+  backTranslation=true,vocabulary=true,inspectStage=null,env=process.env,
+  translationModel=null},
   providers=createProviders()) {
   if(typeof text!=='string'||!text.trim()||text.length>2000||
     !['auto','friend','colleague','superior'].includes(context))
     throw safeError('V2_INVALID_INPUT');
+  if(translationModel!=null&&
+     !['gpt-4o','gpt-4o-mini'].includes(translationModel))
+    throw safeError('V2_INVALID_TRANSLATION_MODEL');
   const sourceText=text.trim(),direction=detectDirection(sourceText);
   const analysisBudget=analyzerBudget(sourceText);
   // The separate Chinese learning library is not used for Vietnamese input
@@ -272,7 +276,8 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
     approvedTerminology});
   const modelTranslation=await stage('translator','openai',()=>
     providers.openai(translating,userPayload,{maxOutputTokens:1500,
-      jsonSchema,...(tier.modelOverride?{modelOverride:tier.modelOverride}:{})}),
+      jsonSchema,...(translationModel?{translationModel}:
+        tier.modelOverride?{modelOverride:tier.modelOverride}:{})}),
     {system:translating,input:userPayload});
   let translated;
   try{
