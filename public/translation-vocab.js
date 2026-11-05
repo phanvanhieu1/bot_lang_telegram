@@ -181,9 +181,9 @@
   });
   // Historical render must preserve exactly the saved card values.
   // Do not fetch vocabulary updates or increment encounter counts on replay.
-  window.renderTranslationVocabularySnapshot=(items,error='')=>{
+  window.renderTranslationVocabularySnapshot=(items,error='',showEmpty=false)=>{
     version++;activeRefresh=null;expandedTypes.clear();
-    paint(Array.isArray(items)?items:[],error);
+    paint(Array.isArray(items)?items:[],error,showEmpty);
   };
   window.renderTranslationVocabulary=render;
   window.renderV2ClaudeTerms=renderClaudeTerms;
