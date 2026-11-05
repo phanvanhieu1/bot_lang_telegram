@@ -115,7 +115,8 @@ test('V1 PRO route returns trace only on opt-in and forbids forcing refresh with
   assert.match(server,/cachedData=null/);
   assert.match(server,/onInspect\?\{onInspect\}:null/);
   assert.match(server,/\.\.\.inspectionFor\(!result\)/);
-  assert.match(server,/requestUsage:\{\.\.\.proRequestUsage\(usage,!result && !verificationUsage,trace\)/);
+  assert.match(server,/requestUsage:\{\.\.\.requestCostSummary/);
+  assert.match(server,/trace\.length\?trace:billableStages/);
   assert.match(file('web-english.js'),/options\.forceRefresh\?null:await getWebCachedText/);
   assert.match(file('web-english.js'),/options\.inspectStage/);
   assert.match(file('public/index.html'),/id="v1InspectToggle"/);
