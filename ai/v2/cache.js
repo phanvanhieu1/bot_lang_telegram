@@ -36,7 +36,7 @@ async function signatureForOwner(owner,GlossaryModel=Glossary){
   return glossarySignature(rows);
 }
 function keyForRequest({owner,text,context,signature,env=process.env,
-  backTranslation=true,vocabulary=true}){
+  backTranslation=true,vocabulary=true,translationModel=null}){
   if(!owner||typeof text!=='string'||!signature)throw Error('V2_CACHE_INVALID_KEY');
   const direction=detectDirection(text);
   const {openaiModel,claudeModel,openaiEffort,claudeEffort,claudeThinking,
@@ -49,7 +49,8 @@ function keyForRequest({owner,text,context,signature,env=process.env,
     direction.source==='vi'?Boolean(backTranslation):null,
     direction.source==='vi'?Boolean(vocabulary):null,
     openaiModel,claudeModel,openaiEffort,claudeEffort,claudeThinking,
-    tieredRouting,tieredRouting?simpleOpenaiModel:null,signature
+    tieredRouting,tieredRouting?simpleOpenaiModel:null,signature,
+    ...(translationModel?['manual-translation-model-1',translationModel]:[])
   ]);
 }
 async function getCached({owner,key},CacheModel=Model){
