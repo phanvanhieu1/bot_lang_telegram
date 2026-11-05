@@ -16,10 +16,25 @@ function clearEnglishInsteadOfVietnamese(value){
   const vi=words.filter(w=>VI.has(w)).length;
   return en>=3&&en>vi*2&&en/words.length>=0.18&&englishPhrases.test(text);
 }
+// Chinese proper names may remain in an otherwise Vietnamese sentence.
+// Reject only a substantial, still-Chinese sentence or paragraph.
+function clearChineseInsteadOfVietnamese(value){
+  const text=String(value||'').trim();
+  const han=(text.match(/[\u3400-\u9fff]/gu)||[]).length;
+  if(han<5)return false; // short protected names and codes are not enough
+  const latinWords=text.match(/[A-Za-zÀ-ỹĐđ]+/gu)||[];
+  const latinLetters=(text.match(/[A-Za-zÀ-ỹĐđ]/gu)||[]).length;
+  // Leave mixed Vietnamese explanations containing Chinese platform names alone.
+  return han>=12
+    ?han>=latinLetters*0.65 && latinWords.length<Math.max(8,han/2)
+    :han>latinLetters*1.5 && latinWords.length<4;
+}
 function translationLanguageIssue(source,translation){
   if(!/[\u3400-\u9fff]/u.test(String(source||'')))return null;
+  if(clearChineseInsteadOfVietnamese(translation))
+    return 'EXPECTED_VIETNAMESE_GOT_CHINESE';
   if(clearEnglishInsteadOfVietnamese(translation))
     return 'EXPECTED_VIETNAMESE_GOT_ENGLISH';
   return null;
 }
-module.exports={clearEnglishInsteadOfVietnamese,translationLanguageIssue};
+module.exports={clearEnglishInsteadOfVietnamese,clearChineseInsteadOfVietnamese,translationLanguageIssue};
