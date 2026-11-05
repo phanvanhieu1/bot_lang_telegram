@@ -119,8 +119,9 @@ function createProviders(env = process.env) {
 
   async function openai(system, user, meta={}) {
     if (!openaiKey) throw safeError('V2_MISSING_OPENAI_KEY');
-    // Manual selection is allowlisted and passed only by the translator
-    // stage. Claude, verification and repair retain their existing models.
+    // Manual selection is allowlisted. The engine sends the selected model
+    // to the main translator and explicitly chooses GPT-4o mini for Repair.
+    // Claude and independent verification are unaffected.
     if(meta.translationModel!=null&&
        !['gpt-4o','gpt-4o-mini'].includes(meta.translationModel))
       throw safeError('V2_INVALID_TRANSLATION_MODEL');
