@@ -57,11 +57,19 @@ function keyForRequest({owner,text,context,signature,env=process.env,
 async function getCached({owner,key},CacheModel=Model){
   const item=await CacheModel.findOne({owner,key,expiresAt:{$gt:new Date()}})
     .select('value createdAt expiresAt').lean();
-  return item && item.value?.status==='PASS' && typeof item.value.translation==='string'
+  // REVIEW has already been returned to the user as a usable result with
+  // visible issues. Cache that exact result too; never convert it to PASS.
+  // Failed/unparseable/wrong-language translations are never stored.
+  return item && ['PASS','REVIEW'].includes(item.value?.status) &&
+    typeof item.value.translation==='string' && item.value.translation.trim()
     ? item:null;
 }
 async function storeCached({owner,key,value},CacheModel=Model){
-  if(value?.status!=='PASS'||typeof value.translation!=='string'||!value.translation.trim())
+  if(!['PASS','REVIEW'].includes(value?.status)||
+     typeof value.translation!=='string'||!value.translation.trim())
+    return false;
+  if(value.status==='REVIEW'&&
+     (value.needsReview!==true||!Array.isArray(value.issues)||!value.issues.length))
     return false;
   const expiresAt=new Date(Date.now()+TTL_MS);
   // Unique key protects two processes from persisting duplicate rows.
