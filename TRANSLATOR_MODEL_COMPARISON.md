@@ -3,15 +3,17 @@
 Branch: `feature/translation-engine-v2`
 
 On the Chinese/Vietnamese PRO translation page, use **AI dịch chính** to
-choose `GPT-4o` (default) or `GPT-4o mini`. The selection is saved in this
-browser and applies to the next click on **Dịch**, for either **V1** or **V2**.
+choose `GPT-4o` or **`GPT-4o mini` (default)**. The old browser preference
+is migrated once to the new mini default, and later explicit selections are
+saved normally. The choice applies to the next click on **Dịch**, for **V1** or **V2**.
 
 This feature changes only the principal translation GPT call:
 - V1: the primary `translateFull` request uses the selected model. V1
   supplemental GPT requests for already-cached translations stay on the
   existing model.
-- V2: Claude analysis, existing GPT Repair, and independent verification
-  keep their previous models. Only `translator` receives the override.
+- V2: Claude analysis and independent verification remain unchanged.
+  `translator` receives the selected model; **Repair always uses GPT-4o mini**
+  even if `translator` uses GPT-4o.
 - Existing prompts, selected audience, approved glossary, output options,
   pronunciation, and verification settings stay unchanged.
 - FREE and English translation pages do not expose the selector.
@@ -22,6 +24,9 @@ vice versa). The first translation of a given text with a selected model
 will be a new paid request; subsequent identical requests can hit that
 model's cache. Use the explicit live rerun in the inspector only if a new
 model call is required; it incurs API charges.
+
+V2 cache keys include the new Repair model policy to avoid reusing old
+GPT-4o Repair results when comparing fresh translations.
 
 Model input is server-side allowlisted to `gpt-4o` and `gpt-4o-mini`.
 Clients which do not specify a model retain existing V1/V2 routing and
