@@ -141,6 +141,7 @@ async function setWebCachedText(text, lang, isFast, context = 'auto', data, tran
 }
 
 module.exports = {
+  proKey,
   getFreeCachedText,
   setFreeCachedText,
   getWebCachedText,
