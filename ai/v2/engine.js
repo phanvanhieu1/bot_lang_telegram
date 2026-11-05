@@ -41,15 +41,46 @@ function protectedTokens(text) {
   const pattern=/https?:\/\/[^\s，。！？；]+|(?<![A-Za-z0-9_])[A-Z][A-Z0-9_]{1,}(?![A-Za-z0-9_])|(?<![A-Za-z0-9_])[-+]?\d+(?:[.,]\d+)*(?:[%％])?(?![A-Za-z0-9_])/g;
   return String(text||'').match(pattern)||[];
 }
+// Small, explicitly counted PEOPLE can naturally be written with Chinese
+// numerals and classifiers: "1 người" -> "一个人", "2 người" -> "两个人".
+// Do NOT relax codes, money, percentages, dates, or arbitrary numbers.
+function personCountEquivalences(original,translation) {
+  if(/[\u3400-\u9fff]/u.test(original)||
+     !/[\u3400-\u9fff]/u.test(translation))return new Map();
+  const allDigits=new Map(),peopleDigits=new Map(),translatedCounts=new Map();
+  for(const token of protectedTokens(original)){
+    if(/^[1-9]$/.test(token))
+      allDigits.set(token,(allDigits.get(token)||0)+1);
+  }
+  for(const m of String(original).matchAll(/(?<![A-Za-z0-9_])([1-9])\s+người\b/giu)){
+    peopleDigits.set(m[1],(peopleDigits.get(m[1])||0)+1);
+  }
+  const numerals={'1':'一','2':'[二两]','3':'三','4':'四',
+    '5':'五','6':'六','7':'七','8':'八','9':'九'};
+  for(const [digit,chinese] of Object.entries(numerals)){
+    // Bound the numeral so "一个人" cannot be credited inside "二十一个人".
+    const expression=new RegExp(
+      '(?<![0-9零一二两三四五六七八九十百千万亿])'+
+      chinese+'(?:个|位|名)?(?:人|同事|员工|工人)', 'gu');
+    const count=[...String(translation).matchAll(expression)].length;
+    // If the same digit also marks an amount, code or another quantity,
+    // do not auto-credit it. A doubtful case must remain REVIEW.
+    if(count>0&&peopleDigits.get(digit)===allDigits.get(digit))
+      translatedCounts.set(digit,count);
+  }
+  return translatedCounts;
+}
 function missingProtected(text,translation) {
   const counts=new Map();
   for(const token of protectedTokens(translation))
     counts.set(token,(counts.get(token)||0)+1);
+  const semanticCounts=personCountEquivalences(String(text||''),String(translation||''));
   return protectedTokens(text).filter(token=>{
-    const available=counts.get(token)||0;
-    if(!available)return true;
-    counts.set(token,available-1);
-    return false;
+    const exact=counts.get(token)||0;
+    if(exact){counts.set(token,exact-1);return false;}
+    const equivalent=semanticCounts.get(token)||0;
+    if(equivalent){semanticCounts.set(token,equivalent-1);return false;}
+    return true;
   });
 }
 function safeFrame(obj,budget,sourceText) {
