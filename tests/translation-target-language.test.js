@@ -76,3 +76,34 @@ test('V1 PRO retries wrong language once using original source and legacy format
     delete require.cache[path];
   }
 });
+
+const chineseSource='让他们下发不要只留一个三方啊 那些代付不稳定的三方 代收就要下掉 收了又出不了款';
+const chineseWrong='让他们下发只保留一个第三方支付平台，那些代付不稳定的第三方支付平台，代收就要去掉，收了又无法出款。';
+const chineseCorrect='Bảo họ đừng chỉ giữ lại một bên thứ ba. Những bên chi hộ không ổn định thì phải gỡ khỏi phần thu hộ, vì nhận tiền vào rồi lại không thể chi tiền ra.';
+
+test('regression: screenshot V1 Chinese paraphrase is not a Vietnamese translation',()=>{
+  assert.equal(translationLanguageIssue(chineseSource,chineseWrong),'EXPECTED_VIETNAMESE_GOT_CHINESE');
+  assert.equal(translationLanguageIssue(chineseSource,chineseCorrect),null);
+  assert.throws(()=>validateFreeTranslation(chineseSource,{translation:chineseWrong}),{code:'INVALID_OUTPUT'});
+});
+test('Chinese protected names in a Vietnamese translation are allowed',()=>{
+  assert.equal(translationLanguageIssue(chineseSource,
+    'Bên 澎湃 vẫn đang xử lý, nhưng 芳华 chưa xác nhận lệnh rút tiền.'),null);
+  assert.equal(translationLanguageIssue(chineseSource,'Kiểm tra đơn GU55 tại PP.'),null);
+  assert.equal(translationLanguageIssue(chineseSource,'Kiểm tra nhãn 第三方支付平台 và đối chiếu lại hồ sơ.'),null);
+});
+test('V2 repairs Chinese paraphrase into Vietnamese',async()=>{
+  const m=v2Mocks(chineseWrong,chineseCorrect);
+  const result=await deepTranslate({text:chineseSource,context:'colleague',vocabulary:false,
+    backTranslation:false,loadGlossary:async()=>[]},m.providers);
+  assert.equal(result.translation,chineseCorrect);
+  assert.equal(result.status,'PASS');
+  assert.equal(m.calls(),2);
+});
+test('V2 rejects repeated Chinese paraphrase instead of marking PASS',async()=>{
+  const m=v2Mocks(chineseWrong,chineseWrong);
+  await assert.rejects(deepTranslate({text:chineseSource,context:'colleague',
+    vocabulary:false,backTranslation:false,loadGlossary:async()=>[]},m.providers),
+    {code:'V2_WRONG_TARGET_LANGUAGE'});
+  assert.equal(m.calls(),2);
+});
