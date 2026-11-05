@@ -17,6 +17,7 @@ function historySnapshot({engine,context='auto',options={},response={}}={}){
     'requestUsage','appliedTerms','terminologyWarnings','issues',
     'analysis','analysisTerms','translationNotes','sourceLanguage',
     'targetLanguage','needsReview','verificationError','verification',
+    'backTranslationWarning',
     'translationModel'];
   const payload={};
   for(const key of keys){
