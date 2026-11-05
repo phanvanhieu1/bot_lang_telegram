@@ -119,10 +119,14 @@ function createProviders(env = process.env) {
 
   async function openai(system, user, meta={}) {
     if (!openaiKey) throw safeError('V2_MISSING_OPENAI_KEY');
-    // The only permitted override is this server-configured simple model.
-    // Repair and all complex translations continue using the base model.
-    const model=tieredRouting&&meta.modelOverride===simpleOpenaiModel
-      ?simpleOpenaiModel:openaiModel;
+    // Manual selection is allowlisted and passed only by the translator
+    // stage. Claude, verification and repair retain their existing models.
+    if(meta.translationModel!=null&&
+       !['gpt-4o','gpt-4o-mini'].includes(meta.translationModel))
+      throw safeError('V2_INVALID_TRANSLATION_MODEL');
+    const model=meta.translationModel||
+      (tieredRouting&&meta.modelOverride===simpleOpenaiModel
+        ?simpleOpenaiModel:openaiModel);
     const body={
       model,instructions:system,
       input:[{role:'user',content:[{type:'input_text',text:user}]}],
