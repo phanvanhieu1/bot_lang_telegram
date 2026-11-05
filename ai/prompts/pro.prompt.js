@@ -200,6 +200,12 @@ Chỉ đưa các dòng có nội dung thật; không ghi tiêu đề nhóm hoặ
 Chỉ trả về đúng các trường ở trên.
 Không thêm tiêu đề, giải thích hoặc nội dung khác.`;
 }
+  // Restate the output-language constraint close to the end of the prompt.
+  // Mini models must not infer English from API metadata or context.
+  if(backTranslation && targetLangKey==='zh' &&
+     !/[\\u3400-\\u9fff]/u.test(String(text||''))) {
+    systemPrompt += `\n\nBẮT BUỘC: BACK_TRANSLATION phải là một câu TIẾNG VIỆT tự nhiên, dịch ngược từ chính câu TRANSLATION tiếng Trung vừa tạo. KHÔNG sử dụng tiếng Anh trong BACK_TRANSLATION, không sao chép nguyên văn đầu vào, không thêm giải thích.`;
+  }
   return systemPrompt;
 }
 
