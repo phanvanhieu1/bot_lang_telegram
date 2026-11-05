@@ -1238,6 +1238,9 @@ const personal=vocabulary
 const responseBody={
   success: true,
   result: responseContent,
+  sourceLanguage:inputIsChinese?'zh':'vi',
+  targetLanguage:inputIsChinese?'vi':'zh',
+  context,
   vocabularyItems:personal.items,
   vocabularyError:personal.error,
   cached: !result && !verificationUsage,
