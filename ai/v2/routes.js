@@ -15,6 +15,7 @@ const {resolveTranslationVocabulary}=require('../../web-vocabulary/resolver');
 const {toStudyVocabulary}=require('./vocabulary');
 const {analyzerBudget}=require('./analyzer-budget');
 const v2Cache=require('./cache');
+const {translationLanguageIssue}=require('../utils/translation-language');
 
 function createV2Router({translate=deepTranslate,env=process.env,cache=v2Cache,
   recordUsage=addUsage,resolveVocabulary=resolveTranslationVocabulary,
@@ -89,6 +90,7 @@ function createV2Router({translate=deepTranslate,env=process.env,cache=v2Cache,
         try{hit=await cache.getCached({owner,key});}
         catch(_){console.warn('[V2] cache read unavailable');}
       }
+      if(hit&&translationLanguageIssue(original,hit.value?.translation))hit=null;
       const trace=[];
       const translationCached=Boolean(hit);
       const translated=hit?hit.value:await translate({text:original,context,
