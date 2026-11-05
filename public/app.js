@@ -703,6 +703,7 @@ async function translate(forceRefresh=false) {
   window.renderV2Inspection?.(null);
   window.renderV2ClaudeTerms?.([]);
   renderV2AnalysisDetails();
+  renderTranslationDetailsSummary();
   pronunciation.textContent = '';
 vocabulary.textContent = '';
   window.renderTranslationVocabulary?.([], '', selectedLang);
@@ -786,13 +787,15 @@ const response = await fetch(translateEndpoint, {
     window.renderTranslationVocabulary?.(
       data.vocabularyItems,
       data.vocabularyError || '',
-      selectedLang
+      selectedLang,
+      selectedLang==='zh'
     );
   } else {
     window.renderTranslationVocabulary?.([], '', selectedLang);
   }
 }
 
+    if(translatorMode==='pro')renderTranslationDetailsSummary(data,'v1');
     window.renderTermHighlights?.(data.appliedTerms || []);
     window.displayAppliedTerms?.(data.appliedTerms || []);
     window.displayTermWarning?.(data.terminologyWarnings || []);
@@ -954,6 +957,29 @@ textInput.addEventListener('keydown', (event) => {
 
 translateBtn.addEventListener('click', translate);
 
+// Shared context/direction/model summary. Both engines use one detail UI.
+function renderTranslationDetailsSummary(data=null,engine='v1'){
+  const panel=document.getElementById('translationDetailsSummary');
+  if(!panel)return;
+  panel.hidden=!data;
+  if(!data)return;
+  const source=data.sourceLanguage||
+    (/[\u3400-\u9fff]/u.test(textInput.value)?'zh':'vi');
+  const target=data.targetLanguage||(source==='zh'?'vi':'zh');
+  const direction=source==='vi'&&target==='zh'?'Việt → Trung':
+    source==='zh'&&target==='vi'?'Trung → Việt':'Hai chiều';
+  const contexts={auto:'Tự động',friend:'Bạn bè',
+    colleague:'Đồng nghiệp',superior:'Cấp trên'};
+  const context=data.context||contextSelect.value;
+  const model=data.translationModel||translationModelSelect?.value||'';
+  document.getElementById('detailEngine').textContent=
+    'Phiên bản: '+(engine==='v2'?'V2':'V1');
+  document.getElementById('detailDirection').textContent='Chiều dịch: '+direction;
+  document.getElementById('detailContext').textContent=
+    'Ngữ cảnh: '+(contexts[context]||'Tự động');
+  document.getElementById('detailModel').textContent=
+    'AI dịch chính: '+(model||'Theo cấu hình máy chủ');
+}
 function renderV2AnalysisDetails(data=null){
   const box=document.getElementById('v2AnalysisDetails');
   if(!box)return;
@@ -1000,6 +1026,7 @@ async function translateV2(forceRefresh=false){
   window.renderV2Inspection?.(null);
   window.renderV2ClaudeTerms?.([]);
   renderV2AnalysisDetails();
+  renderTranslationDetailsSummary();
   window.renderTranslationVocabulary?.([], '', 'zh');
   try {
     const response = await fetch('/api/translate/v2', {
@@ -1030,7 +1057,10 @@ async function translateV2(forceRefresh=false){
     const cards=vocabularyToggle.checked&&Array.isArray(data.vocabularyItems)
       ? data.vocabularyItems:[];
     window.renderTranslationVocabulary?.(
-      cards,vocabularyToggle.checked?(data.vocabularyError||''):'','zh');
+      cards,vocabularyToggle.checked?(data.vocabularyError||''):'','zh',
+      vocabularyToggle.checked);
+    renderTranslationDetailsSummary(data,'v2');
+    renderV2AnalysisDetails(data);
     // The legacy V2-only suggestion/analysis panels remain hidden. V2 uses
     // the exact same vocabulary cards and detail sections as V1.
     const direction = data.sourceLanguage === 'vi' && data.targetLanguage === 'zh'
@@ -1484,7 +1514,11 @@ async function openHistoryDetail(item){
       (Array.isArray(payload.issues)?payload.issues.filter(x=>
         typeof x==='string'&&x.includes('Thuật ngữ')):[]));
     window.renderV2ClaudeTerms?.([]);
-    renderV2AnalysisDetails();
+    renderTranslationDetailsSummary(
+      historicalEngine==='free'?null:{
+        ...payload,context:detail?.context||contextSelect.value
+      },historicalEngine);
+    renderV2AnalysisDetails(historicalEngine==='v2'?payload:null);
     window.renderRequestUsage?.(payload.requestUsage||null,
       historicalEngine==='v2'?'v2':'v1');
     // Persisted transcript exists only if inspection was explicitly enabled.
