@@ -18,7 +18,8 @@ test('web PRO shows the GPT model picker and sends it in both translation modes'
   assert.match(ui,/translationModel:translationModelSelect\?\.value\|\|'gpt-4o-mini'/);
   assert.match(ui,/translationModelPicker\.hidden=/);
   assert.match(ui,/localStorage\.setItem\('translationModel'/);
-  assert.match(ui,/translationModelPreferenceVersion='mini-default-1'/);
+  assert.match(ui,/translatorModelPreferenceVersion='mini-default-1'/);
+  assert.match(ui,/localStorage\.setItem\('translationModelPreferenceVersion',translatorModelPreferenceVersion\)/);
   assert.match(ui,/translationModelSelect\.value/);
 });
 
