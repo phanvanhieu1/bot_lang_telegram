@@ -261,7 +261,7 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
   function verifiedIssues(candidate) {
     return [
       ...validateAppliedTerms(candidate,glossary).map(x=>'Thuật ngữ chưa được áp dụng: '+x),
-      ...(translationLanguageIssue(sourceText,candidate)?['Bản dịch sai ngôn ngữ đích: cần tiếng Việt, không phải tiếng Anh.']:[]),
+      ...(translationLanguageIssue(sourceText,candidate)?['Bản dịch sai ngôn ngữ đích: cần tiếng Việt, không phải tiếng Anh hoặc tiếng Trung.']:[]),
       ...missingProtected(sourceText,candidate).map(x=>'Có thể thiếu mã/số liệu: '+x),
       ...missingProtectedNameOccurrences(sourceText,candidate,protectedNames,glossary)
         .map(x=>'Thiếu tên riêng/nhãn cần giữ nguyên: '+x)
@@ -272,7 +272,7 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
     // One targeted correction only; never silently replace a confirmed
     // glossary meaning with an AI guess or loop until both models agree.
     try{
-      const repairSystem=translating+'\nRepair ONLY the verified issues in the user JSON. For targetLanguage vi, the translation must be Vietnamese, NOT English.';
+      const repairSystem=translating+'\nRepair ONLY the verified issues in the user JSON. For targetLanguage vi, the translation must be Vietnamese, NOT English or a Chinese paraphrase.';
       const repairInput=JSON.stringify({original:sourceText,current:translated.translation,
         errors:issues,protectedNames,
         includeBackTranslation:backTranslation&&direction.source==='vi',
