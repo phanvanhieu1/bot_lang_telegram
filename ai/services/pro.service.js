@@ -8,6 +8,7 @@ const {
 const {glossaryInstructions}=require('../terminology/resolver');
 const {optimizedProRequest}=require('../prompts/v1-optimized');
 const {v1ModelFor,V1_JSON_SCHEMA,parseV1Json}=require('../prompts/v1-output');
+const {translationLanguageIssue}=require('../utils/translation-language');
 
 // 3. CORE 1: Dịch thuật & Phân tích ảnh có FAILOVER (Chống sập)
 // Thêm tham số `history` vào hàm
@@ -56,19 +57,51 @@ async function translateFull(
   for (const openai of clients) {
     try {
       const startedAt=Date.now();
-      const response = await openai.chat.completions.create({
+      const callBody={
         model,messages,temperature:0.3,
         ...(optimized?{max_completion_tokens:request.maxCompletionTokens}:{}),
         ...(jsonMode?{response_format:{type:'json_schema',
           json_schema:{name:'v1_translation',strict:true,schema:V1_JSON_SCHEMA}}}:{})
-      });
-      const rawContent=response.choices?.[0]?.message?.content?.trim();
-      if (!rawContent) throw new Error('OpenAI returned an empty translation');
-      const content=jsonMode?parseV1Json(rawContent,{
+      };
+      let response=await openai.chat.completions.create(callBody);
+      let rawContent=response.choices?.[0]?.message?.content?.trim();
+      if(!rawContent)throw new Error('OpenAI returned an empty translation');
+      const parseContent=raw=>jsonMode?parseV1Json(raw,{
         supplement:Boolean(options.existingTranslation),
         backTranslation:!isFastMode&&options.backTranslation!==false,
         vocabulary:!isFastMode&&options.vocabulary!==false
-      }):rawContent;
+      }):raw;
+      let content=parseContent(rawContent);
+      const extractedTranslation=raw=>{
+        const match=String(raw||'').match(/(?:^|\\n)TRANSLATION:\\s*([\\s\\S]*?)(?=\\n(?:BACK_TRANSLATION|VOCABULARY|VERIFICATION):|$)/i);
+        return match?.[1]?.trim()||'';
+      };
+      let aggregateUsage={...response.usage};
+      if(!options.existingTranslation&&translationLanguageIssue(text,extractedTranslation(content))){
+        // One bounded retry; do not store or return clear English as Vietnamese.
+        const correction=[...messages,{role:'user',content:
+          'The previous output was in English. Translate the ORIGINAL Chinese text into Vietnamese ONLY. Preserve all codes, quantities, names and approved terminology. Keep the exact required output format.'}];
+        const corrected=await openai.chat.completions.create({...callBody,
+          messages:correction});
+        const correctedRaw=corrected.choices?.[0]?.message?.content?.trim();
+        if(!correctedRaw)throw new Error('V1_WRONG_TARGET_LANGUAGE');
+        const correctedText=parseContent(correctedRaw);
+        if(translationLanguageIssue(text,extractedTranslation(correctedText))){
+          const err=new Error('V1_WRONG_TARGET_LANGUAGE');err.code='V1_WRONG_TARGET_LANGUAGE';
+          throw err;
+        }
+        aggregateUsage={
+          prompt_tokens:(response.usage?.prompt_tokens||0)+(corrected.usage?.prompt_tokens||0),
+          completion_tokens:(response.usage?.completion_tokens||0)+(corrected.usage?.completion_tokens||0),
+          total_tokens:(response.usage?.total_tokens||0)+(corrected.usage?.total_tokens||0),
+          prompt_tokens_details:{cached_tokens:
+            (response.usage?.prompt_tokens_details?.cached_tokens||0)+
+            (corrected.usage?.prompt_tokens_details?.cached_tokens||0)}
+        };
+        response=corrected;
+        rawContent=correctedRaw;
+        content=correctedText;
+      }
       // Exact provider-visible messages and raw output, captured only after
       // an explicitly requested V1 inspection. Never log or persist the trace.
       if(typeof options.inspectStage==='function'&&!imageUrl){
@@ -78,13 +111,13 @@ async function translateFull(
           system:systemPrompt,
           input:JSON.stringify(messages.slice(1)),
           rawOutput:rawContent,ms:Date.now()-startedAt,
-          usage:{input:response.usage?.prompt_tokens||0,
-            output:response.usage?.completion_tokens||0,
-            ...(optimized||response.usage?.prompt_tokens_details?.cached_tokens
-              ?{cacheRead:response.usage?.prompt_tokens_details?.cached_tokens||0}:{})}
+          usage:{input:aggregateUsage?.prompt_tokens||0,
+            output:aggregateUsage?.completion_tokens||0,
+            ...(optimized||aggregateUsage?.prompt_tokens_details?.cached_tokens
+              ?{cacheRead:aggregateUsage?.prompt_tokens_details?.cached_tokens||0}:{})}
         });
       }
-      return returnUsage ? { content, usage: {...response.usage,
+      return returnUsage ? { content, usage: {...aggregateUsage,
         model:response.model||model} } : content;
     } catch (error) {
       lastError = error;
