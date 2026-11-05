@@ -13,9 +13,9 @@ const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 test('web PRO shows the GPT model picker and sends it in both translation modes',()=>{
   const html=read('public/index.html'),ui=read('public/app.js');
   assert.match(html,/id="translationModelSelect"/);
-  assert.match(html,/<option value="gpt-4o" selected>/);
-  assert.match(html,/<option value="gpt-4o-mini">/);
-  assert.match(ui,/translationModel:translationModelSelect\?\.value\|\|'gpt-4o'/);
+  assert.match(html,/<option value="gpt-4o">/);
+  assert.match(html,/<option value="gpt-4o-mini" selected>/);
+  assert.match(ui,/translationModel:translationModelSelect\?\.value\|\|'gpt-4o-mini'/);
   assert.match(ui,/translationModelPicker\.hidden=/);
   assert.match(ui,/localStorage\.setItem\('translationModel'/);
 });
@@ -31,6 +31,7 @@ test('manually selected V1/V2 models never share translation-result cache',()=>{
     keyForRequest({...base,translationModel:'gpt-4o-mini'}));
   assert.notEqual(keyForRequest({...base,translationModel:'gpt-4o'}),
     keyForRequest(base));
+  assert.match(read('ai/v2/cache.js'),/repair-model-gpt-4o-mini-v1/);
 });
 
 test('V1 passes user-selected GPT model into the primary provider without modifying prompt',async()=>{
@@ -75,7 +76,7 @@ test('V1 passes user-selected GPT model into the primary provider without modify
   }
 });
 
-test('V2 selection affects translator, never Claude or GPT Repair',async()=>{
+test('V2 selection affects translator and forces mini only for GPT Repair',async()=>{
   const seen=[];
   const providers={
     claude:async(system,input,meta)=>{
@@ -99,9 +100,26 @@ test('V2 selection affects translator, never Claude or GPT Repair',async()=>{
   assert.deepEqual(seen.map(x=>x.stage),['claude','openai','openai']);
   assert.equal(seen[0].meta.translationModel,undefined);
   assert.equal(seen[1].meta.translationModel,'gpt-4o-mini');
-  assert.equal(seen[2].meta.translationModel,undefined);
+  assert.equal(seen[2].meta.translationModel,'gpt-4o-mini');
   assert.deepEqual(result.usage.stages.filter(x=>x.role==='repair').map(x=>x.model),
-    ['gpt-4o']);
+    ['gpt-4o-mini']);
+  const fullModelStages=[];
+  const fullProviders={
+    ...providers,
+    openai:async(_system,_user,meta)=>{
+      const initial=fullModelStages.length===0;
+      fullModelStages.push(meta.translationModel);
+      return {text:JSON.stringify({
+        translation:initial?'API báo lỗi':'API trả về mã 500',
+        backTranslation:'',vocabulary:'',semanticReviewRequired:false,uncertainties:[]
+      }),model:meta.translationModel,usage:{input:40,output:20}};
+    }
+  };
+  const fullResult=await deepTranslate({text:'API 返回 500',context:'colleague',
+    backTranslation:false,vocabulary:false,translationModel:'gpt-4o',
+    loadGlossary:async()=>[]},fullProviders);
+  assert.equal(fullResult.status,'PASS');
+  assert.deepEqual(fullModelStages,['gpt-4o','gpt-4o-mini']);
   await assert.rejects(deepTranslate({text:'你好',translationModel:'not-allowed'},providers),
     {code:'V2_INVALID_TRANSLATION_MODEL'});
 });
