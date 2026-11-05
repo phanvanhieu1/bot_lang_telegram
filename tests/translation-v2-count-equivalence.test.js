@@ -36,7 +36,13 @@ test('reported V2 request passes with only the first GPT translation, no repair'
       domain:'daily',intent:'Request one additional colleague',
       tone:'neutral',facts:[],terms:[],patterns:[],ambiguities:[],entities:[]
     }),model:'mock-claude',usage:{input:10,output:5}}),
-    openai:async()=>{openaiCalls++;return {
+    openai:async(_system,user)=>{
+      const payload=JSON.parse(user);
+      assert.equal(payload.sourceLanguage,'vi');
+      assert.equal(payload.targetLanguage,'zh');
+      assert.equal(payload.includeBackTranslation,true);
+      assert.equal(payload.includeChineseVocabulary,true);
+      openaiCalls++;return {
       text:JSON.stringify({translation:translated,
         backTranslation:'Sắp xếp thêm một người làm cùng tôi được không? Tôi không thể làm một mình.',
         vocabulary:'',semanticReviewRequired:false,uncertainties:[]}),
@@ -44,7 +50,7 @@ test('reported V2 request passes with only the first GPT translation, no repair'
     };}
   };
   const result=await deepTranslate({text:source,context:'colleague',
-    vocabulary:false,backTranslation:true,loadGlossary:async()=>[]},providers);
+    vocabulary:true,backTranslation:true,loadGlossary:async()=>[]},providers);
   assert.equal(result.translation,translated);
   assert.equal(result.status,'PASS');
   assert.deepEqual(result.issues,[]);
