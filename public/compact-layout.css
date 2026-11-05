@@ -496,3 +496,13 @@ html[data-theme] #saveTranslationBtn:disabled{opacity:.5;cursor:wait}
 .translation-model-picker select:disabled{opacity:.6;cursor:wait}
 @media(max-width:520px){.translation-model-picker{gap:6px}.translation-model-picker>label{font-size:11px}
   .translation-model-picker select{min-width:106px;font-size:11px}}
+
+
+/* Identical contextual summary above V1/V2 study and inspection details. */
+.translation-detail-summary[hidden]{display:none!important}
+.translation-detail-summary{display:flex;align-items:center;flex-wrap:wrap;gap:6px 14px;
+  margin:8px 0 12px;padding:9px 11px;border-radius:10px;
+  background:var(--ui-subtle,#f7f8fa);font-size:12px;
+  color:var(--ui-text,#354052)}
+.translation-detail-summary span{white-space:normal}
+@media(max-width:520px){.translation-detail-summary{gap:4px 10px;font-size:11px}}
