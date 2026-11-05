@@ -15,7 +15,7 @@ const {
   destroySession
 } = require('./web-maintenance');
 const { translateEnglishFree, translateEnglishPro, evaluateEnglish } = require('./web-english');
-const {translationLanguageIssue}=require('./ai/utils/translation-language');
+const {translationLanguageIssue,backTranslationLanguageIssue}=require('./ai/utils/translation-language');
 const express = require('express');
 const path = require('path');
 const session = require('express-session');
@@ -937,6 +937,18 @@ const shouldBackTranslate =
 // Old cache may contain English although the selected target was Vietnamese.
 if(cachedData&&translationLanguageIssue(inputText,cachedData.translation))
   cachedData=null;
+// Older PRO cache rows may contain an English BACK_TRANSLATION from GPT mini.
+// Sanitize them without another model request; preserve the main translation.
+let backTranslationWarning=null;
+if(shouldBackTranslate&&cachedData?.backTranslation){
+  const issue=backTranslationLanguageIssue(inputText,cachedData.backTranslation);
+  if(issue){
+    backTranslationWarning=issue;
+    cachedData={...cachedData,backTranslation:''};
+    if(!appliedTerms.length)await persistProCache(inputText,targetLang,
+      fastMode,context,{backTranslation:''},translationModel);
+  }
+}
 
 const missing = {
   translation: !cachedData?.translation,
@@ -983,6 +995,13 @@ let finalCache = cachedData || {};
 
 if (result) {
   const newData = parseTranslationResult(result.content);
+  if(result.backTranslationWarning)
+    backTranslationWarning=result.backTranslationWarning;
+  // Defense in depth: do not persist or display an invalid back-translation.
+  if(shouldBackTranslate&&newData.backTranslation){
+    const issue=backTranslationLanguageIssue(inputText,newData.backTranslation);
+    if(issue){backTranslationWarning=issue;newData.backTranslation='';}
+  }
   // Previously cached translations contain legacy WORD-only vocabulary.
   // Upgrade only the lexical field, preserving the already cached translation.
   if (missing.vocabulary) newData.vocabularyVersion = 2;
@@ -1216,6 +1235,7 @@ const responseBody={
   cached: !result && !verificationUsage,
   usage,
   translationModel:translationModel||result?.usage?.model||null,
+  ...(backTranslationWarning?{backTranslationWarning}:{}),
   requestUsage:{...requestCostSummary,
     elapsedMs:Date.now()-requestStarted},
   ...inspectionFor(!result),
