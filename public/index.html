@@ -14,7 +14,7 @@
 <link href="/maintenance-ui.css" rel="stylesheet"/>
 <link href="/vocabulary-ui.css" rel="stylesheet"/>
 <link href="/translation-vocab.css" rel="stylesheet"/>
-<link href="/compact-layout.css?v=translator-model-1" rel="stylesheet"/></head>
+<link href="/compact-layout.css?v=translation-detail-parity-1" rel="stylesheet"/></head>
 <body>
 <main class="container">
 <header class="header gt-header">
@@ -313,6 +313,12 @@
 <p id="historyReplayNotice" class="history-replay-notice" role="status" hidden></p>
 <div class="details-heading"><span>Chi tiết bản dịch</span>
 <button id="termAddBtn" type="button" class="term-add-btn" title="Thêm thuật ngữ chuyên ngành">＋ Thuật ngữ</button></div>
+<div class="translation-detail-summary" id="translationDetailsSummary" hidden role="group" aria-label="Thông tin lượt dịch">
+  <span id="detailEngine"></span>
+  <span id="detailDirection"></span>
+  <span id="detailContext"></span>
+  <span id="detailModel"></span>
+</div>
 <section id="v2AnalysisDetails" class="v2-analysis-details" hidden aria-label="Ngữ cảnh và phân tích bản dịch V2">
   <div class="v2-analysis-heading"><strong>Phân tích V2</strong><span id="v2AnalysisDomain"></span></div>
   <p id="v2AnalysisIntent"></p>
@@ -525,11 +531,11 @@
 @media(max-width:520px){.practice-audio-settings{grid-template-columns:1fr}}
 </style>
 <script src="/language-ui.js"></script>
-<script src="/translation-vocab.js?v=history-replay-1"></script>
+<script src="/translation-vocab.js?v=translation-detail-parity-1"></script>
 <script src="/terminology.js"></script>
 <script src="/translation-usage.js?v=v2-v1-parity-1"></script>
 <script src="/v2-inspector.js?v=history-replay-1"></script>
-<script src="/app.js?v=translator-model-2"></script>
+<script src="/app.js?v=translation-detail-parity-1"></script>
 <script src="/google-style.js"></script>
 <script src="/practice-audio.js"></script>
 <script src="/image-translate.js"></script>
