@@ -795,7 +795,10 @@ const response = await fetch(translateEndpoint, {
   }
 }
 
-    if(translatorMode==='pro')renderTranslationDetailsSummary(data,'v1');
+    if(translatorMode==='pro'){
+      renderTranslationDetailsSummary(data,'v1');
+      renderV2AnalysisDetails(data,'v1');
+    }
     window.renderTermHighlights?.(data.appliedTerms || []);
     window.displayAppliedTerms?.(data.appliedTerms || []);
     window.displayTermWarning?.(data.terminologyWarnings || []);
@@ -980,24 +983,35 @@ function renderTranslationDetailsSummary(data=null,engine='v1'){
   document.getElementById('detailModel').textContent=
     'AI dịch chính: '+(model||'Theo cấu hình máy chủ');
 }
-function renderV2AnalysisDetails(data=null){
+function renderV2AnalysisDetails(data=null,engine='v2'){
   const box=document.getElementById('v2AnalysisDetails');
   if(!box)return;
   box.hidden=!data;
   if(!data)return;
+  const isV1=engine==='v1';
   const analysis=data.analysis||{};
   const domainNames={work:'Công việc',it:'IT',daily:'Đời sống',
     mixed:'Nhiều lĩnh vực',unknown:'Chưa xác định'};
-  document.getElementById('v2AnalysisDomain').textContent=
-    'Ngữ cảnh: '+(domainNames[analysis.resolvedDomain||analysis.domain]||'Chưa xác định');
-  document.getElementById('v2AnalysisIntent').textContent=
-    'Ý định: '+(analysis.intent||'Chưa có phân tích ngắn');
-  const notes=[...(Array.isArray(analysis.ambiguities)?analysis.ambiguities:[]),
-    ...(Array.isArray(data.translationNotes)?data.translationNotes:[])]
-    .filter(value=>typeof value==='string'&&value.trim()).slice(0,3);
+  const contextNames={auto:'Tự động',friend:'Bạn bè',
+    colleague:'Đồng nghiệp',superior:'Cấp trên'};
+  document.getElementById('translationAnalysisTitle').textContent=isV1
+    ?'Ngữ cảnh và thông tin V1':'Phân tích V2 · Claude';
+  document.getElementById('v2AnalysisDomain').textContent=isV1
+    ?'Ngữ cảnh đã chọn: '+(contextNames[data.context||contextSelect.value]||'Tự động')
+    :'Ngữ cảnh: '+(domainNames[analysis.resolvedDomain||analysis.domain]||'Chưa xác định');
+  // V1 must not present guesses as though Claude had analyzed the sentence.
+  document.getElementById('v2AnalysisIntent').textContent=isV1
+    ?'V1 dịch trực tiếp bằng GPT; không có bước phân tích ý định riêng.'
+    :'Ý định: '+(analysis.intent||'Chưa có phân tích ngắn');
+  const notes=isV1
+    ?(Array.isArray(data.terminologyWarnings)?data.terminologyWarnings:[])
+      .map(item=>'Thuật ngữ cần đối chiếu: '+String(item))
+    :[...(Array.isArray(analysis.ambiguities)?analysis.ambiguities:[]),
+      ...(Array.isArray(data.translationNotes)?data.translationNotes:[])];
+  const filtered=notes.filter(value=>typeof value==='string'&&value.trim()).slice(0,3);
   const note=document.getElementById('v2AnalysisNotes');
-  note.hidden=!notes.length;
-  note.textContent=notes.length?'Lưu ý: '+notes.join(' · '):'';
+  note.hidden=!filtered.length;
+  note.textContent=filtered.length?'Lưu ý: '+filtered.join(' · '):'';
 }
 
 // Run a fresh V2 request only after an explicit user click in the inspector.
@@ -1519,7 +1533,11 @@ async function openHistoryDetail(item){
       historicalEngine==='free'?null:{
         ...payload,context:detail?.context||contextSelect.value
       },historicalEngine);
-    renderV2AnalysisDetails(historicalEngine==='v2'?payload:null);
+    renderV2AnalysisDetails(
+      historicalEngine==='v2'||historicalEngine==='v1'
+        ?{...payload,context:detail?.context||contextSelect.value}:null,
+      historicalEngine==='v1'?'v1':'v2'
+    );
     window.renderRequestUsage?.(payload.requestUsage||null,
       historicalEngine==='v2'?'v2':'v1');
     // Persisted transcript exists only if inspection was explicitly enabled.
