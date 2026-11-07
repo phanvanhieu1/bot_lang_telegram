@@ -65,7 +65,9 @@ async function translateFull(
     try {
       const startedAt=Date.now();
       const callBody={
-        model,messages,temperature:0.3,
+        // Lower sampling variance for operational messages; semantic quality
+        // is still driven by the prompt and verified examples.
+        model,messages,temperature:0.1,
         ...(optimized?{max_completion_tokens:request.maxCompletionTokens}:{}),
         ...(jsonMode?{response_format:{type:'json_schema',
           json_schema:{name:'v1_translation',strict:true,schema:V1_JSON_SCHEMA}}}:{})
