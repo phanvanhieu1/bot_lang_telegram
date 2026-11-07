@@ -42,7 +42,7 @@ function keyForRequest({owner,text,context,signature,env=process.env,
   const {openaiModel,claudeModel,openaiEffort,claudeEffort,claudeThinking,
     tieredRouting,simpleOpenaiModel}=getV2ModelSettings(env);
   return digest([
-    'v2-cache-5-vi-backtranslation',String(owner),text.trim(),context,
+    'v2-cache-6-fidelity-vi-backtranslation',String(owner),text.trim(),context,
     direction.source,direction.target,ENGINE_VERSION,
     // Chinese source always has Claude analysis; Vietnamese source requests
     // optional Chinese learning content from GPT-4o in the SAME translation call.
