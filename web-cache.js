@@ -75,7 +75,7 @@ function proKey(text, lang, isFast, context = 'auto', translationModel = null,
   // This lets Telegram and old web requests reuse their existing entries.
   return hashKey([
     termScope?'pro-personal-terms-1':
-      translationModel?'pro-model-choice-2-vietnamese-backtranslation':
+      translationModel?'pro-model-choice-3-fidelity-vietnamese-backtranslation':
         lang==='zh'?'pro-context-3-names':'pro-context-2',
     String(text).trim(),
     String(lang),
