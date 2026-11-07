@@ -6,7 +6,7 @@ const {createProviders,safeError}=require('./providers');
 const {termHighlights,validateAppliedTerms,contextDomain}=require('../terminology/resolver');
 const {sanitizeClaudeTerms}=require('./vocabulary');
 const {analyzerBudget}=require('./analyzer-budget');
-const {translationLanguageIssue,backTranslationLanguageIssue}=require('../utils/translation-language');
+const {sourceLanguage,translationLanguageIssue,backTranslationLanguageIssue}=require('../utils/translation-language');
 const {sanitizeProperNames}=require('../prompts/proper-names');
 const {ANALYZER_SYSTEM,ANALYZER_JSON_SCHEMA,TRANSLATOR_SYSTEM}=
   require('./prompts-en');
@@ -31,8 +31,8 @@ function parseObject(raw) {
   return value;
 }
 function detectDirection(text) {
-  const chinese=/[\u3400-\u9fff]/u.test(text);
-  return {source:chinese?'zh':'vi',target:chinese?'vi':'zh'};
+  const source=sourceLanguage(text);
+  return {source,target:source==='zh'?'vi':'zh'};
 }
 // Extract whole protected tokens, not substrings: "500" must not match
 // "1500"; "50%" must not be accepted as "50". Keep duplicates so that
