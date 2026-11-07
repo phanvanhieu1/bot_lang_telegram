@@ -135,6 +135,10 @@ QUY TẮC DỊCH:
 - Không lặp lại nguyên văn toàn bộ đầu vào; riêng tên riêng/nhãn/mã phải được giữ đúng nguyên dạng.
 - ${NAME_PRESERVATION_RULES}
 - Bản dịch phải tự nhiên và đúng ngữ cảnh.
+- BẢO TOÀN CẤU TRÚC NGHĨA: Với từng mệnh đề, giữ đúng ai làm gì, với đối tượng nào, khi nào, theo điều kiện nào. Không chuyển câu hỏi thành yêu cầu, câu nhắc nhở thành báo cáo hoặc ngược lại.
+- Không đánh đồng thao tác nghiệp vụ: thu hộ (代收), chi hộ (代付), nạp tiền (充值), rút tiền (提现/取款), đặt cược (投注), duyệt/kiểm tra (审核) là những hành động khác nhau; xác định theo ngữ cảnh, không tự thay thuật ngữ đã được duyệt.
+- Giữ phạm vi phủ định và ngoại lệ (không/chỉ/trừ/ngoài), điều kiện, lượng từ, trạng thái đã/chưa/đang/chờ, quan hệ trước-sau; không thêm chủ thể hay quyết định chưa được nói đến.
+- Tin nhắn nhiều dòng/đánh số: giữ nguyên thứ tự, từng người được nhắc @, tên nền tảng và trách nhiệm của mỗi nhóm, không nhập các chỉ dẫn riêng thành một.
 
 ${contextInstruction}`;
 
@@ -205,7 +209,9 @@ Không thêm tiêu đề, giải thích hoặc nội dung khác.`;
   // Mini models must not infer English from API metadata or context.
   if(backTranslation && targetLangKey==='zh' &&
      sourceLanguage(text)==='vi') {
-    systemPrompt += `\n\nBẮT BUỘC: BACK_TRANSLATION phải là một câu TIẾNG VIỆT tự nhiên, dịch ngược từ chính câu TRANSLATION tiếng Trung vừa tạo. KHÔNG sử dụng tiếng Anh trong BACK_TRANSLATION, không sao chép nguyên văn đầu vào, không thêm giải thích.`;
+    systemPrompt += `
+
+BẮT BUỘC: BACK_TRANSLATION phải là một câu TIẾNG VIỆT tự nhiên, dịch ngược từ chính câu TRANSLATION tiếng Trung vừa tạo. KHÔNG sử dụng tiếng Anh trong BACK_TRANSLATION, không sao chép nguyên văn đầu vào, không thêm giải thích.`;
   }
   return systemPrompt;
 }
