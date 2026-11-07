@@ -29,7 +29,8 @@ test('Chinese internal brand inside Vietnamese source must not reverse language 
 test('back-translation rejects English clauses, accepts Vietnamese and embedded identifiers',()=>{
   for(const en of [
     englishBack,'Please check order.','Order processing is paused.',
-    'Can it be sent?','I need help.',
+    'Can it be sent?','I need help.','Please check',
+    'Order received','Please ask Hoàng to confirm the order',
     'Đơn này đã được ghi nhận. Please check the order again.'
   ])assert.ok(backTranslationLanguageIssue(mixed,en),en);
   for(const ok of [
