@@ -17,7 +17,7 @@ test('V1 GPT-4o translation exposes exact system, user messages, raw response, m
     chat:{completions:{create:async body=>{
       requests++;
       assert.equal(body.model,'gpt-4o');
-      assert.equal(body.temperature,0.3);
+      assert.equal(body.temperature,0.1);
       assert.match(body.messages[0].content,/PP/);
       assert.equal(body.messages.at(-1).content[0].text,'是不是澎湃的，教我一下');
       return {model:'gpt-4o',choices:[{message:{
