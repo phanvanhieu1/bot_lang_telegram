@@ -107,6 +107,6 @@ test('cache guards and prompts protect the reverse-translation language',()=>{
   assert.match(TRANSLATOR_SYSTEM,/NEVER write backTranslation in English/);
   assert.match(server,/backTranslationLanguageIssue\(inputText,cachedData\.backTranslation\)/);
   assert.match(v2,/backTranslationLanguageIssue\(original,translated\.backTranslation\)/);
-  assert.match(read('web-cache.js'),/pro-model-choice-2-vietnamese-backtranslation/);
-  assert.match(read('ai\/v2\/cache.js'),/v2-cache-5-vi-backtranslation/);
+  assert.match(read('web-cache.js'),/pro-model-choice-3-fidelity-vietnamese-backtranslation/);
+  assert.match(read('ai\/v2\/cache.js'),/v2-cache-6-fidelity-vi-backtranslation/);
 });
