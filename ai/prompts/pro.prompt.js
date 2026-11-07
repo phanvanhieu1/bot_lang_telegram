@@ -205,8 +205,15 @@ Chỉ đưa các dòng có nội dung thật; không ghi tiêu đề nhóm hoặ
 Chỉ trả về đúng các trường ở trên.
 Không thêm tiêu đề, giải thích hoặc nội dung khác.`;
 }
-  // Restate the output-language constraint close to the end of the prompt.
-  // Mini models must not infer English from API metadata or context.
+  // State the ACTUAL translation direction after all contextual instructions.
+  // A Vietnamese sentence can contain a Han-script name without becoming Chinese.
+  if(targetLangKey==='zh'&&!isSupplement){
+    const source=sourceLanguage(text);
+    systemPrompt += source==='vi'
+      ? '\n\nNGÔN NGỮ ĐÍCH BẮT BUỘC: TRANSLATION là TIẾNG TRUNG GIẢN THỂ. Phần văn bản tiếng Việt bao quanh tên riêng chữ Hán phải được dịch; chỉ giữ nguyên tên/nhãn chưa có ánh xạ được xác nhận.'
+      : '\n\nNGÔN NGỮ ĐÍCH BẮT BUỘC: TRANSLATION là TIẾNG VIỆT. Không tạo bản diễn giải bằng tiếng Trung hoặc tiếng Anh; chỉ giữ nguyên tên/nhãn được bảo vệ.';
+  }
+  // Restate the reverse output-language constraint near the end.
   if(backTranslation && targetLangKey==='zh' &&
      sourceLanguage(text)==='vi') {
     systemPrompt += `
