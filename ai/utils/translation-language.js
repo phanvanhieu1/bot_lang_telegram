@@ -35,12 +35,19 @@ function clearEnglishInsteadOfVietnamese(value){
   // brief technical labels do not by themselves count as a wrong language.
   const clauses=candidate.split(/[\n.!?;]+/u).map(x=>x.trim()).filter(Boolean);
   for(const clause of clauses){
-    if(VI_ACCENTS.test(clause))continue;
     const words=clause.toLowerCase().match(/[a-z]+(?:'[a-z]+)?/g)||[];
+    if(words.length<2)continue;
+    // Recognize unmistakable two-word English commands/statuses, but keep
+    // ambiguous product labels and identifiers (e.g. "PP order") untouched.
+    if(words.length===2&&/^(?:please\s+(?:check|confirm|send|wait|review)|(?:order|payment|withdrawal|request)\s+(?:sent|received|approved|rejected|completed|processed))$/iu.test(clause))
+      return true;
     if(words.length<3)continue;
     const en=words.filter(w=>EN.has(w)||EN_EXTRA.has(w)).length;
     const vi=words.filter(w=>VI.has(w)).length;
     const grammar=EN_SYNTAX.test(clause)||englishPhrases.test(clause);
+    // An English sentence can contain an accented Vietnamese person's name.
+    // Do not let one proper name defeat detection of an English clause.
+    if(VI_ACCENTS.test(clause)&&(vi>=2||en<3))continue;
     if(grammar&&en>=2&&en>vi*2&&en/words.length>=0.20)return true;
     if(words.length>=5&&en>=3&&vi===0&&en/words.length>=0.48)return true;
     if(words.length>=9&&en>=5&&vi<=1&&en/words.length>=0.43)return true;
