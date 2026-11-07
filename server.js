@@ -15,7 +15,7 @@ const {
   destroySession
 } = require('./web-maintenance');
 const { translateEnglishFree, translateEnglishPro, evaluateEnglish } = require('./web-english');
-const {translationLanguageIssue,backTranslationLanguageIssue}=require('./ai/utils/translation-language');
+const {sourceLanguage,translationLanguageIssue,backTranslationLanguageIssue}=require('./ai/utils/translation-language');
 const express = require('express');
 const path = require('path');
 const session = require('express-session');
@@ -919,7 +919,7 @@ app.post('/api/translate',requirePro, async (req, res) => {
     }
 
     const inputText = text.trim();
-const inputIsChinese = containsChinese(inputText);
+const inputIsChinese = sourceLanguage(inputText)==='zh';
 const appliedTerms=await lookupUserTerms(req.user._id,inputText,{
   context,sourceLang:inputIsChinese?'zh':'vi',targetLang:inputIsChinese?'vi':'zh',
   v1AutoCandidates:true
