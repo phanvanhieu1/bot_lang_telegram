@@ -3,6 +3,7 @@
 // Static English instructions are isolated from all per-request user data.
 const {glossaryInstructions}=require('../terminology/resolver');
 const {normalizeContext}=require('./context-policy');
+const {sourceLanguage}=require('../utils/translation-language');
 
 const PRO_SYSTEM=[
   'Role: professional Vietnamese/Chinese translator and Chinese-learning assistant.',
@@ -48,8 +49,8 @@ const FREE_SYSTEM=[
 ].join('\n');
 
 function directionFor(text){
-  const sourceLanguage=/\p{Script=Han}/u.test(String(text||''))?'zh':'vi';
-  return {sourceLanguage,targetLanguage:sourceLanguage==='zh'?'vi':'zh'};
+  const source=sourceLanguage(text);
+  return {sourceLanguage:source,targetLanguage:source==='zh'?'vi':'zh'};
 }
 function optimizedProRequest(text,targetLangKey,isFastMode,options={}){
   const isSupplement=Boolean(options.existingTranslation);
