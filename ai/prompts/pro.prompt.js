@@ -1,6 +1,7 @@
 const { LANG_CONFIG } = require('../../config');
 const {contextPolicy}=require('./context-policy');
 const {NAME_PRESERVATION_RULES}=require('./proper-names');
+const {sourceLanguage}=require('../utils/translation-language');
 
 function buildProPrompt(
   text,
@@ -203,7 +204,7 @@ Không thêm tiêu đề, giải thích hoặc nội dung khác.`;
   // Restate the output-language constraint close to the end of the prompt.
   // Mini models must not infer English from API metadata or context.
   if(backTranslation && targetLangKey==='zh' &&
-     !/\p{Script=Han}/u.test(String(text||''))) {
+     sourceLanguage(text)==='vi') {
     systemPrompt += `\n\nBẮT BUỘC: BACK_TRANSLATION phải là một câu TIẾNG VIỆT tự nhiên, dịch ngược từ chính câu TRANSLATION tiếng Trung vừa tạo. KHÔNG sử dụng tiếng Anh trong BACK_TRANSLATION, không sao chép nguyên văn đầu vào, không thêm giải thích.`;
   }
   return systemPrompt;
