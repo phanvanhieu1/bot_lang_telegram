@@ -24,7 +24,7 @@ function sourceLanguage(source){
     return 'vi';
   return 'zh';
 }
-const EN_SYNTAX=/\b(?:the\s+\w+|of\s+the|has\s+been|have\s+been|had\s+been|is\s+(?:not|being|already)|are\s+(?:not|being)|was\s+(?:not|already)|were\s+not|can\s+(?:you|we|it|they)|could\s+you|would\s+you|please\s+\w+|should\s+\w+|must\s+\w+|do\s+not|does\s+not|did\s+not|doesn't|don't|won't|i\s+(?:am|have|need|want|cannot)|we\s+(?:are|have|need|want)|you\s+(?:are|have|need|can)|this\s+\w+|these\s+\w+)\b/iu;
+const EN_SYNTAX=/\b(?:the\s+\w+|of\s+the|has\s+been|have\s+been|had\s+been|is\s+(?:not|being|already|[a-z]+(?:ed|ing)\b)|are\s+(?:not|being)|was\s+(?:not|already)|were\s+not|can\s+(?:you|we|it|they)|could\s+you|would\s+you|please\s+\w+|should\s+\w+|must\s+\w+|need\s+to|will\s+\w+|do\s+not|does\s+not|did\s+not|doesn't|don't|won't|i\s+(?:am|have|need|want|cannot)|we\s+(?:are|have|need|want)|you\s+(?:are|have|need|can)|this\s+\w+|these\s+\w+)\b/iu;
 const EN_EXTRA=new Set(('i me my mine he she his her they their ours we us your yours have has had need needs needed want wants wanted cannot unable never before after here there already still yet only also sent send sending received receive getting getting processed process withdraw withdrawal order orders platform account accounts colleague colleagues asked ask waiting pending please today tomorrow yesterday hours minutes checked checking requested request allow allowed work working finished done').split(' '));
 function clearEnglishInsteadOfVietnamese(value){
   const text=String(value||'').trim();
@@ -37,11 +37,12 @@ function clearEnglishInsteadOfVietnamese(value){
   for(const clause of clauses){
     if(VI_ACCENTS.test(clause))continue;
     const words=clause.toLowerCase().match(/[a-z]+(?:'[a-z]+)?/g)||[];
-    if(words.length<4)continue;
+    if(words.length<3)continue;
     const en=words.filter(w=>EN.has(w)||EN_EXTRA.has(w)).length;
     const vi=words.filter(w=>VI.has(w)).length;
     const grammar=EN_SYNTAX.test(clause)||englishPhrases.test(clause);
     if(grammar&&en>=2&&en>vi*2&&en/words.length>=0.20)return true;
+    if(words.length>=5&&en>=3&&vi===0&&en/words.length>=0.48)return true;
     if(words.length>=9&&en>=5&&vi<=1&&en/words.length>=0.43)return true;
   }
   return false;
