@@ -1,4 +1,3 @@
-
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema(
@@ -40,6 +39,8 @@ const userSchema = new mongoose.Schema(
       enum: ['user', 'pro', 'admin'],
       default: 'user'
     },
+
+    hybridContextEnabled: { type: Boolean, default: false },
 
     isActive: {
       type: Boolean,

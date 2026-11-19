@@ -1,8 +1,6 @@
-const {translationLanguageIssue}=require('./translation-language');
+const { translationLanguageIssue } = require('./translation-language');
 
-const {
-  containsChinese
-} = require('../prompts/free.prompt');
+const { containsChinese } = require('../prompts/free.prompt');
 
 function createInvalidOutputError(message) {
   const error = new Error(message);
@@ -12,13 +10,11 @@ function createInvalidOutputError(message) {
 
 function validateFreeTranslation(
   originalText,
-  parsed
+  parsed,
+  inputIsChinese = containsChinese(originalText)
 ) {
-  const inputIsChinese =
-    containsChinese(originalText);
-
   if (inputIsChinese) {
-    if(translationLanguageIssue(originalText,parsed.translation)){
+    if (translationLanguageIssue(originalText, parsed.translation)) {
       throw createInvalidOutputError('Expected Vietnamese, received English');
     }
     // Trung → Việt: kết quả không được chứa chữ Hán

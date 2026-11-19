@@ -1,4 +1,3 @@
-
 const express = require('express');
 const mongoose = require('mongoose');
 const { findOrCreateGoogleUser } = require('../users/user.service');
@@ -7,10 +6,7 @@ const {
   freeMaintenanceEnabled,
   destroySession
 } = require('../../web-maintenance');
-const {
-  getGoogleAuthUrl,
-  verifyGoogleCallback
-} = require('./google.oauth');
+const { getGoogleAuthUrl, verifyGoogleCallback } = require('./google.oauth');
 
 const router = express.Router();
 
@@ -44,10 +40,7 @@ router.get('/google/callback', async (req, res) => {
     );
 
     // 1. Xác minh danh tính với Google
-    const googleUser = await verifyGoogleCallback(
-      currentUrl,
-      req.session
-    );
+    const googleUser = await verifyGoogleCallback(currentUrl, req.session);
 
     // 2. Kiểm tra kết nối MongoDB
     if (mongoose.connection.readyState !== 1) {
@@ -59,7 +52,7 @@ router.get('/google/callback', async (req, res) => {
 
     // During maintenance, Google OAuth still works for existing PRO/admin
     // accounts, but a FREE user must never receive an authenticated session.
-    if (effectiveRole(user) === 'user' && await freeMaintenanceEnabled()) {
+    if (effectiveRole(user) === 'user' && (await freeMaintenanceEnabled())) {
       await destroySession(req, res);
       return res.redirect('/login?error=maintenance');
     }
@@ -95,16 +88,13 @@ router.get('/google/callback', async (req, res) => {
     }
 
     if (error.message === 'EMAIL_ALREADY_LINKED') {
-      return res.status(409).send(
-        'Email đã liên kết với một phương thức đăng nhập khác'
-      );
+      return res
+        .status(409)
+        .send('Email đã liên kết với một phương thức đăng nhập khác');
     }
 
-    return res.status(500).send(
-      'Đăng nhập Google thất bại'
-    );
+    return res.status(500).send('Đăng nhập Google thất bại');
   }
 });
-
 
 module.exports = router;

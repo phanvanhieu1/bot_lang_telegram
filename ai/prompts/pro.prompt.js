@@ -1,14 +1,9 @@
 const { LANG_CONFIG } = require('../../config');
-const {contextPolicy}=require('./context-policy');
-const {NAME_PRESERVATION_RULES}=require('./proper-names');
-const {sourceLanguage}=require('../utils/translation-language');
+const { contextPolicy } = require('./context-policy');
+const { NAME_PRESERVATION_RULES } = require('./proper-names');
+const { sourceLanguage } = require('../utils/translation-language');
 
-function buildProPrompt(
-  text,
-  targetLangKey,
-  isFastMode,
-  options = {}
-) {
+function buildProPrompt(text, targetLangKey, isFastMode, options = {}) {
   const {
     backTranslation = true,
     vocabulary = true,
@@ -17,14 +12,14 @@ function buildProPrompt(
     telegramMode = false
   } = options;
 
-const isSupplement = Boolean(existingTranslation);
-// The same manually-selected or automatic context contract is used by V2.
-const contextInstruction=contextPolicy(context);
-const lang = LANG_CONFIG[targetLangKey];
-let systemPrompt;
+  const isSupplement = Boolean(existingTranslation);
+  // The same manually-selected or automatic context contract is used by V2.
+  const contextInstruction = contextPolicy(context);
+  const lang = LANG_CONFIG[targetLangKey];
+  let systemPrompt;
 
-if (isSupplement) {
-  systemPrompt = `Bạn đang bổ sung dữ liệu cho một bản dịch đã có.
+  if (isSupplement) {
+    systemPrompt = `Bạn đang bổ sung dữ liệu cho một bản dịch đã có.
 
 NGUYÊN VĂN:
 ${text}
@@ -37,17 +32,17 @@ ${NAME_PRESERVATION_RULES}
 
 ${contextInstruction}`;
 
-  if (backTranslation) {
-    if (telegramMode) {
-      systemPrompt += `
+    if (backTranslation) {
+      if (telegramMode) {
+        systemPrompt += `
 
 QUY TẮC DỊCH NGƯỢC CHO TELEGRAM:
 - Dịch ngược chính BẢN DỊCH ĐÃ CÓ sang ngôn ngữ của NGUYÊN VĂN.
 - Nếu BẢN DỊCH ĐÃ CÓ là tiếng Trung, BACK_TRANSLATION phải là tiếng Việt.
 - Nếu BẢN DỊCH ĐÃ CÓ là tiếng Việt, BACK_TRANSLATION phải là tiếng Trung.
 - Không dịch lại phần TRANSLATION, không thêm Pinyin, giải thích, từ vựng.`;
-    } else {
-      systemPrompt += `
+      } else {
+        systemPrompt += `
 
 QUY TẮC DỊCH NGƯỢC:
 - Chỉ tạo BACK_TRANSLATION khi NGUYÊN VĂN là tiếng Việt và BẢN DỊCH ĐÃ CÓ là tiếng Trung.
@@ -55,11 +50,11 @@ QUY TẮC DỊCH NGƯỢC:
 - Phải dựa vào câu tiếng Trung trong BẢN DỊCH ĐÃ CÓ, không được dùng NGUYÊN VĂN tiếng Việt để tạo kết quả.
 - Nếu NGUYÊN VĂN không phải tiếng Việt hoặc BẢN DỊCH ĐÃ CÓ không phải tiếng Trung, để BACK_TRANSLATION trống.
 - BACK_TRANSLATION chỉ chứa tiếng Việt, không chứa Pinyin, từ vựng hoặc giải thích.`;
+      }
     }
-  }
 
-  if (vocabulary) {
-    systemPrompt += `
+    if (vocabulary) {
+      systemPrompt += `
 
 Phân tích nội dung tiếng Trung thành ba nhóm học tập:
 - [WORD]: từ đơn hoặc từ ghép có ý nghĩa; tối đa 8 mục.
@@ -71,34 +66,32 @@ Phân tích nội dung tiếng Trung thành ba nhóm học tập:
 - Tuyệt đối không liệt kê từ/cụm không có trong câu hoặc mẫu câu không áp dụng cho câu.
 - Không tạo tên riêng, mã định danh hay mẫu giả. Không Pinyin.
 - Không giải thích ngoài định dạng.`;
-  }
+    }
 
-  systemPrompt += `
+    systemPrompt += `
 
 ĐỊNH DẠNG TRẢ VỀ:`;
 
-  if (backTranslation) {
-    systemPrompt += `
+    if (backTranslation) {
+      systemPrompt += `
 BACK_TRANSLATION: [Bản dịch ngược]`;
-  }
+    }
 
-  if (vocabulary) {
-    systemPrompt += `
+    if (vocabulary) {
+      systemPrompt += `
 VOCABULARY:
 - [WORD] 中文词 : nghĩa tiếng Việt
 - [PHRASE] 中文短语 : nghĩa tiếng Việt
 - [PATTERN] A + 结构 + B : giải thích mẫu câu bằng tiếng Việt
 Chỉ đưa các dòng có nội dung thật; không ghi tiêu đề nhóm hoặc Pinyin.`;
-  }
+    }
 
-  systemPrompt += `
+    systemPrompt += `
 
 Chỉ trả về các trường được yêu cầu.
 Không trả lại TRANSLATION và không giải thích.`;
-
-
-} else if (isFastMode) {
-  systemPrompt = `Bạn là công cụ dịch Việt - ${lang.promptName}.
+  } else if (isFastMode) {
+    systemPrompt = `Bạn là công cụ dịch Việt - ${lang.promptName}.
 
 Hãy tự động nhận diện ngôn ngữ của văn bản đầu vào:
 - Nếu đầu vào là tiếng Việt → BẮT BUỘC dịch sang ${lang.promptName}.
@@ -114,9 +107,8 @@ ${contextInstruction}
 TRANSLATION: nội dung bản dịch
 
 Chỉ trả về trường TRANSLATION ở trên.`;
-
-} else {
-  systemPrompt = `Bạn là chuyên gia ngôn ngữ và dịch thuật.
+  } else {
+    systemPrompt = `Bạn là chuyên gia ngôn ngữ và dịch thuật.
 
 NGÔN NGỮ:
 - Ngôn ngữ người học: Tiếng Việt
@@ -142,9 +134,9 @@ QUY TẮC DỊCH:
 
 ${contextInstruction}`;
 
-  if (backTranslation) {
-    if (telegramMode) {
-      systemPrompt += `
+    if (backTranslation) {
+      if (telegramMode) {
+        systemPrompt += `
 
 DỊCH NGƯỢC CHO TELEGRAM:
 - Luôn tạo BACK_TRANSLATION bằng cách dịch NGƯỢC chính nội dung TRANSLATION về ngôn ngữ của câu đầu vào.
@@ -152,8 +144,8 @@ DỊCH NGƯỢC CHO TELEGRAM:
 - Nếu đầu vào là tiếng Trung: TRANSLATION bằng tiếng Việt, BACK_TRANSLATION bằng tiếng Trung.
 - Không chép lại TRANSLATION hoặc trộn Pinyin vào BACK_TRANSLATION.
 - BACK_TRANSLATION chỉ chứa câu được dịch ngược, không kèm chú thích.`;
-    } else {
-      systemPrompt += `
+      } else {
+        systemPrompt += `
 
 QUY TẮC DỊCH NGƯỢC:
 - Chỉ khi đầu vào là tiếng Việt VÀ ngôn ngữ đang học là tiếng Trung:
@@ -163,11 +155,11 @@ QUY TẮC DỊCH NGƯỢC:
 - BACK_TRANSLATION chỉ được chứa bản dịch tiếng Việt.
 - Không chứa phiên âm, từ vựng hoặc giải thích.
 - Các trường hợp khác, BACK_TRANSLATION để trống.`;
+      }
     }
-  }
 
-  if (vocabulary) {
-    systemPrompt += `
+    if (vocabulary) {
+      systemPrompt += `
 
 QUY TẮC TỪ VỰNG, CỤM TỪ VÀ MẪU CÂU:
 - Chỉ phân tích nội dung tiếng Trung (nguyên văn nếu là tiếng Trung, ngược lại là bản dịch).
@@ -178,44 +170,48 @@ QUY TẮC TỪ VỰNG, CỤM TỪ VÀ MẪU CÂU:
 - Chỉ chọn những mục thật sự xuất hiện hoặc mẫu cấu trúc thật sự được sử dụng.
 - Không liệt kê toàn bộ câu dài thành một cụm từ, không sáng tạo thêm cấu trúc.
 - Không ghi Pinyin, chủ đề công việc/đời sống hay đánh giá tần suất; những phần đó do website xử lý.`;
-  }
+    }
 
-  // Format output luôn đặt CUỐI prompt
-  systemPrompt += `
+    // Format output luôn đặt CUỐI prompt
+    systemPrompt += `
 
 ĐỊNH DẠNG TRẢ VỀ BẮT BUỘC:
 TRANSLATION: nội dung bản dịch`;
 
-  if (backTranslation) {
-    systemPrompt += `
+    if (backTranslation) {
+      systemPrompt += `
 BACK_TRANSLATION: [Bản dịch ngược]`;
-  }
+    }
 
-  if (vocabulary) {
-    systemPrompt += `
+    if (vocabulary) {
+      systemPrompt += `
 VOCABULARY:
 - [WORD] 中文词 : nghĩa tiếng Việt
 - [PHRASE] 中文短语 : nghĩa tiếng Việt
 - [PATTERN] A + 结构 + B : giải thích mẫu câu bằng tiếng Việt
 Chỉ đưa các dòng có nội dung thật; không ghi tiêu đề nhóm hoặc Pinyin.`;
-  }
+    }
 
-  systemPrompt += `
+    systemPrompt += `
 
 Chỉ trả về đúng các trường ở trên.
 Không thêm tiêu đề, giải thích hoặc nội dung khác.`;
-}
+  }
   // State the ACTUAL translation direction after all contextual instructions.
   // A Vietnamese sentence can contain a Han-script name without becoming Chinese.
-  if(targetLangKey==='zh'&&!isSupplement){
-    const source=sourceLanguage(text);
-    systemPrompt += source==='vi'
-      ? '\n\nNGÔN NGỮ ĐÍCH BẮT BUỘC: TRANSLATION là TIẾNG TRUNG GIẢN THỂ. Phần văn bản tiếng Việt bao quanh tên riêng chữ Hán phải được dịch; chỉ giữ nguyên tên/nhãn chưa có ánh xạ được xác nhận.'
-      : '\n\nNGÔN NGỮ ĐÍCH BẮT BUỘC: TRANSLATION là TIẾNG VIỆT. Không tạo bản diễn giải bằng tiếng Trung hoặc tiếng Anh; chỉ giữ nguyên tên/nhãn được bảo vệ.';
+  if (targetLangKey === 'zh' && !isSupplement) {
+    const source = sourceLanguage(options.directionText ?? text);
+    systemPrompt +=
+      source === 'vi'
+        ? '\n\nNGÔN NGỮ ĐÍCH BẮT BUỘC: TRANSLATION là TIẾNG TRUNG GIẢN THỂ. Phần văn bản tiếng Việt bao quanh tên riêng chữ Hán phải được dịch; chỉ giữ nguyên tên/nhãn chưa có ánh xạ được xác nhận.'
+        : '\n\nNGÔN NGỮ ĐÍCH BẮT BUỘC: TRANSLATION là TIẾNG VIỆT. Không tạo bản diễn giải bằng tiếng Trung hoặc tiếng Anh; chỉ giữ nguyên tên/nhãn được bảo vệ.';
   }
   // Restate the reverse output-language constraint near the end.
-  if(backTranslation && targetLangKey==='zh' &&
-     sourceLanguage(text)==='vi') {
+  if (
+    backTranslation &&
+    targetLangKey === 'zh' &&
+    sourceLanguage(options.directionText ?? text) === 'vi'
+  ) {
     systemPrompt += `
 
 BẮT BUỘC: BACK_TRANSLATION phải là một câu TIẾNG VIỆT tự nhiên, dịch ngược từ chính câu TRANSLATION tiếng Trung vừa tạo. KHÔNG sử dụng tiếng Anh trong BACK_TRANSLATION, không sao chép nguyên văn đầu vào, không thêm giải thích.`;

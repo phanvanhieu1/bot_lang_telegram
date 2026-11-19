@@ -39,19 +39,28 @@ function main() {
   const { bot, launchTelegramBot } = require('./bot');
   process.once('SIGINT', () => bot.stop('SIGINT'));
   process.once('SIGTERM', () => bot.stop('SIGTERM'));
-  console.log('🧪 Telegram TEST mode: lưu dữ liệu riêng trong .telegram-test-data/');
-  if (!process.env.MONGODB_URI) console.warn('⚠️ TEST chưa có TELEGRAM_TEST_MONGODB_URI. Đồng bộ MongoDB tạm tắt.');
+  console.log(
+    '🧪 Telegram TEST mode: lưu dữ liệu riêng trong .telegram-test-data/'
+  );
+  if (!process.env.MONGODB_URI)
+    console.warn(
+      '⚠️ TEST chưa có TELEGRAM_TEST_MONGODB_URI. Đồng bộ MongoDB tạm tắt.'
+    );
   if (!config.openAIKeys) {
-    console.log('🧪 Chưa cấu hình AI key test: có thể kiểm tra menu; chức năng dịch cần key riêng.');
+    console.log(
+      '🧪 Chưa cấu hình AI key test: có thể kiểm tra menu; chức năng dịch cần key riêng.'
+    );
   }
   if (!config.elevenLabsKey) {
-    console.log('🧪 Chưa cấu hình ElevenLabs test: giọng đọc chưa thể hoạt động.');
+    console.log(
+      '🧪 Chưa cấu hình ElevenLabs test: giọng đọc chưa thể hoạt động.'
+    );
   }
   return launchTelegramBot();
 }
 
 if (require.main === module) {
-  main().catch(error => {
+  main().catch((error) => {
     // Never print bot tokens or secret values in error messages.
     console.error('Không thể khởi chạy test bot:', error.message);
     process.exitCode = 1;

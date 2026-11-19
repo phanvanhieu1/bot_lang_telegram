@@ -17,9 +17,12 @@ function splitLongText(value, limit = MAX_MESSAGE_CHARS) {
     }
     let end = limit;
     const char = remaining.charCodeAt(end - 1);
-    if (end < remaining.length && char >= 0xD800 && char <= 0xDBFF) end--;
+    if (end < remaining.length && char >= 0xd800 && char <= 0xdbff) end--;
     const search = remaining.slice(Math.floor(end * 0.6), end);
-    const spaceAt = Math.max(search.lastIndexOf(' '), search.lastIndexOf(String.fromCharCode(10)));
+    const spaceAt = Math.max(
+      search.lastIndexOf(' '),
+      search.lastIndexOf(String.fromCharCode(10))
+    );
     if (spaceAt >= 0) end = Math.floor(end * 0.6) + spaceAt + 1;
     const piece = remaining.slice(0, end);
     chunks.push(piece);

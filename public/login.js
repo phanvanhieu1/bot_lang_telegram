@@ -5,7 +5,7 @@ const loginBtn = document.getElementById('loginBtn');
 const loginError = document.getElementById('loginError');
 
 loginForm.addEventListener('submit', async (event) => {
-    console.log('LOGIN SUBMIT');
+  console.log('LOGIN SUBMIT');
   event.preventDefault();
 
   loginError.textContent = '';
@@ -29,13 +29,10 @@ loginForm.addEventListener('submit', async (event) => {
     const data = await response.json();
 
     if (!response.ok || !data.success) {
-      throw new Error(
-        data.message || 'Đăng nhập thất bại'
-      );
+      throw new Error(data.message || 'Đăng nhập thất bại');
     }
 
     window.location.href = '/';
-
   } catch (error) {
     loginError.textContent = error.message;
   } finally {

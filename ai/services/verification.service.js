@@ -1,5 +1,8 @@
+const { preprocess } = require('../pipeline/preprocess');
+const { maskExisting } = require('../pipeline/restore');
 const {
-  getRandomOpenAIClient
+  getRandomOpenAIClient,
+  requestChatCompletion
 } = require('../providers/openai.provider');
 
 async function verifyTranslation(
@@ -8,6 +11,14 @@ async function verifyTranslation(
   context = 'auto',
   inspection = null
 ) {
+  const prepared = preprocess(original);
+  const source = prepared.input;
+  let translated = translation;
+  try {
+    translated = maskExisting(translation, prepared);
+  } catch {
+    translated = preprocess(translation).input;
+  }
   const client = getRandomOpenAIClient();
 
   const contextNames = {
@@ -17,8 +28,7 @@ async function verifyTranslation(
     superior: 'Cấp trên'
   };
 
-  const contextName =
-    contextNames[context] || contextNames.auto;
+  const contextName = contextNames[context] || contextNames.auto;
 
   const prompt = `
 Bạn là chuyên gia kiểm định chất lượng bản dịch.
@@ -26,10 +36,10 @@ Bạn là chuyên gia kiểm định chất lượng bản dịch.
 Nhiệm vụ của bạn là KIỂM TRA bản dịch, KHÔNG dịch lại và KHÔNG đề xuất một bản dịch khác chỉ vì khác phong cách.
 
 NGUYÊN VĂN:
-${original}
+${source}
 
 BẢN DỊCH:
-${translation}
+${translated}
 
 NGỮ CẢNH GIAO TIẾP:
 ${contextName}
@@ -71,8 +81,8 @@ Chỉ trả về JSON hợp lệ theo đúng cấu trúc sau, không dùng Markd
 }
 `;
 
-  const startedAt=Date.now();
-  const response = await client.chat.completions.create({
+  const startedAt = Date.now();
+  const body = {
     model: 'gpt-4o',
     messages: [
       {
@@ -81,10 +91,10 @@ Chỉ trả về JSON hợp lệ theo đúng cấu trúc sau, không dùng Markd
       }
     ],
     temperature: 0
-  });
+  };
+  const response = await requestChatCompletion(client, body, 'verification');
 
-  const content =
-    response.choices[0]?.message?.content?.trim();
+  const content = response.choices[0]?.message?.content?.trim();
 
   if (!content) {
     throw new Error('Verification response is empty');
@@ -97,12 +107,19 @@ Chỉ trả về JSON hợp lệ theo đúng cấu trúc sau, không dùng Markd
     .trim();
 
   const verification = JSON.parse(cleaned);
-  if(typeof inspection?.onInspect==='function'){
+  if (typeof inspection?.onInspect === 'function') {
     inspection.onInspect({
-      role:'verification',provider:'openai',model:response.model||'gpt-4o',
-      system:'',input:prompt,rawOutput:content,ms:Date.now()-startedAt,
-      usage:{input:response.usage?.prompt_tokens||0,
-        output:response.usage?.completion_tokens||0}
+      role: 'verification',
+      provider: 'openai',
+      model: response.model || 'gpt-4o',
+      system: '',
+      input: prompt,
+      rawOutput: content,
+      ms: Date.now() - startedAt,
+      usage: {
+        input: response.usage?.prompt_tokens || 0,
+        output: response.usage?.completion_tokens || 0
+      }
     });
   }
 

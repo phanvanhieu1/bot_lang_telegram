@@ -1,21 +1,25 @@
 const mongoose = require('mongoose');
 
 // Per-account website AI usage. Does not affect Telegram bot.
-const usageSchema = new mongoose.Schema({
-  userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true,
-    index: true
+const usageSchema = new mongoose.Schema(
+  {
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true
+    },
+    time: { type: Date, default: Date.now },
+    tokens: { type: Number, default: 0, min: 0 },
+    cost: { type: Number, default: 0, min: 0 }
   },
-  time: { type: Date, default: Date.now },
-  tokens: { type: Number, default: 0, min: 0 },
-  cost: { type: Number, default: 0, min: 0 }
-}, { versionKey: false });
+  { versionKey: false }
+);
 
 usageSchema.index({ userId: 1, time: -1 });
 
-const TranslationUsage = mongoose.models.TranslationUsage ||
+const TranslationUsage =
+  mongoose.models.TranslationUsage ||
   mongoose.model('TranslationUsage', usageSchema);
 
 async function addUsage({ userId, totalTokens, cost }) {
@@ -33,9 +37,7 @@ async function getUsageStats(userId) {
 
   const now = new Date();
   // Preserve the existing server-local definition of "today".
-  const todayStart = new Date(
-    now.getFullYear(), now.getMonth(), now.getDate()
-  );
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
   const [stats] = await TranslationUsage.aggregate([
     { $match: { userId: new mongoose.Types.ObjectId(String(userId)) } },

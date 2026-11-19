@@ -1,7 +1,7 @@
+const { observeProvider } = require('../debug/inspector');
 const axios = require('axios');
 
-const DEEPL_API_URL =
-  'https://api-free.deepl.com/v2/translate';
+const DEEPL_API_URL = 'https://api-free.deepl.com/v2/translate';
 
 /**
  * Dịch văn bản bằng DeepL API Free.
@@ -26,28 +26,24 @@ async function requestDeepL(text, targetLang) {
   }
 
   try {
-    const response = await axios.post(
-      DEEPL_API_URL,
-      {
-        text: [text],
-        target_lang: targetLang
-      },
-      {
-        headers: {
-          Authorization: `DeepL-Auth-Key ${apiKey}`,
-          'Content-Type': 'application/json'
-        },
-        timeout: 15000
-      }
+    const body = { text: [text], target_lang: targetLang };
+    const response = await observeProvider(
+      { provider: 'deepl', role: 'translator', body },
+      () =>
+        axios.post(DEEPL_API_URL, body, {
+          headers: {
+            Authorization: `DeepL-Auth-Key ${apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          timeout: 15000
+        }),
+      (result) => ({ output: result.data?.translations?.[0]?.text })
     );
 
-    const translation =
-      response.data?.translations?.[0]?.text;
+    const translation = response.data?.translations?.[0]?.text;
 
     if (!translation || !translation.trim()) {
-      const error = new Error(
-        'DeepL returned an empty translation'
-      );
+      const error = new Error('DeepL returned an empty translation');
       error.code = 'INVALID_OUTPUT';
       throw error;
     }
@@ -74,9 +70,15 @@ async function requestDeepL(text, targetLang) {
 async function requestDeepLBatch(texts, targetLang = 'VI') {
   const apiKey = process.env.DEEPL_API_KEY;
   if (!apiKey) throw new Error('DEEPL_API_KEY is missing');
-  if (!Array.isArray(texts) || !texts.length || texts.length > 16 ||
-      texts.some(text => typeof text !== 'string' || !text.trim() || text.length > 100) ||
-      targetLang !== 'VI') {
+  if (
+    !Array.isArray(texts) ||
+    !texts.length ||
+    texts.length > 16 ||
+    texts.some(
+      (text) => typeof text !== 'string' || !text.trim() || text.length > 100
+    ) ||
+    targetLang !== 'VI'
+  ) {
     throw new Error('Invalid DeepL vocabulary batch');
   }
 
@@ -93,11 +95,14 @@ async function requestDeepLBatch(texts, targetLang = 'VI') {
       }
     );
     const translations = response.data?.translations;
-    if (!Array.isArray(translations) || translations.length !== texts.length ||
-        translations.some(item => typeof item?.text !== 'string')) {
+    if (
+      !Array.isArray(translations) ||
+      translations.length !== texts.length ||
+      translations.some((item) => typeof item?.text !== 'string')
+    ) {
       throw new Error('Invalid DeepL vocabulary batch response');
     }
-    return translations.map(item => item.text.trim());
+    return translations.map((item) => item.text.trim());
   } catch (error) {
     if (axios.isAxiosError(error)) {
       const safeError = new Error('DeepL vocabulary request failed');
@@ -111,6 +116,8 @@ async function requestDeepLBatch(texts, targetLang = 'VI') {
 
 const { observed } = require('../../api-monitoring/observe');
 module.exports = {
-  requestDeepL: (...args) => observed('deepl', 'translate', () => requestDeepL(...args)),
-  requestDeepLBatch: (...args) => observed('deepl', 'vocabulary', () => requestDeepLBatch(...args))
+  requestDeepL: (...args) =>
+    observed('deepl', 'translate', () => requestDeepL(...args)),
+  requestDeepLBatch: (...args) =>
+    observed('deepl', 'vocabulary', () => requestDeepLBatch(...args))
 };

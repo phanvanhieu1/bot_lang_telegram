@@ -1,6 +1,4 @@
-const {
-  translateFree
-} = require('./ai/services/free.service');
+const { translateFree } = require('./ai/services/free.service');
 
 module.exports = {
   translateFree

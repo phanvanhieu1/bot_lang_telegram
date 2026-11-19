@@ -1,7 +1,7 @@
-const {contextPolicy}=require('./context-policy');
-const {NAME_PRESERVATION_RULES}=require('./proper-names');
+const { contextPolicy } = require('./context-policy');
+const { NAME_PRESERVATION_RULES } = require('./proper-names');
 function containsChinese(text) {
-  return /[\u3400-\u9FFF]/u.test(text || '');
+  return /\p{Script=Han}/u.test(text || '');
 }
 
 const TRANSLATION_RULES = `QUY TẮC DỊCH VÀ NGỮ CẢNH:
@@ -17,9 +17,11 @@ const TRANSLATION_RULES = `QUY TẮC DỊCH VÀ NGỮ CẢNH:
 - ${NAME_PRESERVATION_RULES}
 - Không giải thích, không Markdown, không thêm nội dung khác.`;
 
-function buildFreePrompt(text,context='auto') {
-  const inputIsChinese = containsChinese(text);
-
+function buildFreePrompt(
+  text,
+  context = 'auto',
+  inputIsChinese = containsChinese(text)
+) {
   if (inputIsChinese) {
     return `
 Bạn là chuyên gia dịch thuật Trung-Việt, chuyên về ngôn ngữ giao tiếp tự nhiên.

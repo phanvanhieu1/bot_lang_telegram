@@ -1,4 +1,5 @@
 'use strict';
+const { observeProvider } = require('../debug/inspector');
 
 // Provider adapters for opt-in V2. Existing V1 providers and credentials unchanged.
 const DEFAULTS = Object.freeze({
@@ -15,19 +16,27 @@ function getV2ModelSettings(env = process.env) {
   const supportsOpenAIReasoning = /^(gpt-[56]|o[1-9])/.test(openaiModel);
   // GPT-4o (also used in V1 PRO) has no reasoning.effort parameter.
   const openaiEffort = supportsOpenAIReasoning
-    ? (env.V2_OPENAI_REASONING_EFFORT ||
-      (openaiModel === 'gpt-6.1-terra' ? 'none' : 'medium'))
+    ? env.V2_OPENAI_REASONING_EFFORT ||
+      (openaiModel === 'gpt-6.1-terra' ? 'none' : 'medium')
     : null;
-  const claudeEffort = env.V2_CLAUDE_EFFORT ||
-    (claudeModel === 'claude-haiku-5-5' ? 'low' : null);
+  const claudeEffort =
+    env.V2_CLAUDE_EFFORT || (claudeModel === 'claude-haiku-5-5' ? 'low' : null);
   // Haiku 5.5 allows disabling adaptive thinking for short classification.
   // Keep an explicit override for experiments that value deeper reasoning.
-  const claudeThinking = env.V2_CLAUDE_THINKING ||
+  const claudeThinking =
+    env.V2_CLAUDE_THINKING ||
     (claudeModel === 'claude-haiku-5-5' ? 'disabled' : 'default');
-  const tieredRouting=env.V2_TIERED_ROUTING==='true';
-  const simpleOpenaiModel=env.V2_OPENAI_SIMPLE_MODEL||'gpt-4o-mini';
-  return {openaiModel,claudeModel,openaiEffort,claudeEffort,claudeThinking,
-    tieredRouting,simpleOpenaiModel};
+  const tieredRouting = env.V2_TIERED_ROUTING === 'true';
+  const simpleOpenaiModel = env.V2_OPENAI_SIMPLE_MODEL || 'gpt-4o-mini';
+  return {
+    openaiModel,
+    claudeModel,
+    openaiEffort,
+    claudeEffort,
+    claudeThinking,
+    tieredRouting,
+    simpleOpenaiModel
+  };
 }
 
 function safeError(code, status) {
@@ -41,9 +50,12 @@ function outputText(data) {
   if (typeof data?.output_text === 'string' && data.output_text.trim()) {
     return data.output_text.trim();
   }
-  const parts = (data?.output || []).flatMap(item => item.content || [])
-    .filter(item => item.type === 'output_text' && typeof item.text === 'string')
-    .map(item => item.text);
+  const parts = (data?.output || [])
+    .flatMap((item) => item.content || [])
+    .filter(
+      (item) => item.type === 'output_text' && typeof item.text === 'string'
+    )
+    .map((item) => item.text);
   return parts.join('\n').trim();
 }
 
@@ -51,8 +63,10 @@ async function postJson(url, headers, body, timeoutMs = 60000) {
   let response;
   try {
     response = await fetch(url, {
-      method: 'POST', headers: {'content-type':'application/json',...headers},
-      body: JSON.stringify(body), signal: AbortSignal.timeout(timeoutMs)
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...headers },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(timeoutMs)
     });
   } catch (_) {
     throw safeError('V2_PROVIDER_NETWORK_ERROR');
@@ -61,156 +75,314 @@ async function postJson(url, headers, body, timeoutMs = 60000) {
     // Never log raw provider bodies, key headers or supplied text.
     throw safeError('V2_PROVIDER_HTTP_ERROR', response.status);
   }
-  try { return await response.json(); }
-  catch (_) { throw safeError('V2_PROVIDER_INVALID_JSON'); }
+  try {
+    return await response.json();
+  } catch (_) {
+    throw safeError('V2_PROVIDER_INVALID_JSON');
+  }
 }
 
 // OpenAI prompt caching is automatic for eligible prefixes; Responses API
 // reports the cached subset of input tokens separately.
-function openaiUsage(raw={}){
-  const input=Math.max(0,Number(raw.input_tokens)||0);
-  const cacheRead=Math.min(input,
-    Math.max(0,Number(raw.input_tokens_details?.cached_tokens)||0));
-  return {input,inputUncached:input-cacheRead,cacheRead,cacheWrite:0,
-    output:Math.max(0,Number(raw.output_tokens)||0)};
+function openaiUsage(raw = {}) {
+  const input = Math.max(0, Number(raw.input_tokens) || 0);
+  const cacheRead = Math.min(
+    input,
+    Math.max(0, Number(raw.input_tokens_details?.cached_tokens) || 0)
+  );
+  return {
+    input,
+    inputUncached: input - cacheRead,
+    cacheRead,
+    cacheWrite: 0,
+    output: Math.max(0, Number(raw.output_tokens) || 0)
+  };
 }
 
-function claudeUsage(raw={}){
-  const inputUncached=Math.max(0,Number(raw.input_tokens)||0);
-  const cacheRead=Math.max(0,Number(raw.cache_read_input_tokens)||0);
-  const cacheWrite=Math.max(0,Number(raw.cache_creation_input_tokens)||0);
-  return {input:inputUncached+cacheRead+cacheWrite,
-    inputUncached,cacheRead,cacheWrite,
-    output:Math.max(0,Number(raw.output_tokens)||0)};
+function claudeUsage(raw = {}) {
+  const inputUncached = Math.max(0, Number(raw.input_tokens) || 0);
+  const cacheRead = Math.max(0, Number(raw.cache_read_input_tokens) || 0);
+  const cacheWrite = Math.max(0, Number(raw.cache_creation_input_tokens) || 0);
+  return {
+    input: inputUncached + cacheRead + cacheWrite,
+    inputUncached,
+    cacheRead,
+    cacheWrite,
+    output: Math.max(0, Number(raw.output_tokens) || 0)
+  };
 }
 
 // Keep the fixed prefix in SYSTEM, never prepend it to user messages.
 // cache_control is on the stable system block (not the varying user input).
-function buildClaudeBody({model,system,user,maxOutputTokens=1800,
-  effort=null,thinking='default',cacheSystem=true,jsonSchema=null}){
-  const body={
-    model,max_tokens:maxOutputTokens,
-    system:cacheSystem?[{type:'text',text:system,
-      cache_control:{type:'ephemeral'}}]:system,
-    messages:[{role:'user',content:user}]
+function buildClaudeBody({
+  model,
+  system,
+  user,
+  maxOutputTokens = 1800,
+  effort = null,
+  thinking = 'default',
+  cacheSystem = true,
+  jsonSchema = null
+}) {
+  const body = {
+    model,
+    max_tokens: maxOutputTokens,
+    system: cacheSystem
+      ? [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }]
+      : system,
+    messages: [{ role: 'user', content: user }]
   };
-  if(effort&&/claude-(?:haiku|sonnet|opus)-5-5/.test(model))
-    body.output_config={effort};
-  if(jsonSchema){
-    body.output_config={...(body.output_config||{}),
-      format:{type:'json_schema',schema:jsonSchema}};
+  if (effort && /claude-(?:haiku|sonnet|opus)-5-5/.test(model))
+    body.output_config = { effort };
+  if (jsonSchema) {
+    body.output_config = {
+      ...(body.output_config || {}),
+      format: { type: 'json_schema', schema: jsonSchema }
+    };
   }
-  if(model==='claude-haiku-5-5'&&thinking==='disabled')
-    body.thinking={type:'disabled'};
+  if (model === 'claude-haiku-5-5' && thinking === 'disabled')
+    body.thinking = { type: 'disabled' };
   return body;
 }
 
 function createProviders(env = process.env) {
-  const {openaiModel,claudeModel,openaiEffort,claudeEffort,claudeThinking,
-    tieredRouting,simpleOpenaiModel}=getV2ModelSettings(env);
+  const {
+    openaiModel,
+    claudeModel,
+    openaiEffort,
+    claudeEffort,
+    claudeThinking,
+    tieredRouting,
+    simpleOpenaiModel
+  } = getV2ModelSettings(env);
   const groqModel = env.V2_GROQ_MODEL || DEFAULTS.groq;
   const routerModel = env.V2_OPENROUTER_MODEL || DEFAULTS.openrouter;
   const allowFree = env.V2_ALLOW_FREE_PROVIDERS !== 'false';
-  const openaiKey = (env.OPENAI_API_KEYS || '').split(',').map(x=>x.trim()).find(Boolean) ||
-    env.OPENAI_API_KEY || env.OPENAI_API;
-  const claudeKey = env.CLAUDE_API_KEY || env.ANTHROPIC_API_KEY || env.CLAUDE_API;
+  const openaiKey =
+    (env.OPENAI_API_KEYS || '')
+      .split(',')
+      .map((x) => x.trim())
+      .find(Boolean) ||
+    env.OPENAI_API_KEY ||
+    env.OPENAI_API;
+  const claudeKey =
+    env.CLAUDE_API_KEY || env.ANTHROPIC_API_KEY || env.CLAUDE_API;
   const groqKey = env.GROQ_API_KEY || env.GROQ_API;
   const routerKey = env.OPENROUTER_API_KEY || env.OPENROUTER_API;
 
-  async function openai(system, user, meta={}) {
+  async function openai(system, user, meta = {}) {
     if (!openaiKey) throw safeError('V2_MISSING_OPENAI_KEY');
     // Manual selection is allowlisted. The engine sends the selected model
     // to the main translator and explicitly chooses GPT-4o mini for Repair.
     // Claude and independent verification are unaffected.
-    if(meta.translationModel!=null&&
-       !['gpt-4o','gpt-4o-mini'].includes(meta.translationModel))
+    if (
+      meta.translationModel != null &&
+      !['gpt-4o', 'gpt-4o-mini'].includes(meta.translationModel)
+    )
       throw safeError('V2_INVALID_TRANSLATION_MODEL');
-    const model=meta.translationModel||
-      (tieredRouting&&meta.modelOverride===simpleOpenaiModel
-        ?simpleOpenaiModel:openaiModel);
-    const body={
-      model,instructions:system,
-      input:[{role:'user',content:[{type:'input_text',text:user}]}],
-      max_output_tokens:meta.maxOutputTokens||2400
+    const model =
+      meta.translationModel ||
+      (tieredRouting && meta.modelOverride === simpleOpenaiModel
+        ? simpleOpenaiModel
+        : openaiModel);
+    const body = {
+      model,
+      instructions: system,
+      input: [{ role: 'user', content: [{ type: 'input_text', text: user }] }],
+      max_output_tokens: meta.maxOutputTokens || 2400
     };
     // GPT-4o and GPT-4o-mini do not accept reasoning.effort.
-    if(/^(gpt-[56]|o[1-9])/.test(model))
-      body.reasoning={effort:model===openaiModel?openaiEffort:'medium'};
-    if(meta.jsonSchema){
-      body.text={format:{type:'json_schema',name:'translation_v2',
-        strict:true,schema:meta.jsonSchema}};
+    if (/^(gpt-[56]|o[1-9])/.test(model))
+      body.reasoning = {
+        effort: model === openaiModel ? openaiEffort : 'medium'
+      };
+    if (meta.jsonSchema) {
+      body.text = {
+        format: {
+          type: 'json_schema',
+          name: 'translation_v2',
+          strict: true,
+          schema: meta.jsonSchema
+        }
+      };
     }
-    const data = await postJson('https://api.openai.com/v1/responses', {
-      authorization: 'Bearer ' + openaiKey
-    }, body, 90000);
+    const data = await observeProvider(
+      {
+        provider: 'openai',
+        role: meta.debugRole || 'translator',
+        body
+      },
+      () =>
+        postJson(
+          'https://api.openai.com/v1/responses',
+          {
+            authorization: 'Bearer ' + openaiKey
+          },
+          body,
+          90000
+        ),
+      (result) => ({
+        output:
+          typeof result.output_text === 'string'
+            ? result.output_text
+            : outputText(result),
+        usage: openaiUsage(result.usage)
+      })
+    );
     const text = outputText(data);
     if (!text) throw safeError('V2_OPENAI_EMPTY');
     return {
-      text, provider:'openai', model:data.model || model,
-      responseStatus:String(data.status||'unknown').slice(0,40),
-      incompleteReason:String(data.incomplete_details?.reason||'').slice(0,60),
-      usage:openaiUsage(data.usage)
+      text,
+      provider: 'openai',
+      model: data.model || model,
+      responseStatus: String(data.status || 'unknown').slice(0, 40),
+      incompleteReason: String(data.incomplete_details?.reason || '').slice(
+        0,
+        60
+      ),
+      usage: openaiUsage(data.usage)
     };
   }
 
-  async function claude(system, user, meta={}) {
+  async function claude(system, user, meta = {}) {
     if (!claudeKey) throw safeError('V2_MISSING_CLAUDE_KEY');
-    const body=buildClaudeBody({model:claudeModel,system,user,
-      maxOutputTokens:meta.maxOutputTokens||1800,
-      effort:claudeEffort,thinking:claudeThinking,
-      cacheSystem:env.V2_CLAUDE_PROMPT_CACHE!=='false',
-      jsonSchema:env.V2_CLAUDE_JSON_SCHEMA==='false'?null:meta.jsonSchema});
-    const data = await postJson('https://api.anthropic.com/v1/messages', {
-      'x-api-key': claudeKey,
-      'anthropic-version': '2023-06-01'
-    }, body, 90000);
-    const text = (data.content || []).filter(x=>x.type==='text').map(x=>x.text||'').join('\n').trim();
+    const body = buildClaudeBody({
+      model: claudeModel,
+      system,
+      user,
+      maxOutputTokens: meta.maxOutputTokens || 1800,
+      effort: claudeEffort,
+      thinking: claudeThinking,
+      cacheSystem: env.V2_CLAUDE_PROMPT_CACHE !== 'false',
+      jsonSchema: env.V2_CLAUDE_JSON_SCHEMA === 'false' ? null : meta.jsonSchema
+    });
+    const data = await observeProvider(
+      {
+        provider: 'claude',
+        role: meta.debugRole || 'analyzer',
+        body
+      },
+      () =>
+        postJson(
+          'https://api.anthropic.com/v1/messages',
+          {
+            'x-api-key': claudeKey,
+            'anthropic-version': '2023-06-01'
+          },
+          body,
+          90000
+        ),
+      (result) => ({
+        output: result.content
+          ?.filter((item) => item.type === 'text')
+          .map((item) => item.text || '')
+          .join('\n'),
+        usage: claudeUsage(result.usage)
+      })
+    );
+    const text = (data.content || [])
+      .filter((x) => x.type === 'text')
+      .map((x) => x.text || '')
+      .join('\n')
+      .trim();
     if (!text) throw safeError('V2_CLAUDE_EMPTY');
     return {
-      text, provider:'claude',model:data.model || claudeModel,
+      text,
+      provider: 'claude',
+      model: data.model || claudeModel,
       // Anthropic explicitly reports max_tokens when a response is cut off.
       // Expose only the finish reason; do not retain/log raw response text.
-      stopReason:String(data.stop_reason||'unknown').slice(0,40),
-      usage:claudeUsage(data.usage)
+      stopReason: String(data.stop_reason || 'unknown').slice(0, 40),
+      usage: claudeUsage(data.usage)
     };
   }
 
   async function freeRequest(type, system, user, model, key, baseURL) {
     if (!allowFree) throw safeError('V2_FREE_PROVIDERS_DISABLED');
     if (!key) throw safeError('V2_MISSING_' + type.toUpperCase() + '_KEY');
-    const data = await postJson(baseURL + '/chat/completions', {
-      authorization: 'Bearer ' + key
-    },{
-      model, messages:[{role:'system',content:system},{role:'user',content:user}],
-      temperature:0, max_tokens:1100
-    },45000);
+    const data = await postJson(
+      baseURL + '/chat/completions',
+      {
+        authorization: 'Bearer ' + key
+      },
+      {
+        model,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: user }
+        ],
+        temperature: 0,
+        max_tokens: 1100
+      },
+      45000
+    );
     const text = data.choices?.[0]?.message?.content?.trim();
     if (!text) throw safeError('V2_' + type.toUpperCase() + '_EMPTY');
-    return { text,provider:type,model:data.model || model,
-      usage:{input:Number(data.usage?.prompt_tokens||0),
-        output:Number(data.usage?.completion_tokens||0)} };
+    return {
+      text,
+      provider: type,
+      model: data.model || model,
+      usage: {
+        input: Number(data.usage?.prompt_tokens || 0),
+        output: Number(data.usage?.completion_tokens || 0)
+      }
+    };
   }
 
-  async function deepl(text,target) {
+  async function deepl(text, target) {
     if (!allowFree) throw safeError('V2_FREE_PROVIDERS_DISABLED');
     // Reuse existing DeepL Free implementation, and only for supported ZH/VI.
     const key = env.DEEPL_API_KEY || env.DEEPL_API;
     if (!key) throw safeError('V2_MISSING_DEEPL_KEY');
-    const data=await postJson('https://api-free.deepl.com/v2/translate',{
-      authorization:'DeepL-Auth-Key '+key
-    },{text:[text],target_lang:target},25000);
+    const data = await postJson(
+      'https://api-free.deepl.com/v2/translate',
+      {
+        authorization: 'DeepL-Auth-Key ' + key
+      },
+      { text: [text], target_lang: target },
+      25000
+    );
     const translated = data.translations?.[0]?.text?.trim();
     if (!translated) throw safeError('V2_DEEPL_EMPTY');
-    return {text:translated, provider:'deepl',model:'deepl-free',
-      usage:{input:0,output:0,characters:text.length}};
+    return {
+      text: translated,
+      provider: 'deepl',
+      model: 'deepl-free',
+      usage: { input: 0, output: 0, characters: text.length }
+    };
   }
 
   return {
-    openai, claude,
-    groq:(system,user)=>freeRequest('groq',system,user,groqModel,groqKey,'https://api.groq.com/openai/v1'),
-    openrouter:(system,user)=>freeRequest('openrouter',system,user,routerModel,routerKey,'https://openrouter.ai/api/v1'),
+    openai,
+    claude,
+    groq: (system, user) =>
+      freeRequest(
+        'groq',
+        system,
+        user,
+        groqModel,
+        groqKey,
+        'https://api.groq.com/openai/v1'
+      ),
+    openrouter: (system, user) =>
+      freeRequest(
+        'openrouter',
+        system,
+        user,
+        routerModel,
+        routerKey,
+        'https://openrouter.ai/api/v1'
+      ),
     deepl
   };
 }
-module.exports={createProviders,getV2ModelSettings,safeError,outputText,
-  buildClaudeBody,claudeUsage,openaiUsage,DEFAULTS};
+module.exports = {
+  createProviders,
+  getV2ModelSettings,
+  safeError,
+  outputText,
+  buildClaudeBody,
+  claudeUsage,
+  openaiUsage,
+  DEFAULTS
+};

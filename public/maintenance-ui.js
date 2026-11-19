@@ -17,16 +17,21 @@
     button.classList.toggle('maintenance-enabled', on);
     button.setAttribute('aria-pressed', String(on));
     button.disabled = !isAdmin() || enabled === null || updating;
-    if (!updating) state.textContent = enabled === null
-      ? 'Chưa tải được trạng thái'
-      : on ? 'Đang bật · FREE bị chặn' : 'Đang tắt · FREE hoạt động bình thường';
+    if (!updating)
+      state.textContent =
+        enabled === null
+          ? 'Chưa tải được trạng thái'
+          : on
+            ? 'Đang bật · FREE bị chặn'
+            : 'Đang tắt · FREE hoạt động bình thường';
   }
 
   async function loadAdminSetting() {
     if (!isAdmin()) return;
     try {
       const response = await fetch('/api/admin/maintenance', {
-        credentials: 'same-origin', cache: 'no-store'
+        credentials: 'same-origin',
+        cache: 'no-store'
       });
       const data = await response.json();
       if (!response.ok || !data.success || typeof data.enabled !== 'boolean') {
@@ -44,9 +49,11 @@
   button.addEventListener('click', async () => {
     if (!isAdmin() || updating || enabled === null) return;
     const next = !enabled;
-    const confirmed = window.confirm(next
-      ? 'Bật bảo trì? Tất cả tài khoản FREE sẽ bị đăng xuất, PRO và admin vẫn dùng được.'
-      : 'Tắt bảo trì? Tài khoản FREE sẽ có thể đăng nhập và sử dụng lại.');
+    const confirmed = window.confirm(
+      next
+        ? 'Bật bảo trì? Tất cả tài khoản FREE sẽ bị đăng xuất, PRO và admin vẫn dùng được.'
+        : 'Tắt bảo trì? Tài khoản FREE sẽ có thể đăng nhập và sử dụng lại.'
+    );
     if (!confirmed) return;
     updating = true;
     button.disabled = true;
@@ -65,7 +72,9 @@
       enabled = data.enabled;
       state.textContent = data.message || '';
       if (enabled && data.sessionsRevoked === false) {
-        window.alert('Đã bật bảo trì. Việc thu hồi phiên hàng loạt chưa hoàn tất, nhưng FREE đã bị chặn ở backend.');
+        window.alert(
+          'Đã bật bảo trì. Việc thu hồi phiên hàng loạt chưa hoàn tất, nhưng FREE đã bị chặn ở backend.'
+        );
       }
     } catch (error) {
       console.error('Maintenance switch error:', error);
@@ -88,11 +97,16 @@
     checking = true;
     try {
       const response = await fetch('/api/auth', {
-        credentials: 'same-origin', cache: 'no-store'
+        credentials: 'same-origin',
+        cache: 'no-store'
       });
       const data = await response.json();
-      if (data.maintenance === true &&
-          (response.status === 503 || data.authenticated === false || data.role === 'user')) {
+      if (
+        data.maintenance === true &&
+        (response.status === 503 ||
+          data.authenticated === false ||
+          data.role === 'user')
+      ) {
         redirectToMaintenance();
         return;
       }

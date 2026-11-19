@@ -1,29 +1,53 @@
 const crypto = require('crypto');
 const mongoose = require('mongoose');
-const { buildSpeechRequest, CHINESE_VOICE_IDS, VIETNAMESE_VOICE_ID } = require('./tts-shared');
+const {
+  buildSpeechRequest,
+  CHINESE_VOICE_IDS,
+  VIETNAMESE_VOICE_ID
+} = require('./tts-shared');
 
 const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_TEXT_LENGTH = 500;
 const VOICE_IDS = CHINESE_VOICE_IDS;
 const SPEEDS = [0.8, 0.9, 1, 1.1, 1.15, 1.2];
 
-const audioSchema = new mongoose.Schema({
-  key: { type: String, required: true, unique: true },
-  audio: { type: Buffer, required: true },
-  expiresAt: { type: Date, required: true }
-}, { versionKey: false, timestamps: true });
+const audioSchema = new mongoose.Schema(
+  {
+    key: { type: String, required: true, unique: true },
+    audio: { type: Buffer, required: true },
+    expiresAt: { type: Date, required: true }
+  },
+  { versionKey: false, timestamps: true }
+);
 audioSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
-const AudioCache = mongoose.models.WebAudioCache ||
+const AudioCache =
+  mongoose.models.WebAudioCache ||
   mongoose.model('WebAudioCache', audioSchema, 'web_audio_cache');
 
 function hasChinese(text) {
   return /[\u3400-\u9FFF]/u.test(text);
 }
 
-async function getElevenLabsAudio(text, requestedVoiceId, requestedSpeed, language) {
+async function getElevenLabsAudio(
+  text,
+  requestedVoiceId,
+  requestedSpeed,
+  language
+) {
   const vietnamese = language === 'vi';
-  if (typeof text !== 'string' || !text.trim() || text.length > MAX_TEXT_LENGTH || (vietnamese ? (hasChinese(text) || !/[A-Za-zÀ-ỹ]/u.test(text)) : !hasChinese(text))) {
-    const error = new Error(vietnamese ? 'Chỉ hỗ trợ câu tiếng Việt tối đa 500 ký tự' : 'Chỉ hỗ trợ câu tiếng Trung tối đa 500 ký tự');
+  if (
+    typeof text !== 'string' ||
+    !text.trim() ||
+    text.length > MAX_TEXT_LENGTH ||
+    (vietnamese
+      ? hasChinese(text) || !/[A-Za-zÀ-ỹ]/u.test(text)
+      : !hasChinese(text))
+  ) {
+    const error = new Error(
+      vietnamese
+        ? 'Chỉ hỗ trợ câu tiếng Việt tối đa 500 ký tự'
+        : 'Chỉ hỗ trợ câu tiếng Trung tối đa 500 ký tự'
+    );
     error.status = 400;
     throw error;
   }
@@ -34,22 +58,36 @@ async function getElevenLabsAudio(text, requestedVoiceId, requestedSpeed, langua
   }
   const normalized = text.trim();
   const speed = requestedSpeed === undefined ? 1 : requestedSpeed;
-  if (!SPEEDS.includes(speed) ||
-      (!vietnamese && requestedVoiceId !== undefined && !VOICE_IDS.includes(requestedVoiceId))) {
+  if (
+    !SPEEDS.includes(speed) ||
+    (!vietnamese &&
+      requestedVoiceId !== undefined &&
+      !VOICE_IDS.includes(requestedVoiceId))
+  ) {
     const error = new Error('Giọng đọc hoặc tốc độ không hợp lệ');
     error.status = 400;
     throw error;
   }
   const request = buildSpeechRequest({
-    text: normalized, language, speed,
-    voiceId: vietnamese ? VIETNAMESE_VOICE_ID : (requestedVoiceId || VOICE_IDS[0]),
+    text: normalized,
+    language,
+    speed,
+    voiceId: vietnamese
+      ? VIETNAMESE_VOICE_ID
+      : requestedVoiceId || VOICE_IDS[0],
     modelId: process.env.ELEVENLABS_MODEL_ID
   });
   const { voiceId } = request;
-  const key = crypto.createHash('sha256')
-    .update(JSON.stringify(['elevenlabs', request.cacheVoice, speed, normalized]))
+  const key = crypto
+    .createHash('sha256')
+    .update(
+      JSON.stringify(['elevenlabs', request.cacheVoice, speed, normalized])
+    )
     .digest('hex');
-  const cached = await AudioCache.findOne({ key, expiresAt: { $gt: new Date() } }).lean();
+  const cached = await AudioCache.findOne({
+    key,
+    expiresAt: { $gt: new Date() }
+  }).lean();
   if (cached) {
     // Lean Mongoose documents may expose BSON Binary rather than Node Buffer.
     const stored = cached.audio;
@@ -69,19 +107,16 @@ async function getElevenLabsAudio(text, requestedVoiceId, requestedSpeed, langua
   const timeout = setTimeout(() => controller.abort(), 20000);
   let response;
   try {
-    response = await fetch(
-      request.url,
-      {
-        method: 'POST',
-        headers: {
-          'xi-api-key': process.env.ELEVENLABS_API_KEY,
-          'Content-Type': 'application/json',
-          Accept: 'audio/mpeg'
-        },
-        body: JSON.stringify(request.body),
-        signal: controller.signal
-      }
-    );
+    response = await fetch(request.url, {
+      method: 'POST',
+      headers: {
+        'xi-api-key': process.env.ELEVENLABS_API_KEY,
+        'Content-Type': 'application/json',
+        Accept: 'audio/mpeg'
+      },
+      body: JSON.stringify(request.body),
+      signal: controller.signal
+    });
   } finally {
     clearTimeout(timeout);
   }

@@ -1,4 +1,3 @@
-
 const User = require('./user.model');
 
 async function requireAuth(req, res, next) {

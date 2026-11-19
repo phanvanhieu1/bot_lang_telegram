@@ -1,4 +1,3 @@
-
 const oidc = require('openid-client');
 const crypto = require('node:crypto');
 
@@ -55,16 +54,12 @@ async function verifyGoogleCallback(currentUrl, session) {
   // Không cho phép sử dụng lại state và PKCE verifier.
   delete session.googleOAuth;
 
-  const tokens = await oidc.authorizationCodeGrant(
-    config,
-    currentUrl,
-    {
-      pkceCodeVerifier: oauth.codeVerifier,
-      expectedState: oauth.state,
-      expectedNonce: oauth.nonce,
-      idTokenExpected: true
-    }
-  );
+  const tokens = await oidc.authorizationCodeGrant(config, currentUrl, {
+    pkceCodeVerifier: oauth.codeVerifier,
+    expectedState: oauth.state,
+    expectedNonce: oauth.nonce,
+    idTokenExpected: true
+  });
 
   const claims = tokens.claims();
 

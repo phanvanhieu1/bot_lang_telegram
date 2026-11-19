@@ -13,13 +13,17 @@ async function withDownloadedVoice(url, callback, http = axios) {
   const folder = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'tg-voice-'));
   const audioPath = path.join(folder, 'recording.ogg');
   try {
-    const response = await http.get(url, { responseType: 'stream',
-      timeout: 20000, maxRedirects: 2 });
+    const response = await http.get(url, {
+      responseType: 'stream',
+      timeout: 20000,
+      maxRedirects: 2
+    });
     let received = 0;
     const limiter = new Transform({
       transform(chunk, encoding, done) {
         received += chunk.length;
-        if (received > MAX_BYTES) return done(new Error('Voice message exceeds 20 MB'));
+        if (received > MAX_BYTES)
+          return done(new Error('Voice message exceeds 20 MB'));
         done(null, chunk);
       }
     });

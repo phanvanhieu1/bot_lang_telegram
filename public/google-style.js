@@ -21,21 +21,36 @@
   const profileAnchor = byId('profileAnchor');
   const voiceSelect = byId('ttsVoice');
   const speedSelect = byId('ttsSpeed');
-  const validVoices = ['ByhETIclHirOlWnWKhHc', 'D9bZgM9Er0PhIxuW9Jqa', '2I36mEahS1u7ZnTKUoaB', 'BqljjWyTnrioXPCNkCd4'];
+  const validVoices = [
+    'ByhETIclHirOlWnWKhHc',
+    'D9bZgM9Er0PhIxuW9Jqa',
+    '2I36mEahS1u7ZnTKUoaB',
+    'BqljjWyTnrioXPCNkCd4'
+  ];
   const validSpeeds = ['0.8', '0.9', '1', '1.1', '1.2'];
   try {
     const savedVoice = localStorage.getItem('ttsVoice');
     const savedSpeed = localStorage.getItem('ttsSpeed');
     if (validVoices.includes(savedVoice)) voiceSelect.value = savedVoice;
     if (validSpeeds.includes(savedSpeed)) speedSelect.value = savedSpeed;
-  } catch (error) { console.warn('Cannot load speech settings:', error); }
+  } catch (error) {
+    console.warn('Cannot load speech settings:', error);
+  }
   voiceSelect.addEventListener('change', () => {
     stopSpeech();
-    try { localStorage.setItem('ttsVoice', voiceSelect.value); } catch (error) { console.warn(error); }
+    try {
+      localStorage.setItem('ttsVoice', voiceSelect.value);
+    } catch (error) {
+      console.warn(error);
+    }
   });
   speedSelect.addEventListener('change', () => {
     stopSpeech();
-    try { localStorage.setItem('ttsSpeed', speedSelect.value); } catch (error) { console.warn(error); }
+    try {
+      localStorage.setItem('ttsSpeed', speedSelect.value);
+    } catch (error) {
+      console.warn(error);
+    }
   });
 
   function closeSettings() {
@@ -87,13 +102,19 @@
   const observer = new MutationObserver(() => {
     hamburger.setAttribute('aria-expanded', String(!adminMenuPanel.hidden));
   });
-  observer.observe(adminMenuPanel, { attributes: true, attributeFilter: ['hidden'] });
+  observer.observe(adminMenuPanel, {
+    attributes: true,
+    attributeFilter: ['hidden']
+  });
 
   function applyTheme(theme) {
     const dark = theme === 'dark';
     document.documentElement.dataset.theme = dark ? 'dark' : 'light';
     themeButton.setAttribute('aria-pressed', String(dark));
-    themeButton.setAttribute('aria-label', dark ? 'Bật giao diện sáng' : 'Bật giao diện tối');
+    themeButton.setAttribute(
+      'aria-label',
+      dark ? 'Bật giao diện sáng' : 'Bật giao diện tối'
+    );
     themeButton.title = dark ? 'Bật giao diện sáng' : 'Bật giao diện tối';
     try {
       localStorage.setItem('translatorTheme', dark ? 'dark' : 'light');
@@ -104,16 +125,20 @@
 
   let savedTheme = 'light';
   try {
-    savedTheme = localStorage.getItem('translatorTheme') === 'dark' ? 'dark' : 'light';
+    savedTheme =
+      localStorage.getItem('translatorTheme') === 'dark' ? 'dark' : 'light';
   } catch (error) {
     console.warn('Cannot read theme preference:', error);
   }
   applyTheme(savedTheme);
   themeButton.addEventListener('click', () => {
-    applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+    applyTheme(
+      document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'
+    );
   });
 
-  const hasSpeech = typeof window.speechSynthesis !== 'undefined' &&
+  const hasSpeech =
+    typeof window.speechSynthesis !== 'undefined' &&
     typeof window.SpeechSynthesisUtterance === 'function';
   let activeSpeechButton = null;
   let currentAudio = null;
@@ -150,7 +175,8 @@
       return;
     }
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = voiceLanguage || (/[㐀-鿿]/u.test(text) ? 'zh-CN' : 'vi-VN');
+    utterance.lang =
+      voiceLanguage || (/[㐀-鿿]/u.test(text) ? 'zh-CN' : 'vi-VN');
     utterance.rate = Number(speedSelect.value);
     utterance.onend = resetSpeechButton;
     utterance.onerror = resetSpeechButton;
@@ -178,8 +204,10 @@
     const id = playbackId;
     let speechLanguage;
     if (window.languageUI.get() === 'en') {
-      const source = lastSourceLanguage || window.languageUI.guessSource(input.value);
-      speechLanguage = button === outputSpeaker ? (source === 'en' ? 'vi' : 'en') : source;
+      const source =
+        lastSourceLanguage || window.languageUI.guessSource(input.value);
+      speechLanguage =
+        button === outputSpeaker ? (source === 'en' ? 'vi' : 'en') : source;
     } else {
       speechLanguage = /[\u3400-\u9FFF]/u.test(text) ? 'zh' : 'vi';
     }
@@ -191,7 +219,8 @@
     activeSpeechButton = button;
     requestController = new AbortController();
     try {
-      const endpoint = speechLanguage === 'vi' ? '/api/tts/vietnamese' : '/api/tts/chinese';
+      const endpoint =
+        speechLanguage === 'vi' ? '/api/tts/vietnamese' : '/api/tts/chinese';
       const payload = { text, speed: Number(speedSelect.value) };
       if (speechLanguage === 'zh') payload.voiceId = voiceSelect.value;
       const response = await fetch(endpoint, {
@@ -216,12 +245,17 @@
         } catch (_) {}
         throw new Error(`${message} (HTTP ${response.status})`);
       }
-      console.info('ElevenLabs audio cache:', response.headers.get('X-Audio-Cache') || 'unknown');
+      console.info(
+        'ElevenLabs audio cache:',
+        response.headers.get('X-Audio-Cache') || 'unknown'
+      );
       const blob = await response.blob();
       if (id !== playbackId) return;
       audioUrl = URL.createObjectURL(blob);
       currentAudio = new Audio(audioUrl);
-      currentAudio.onended = () => { if (id === playbackId) stopSpeech(); };
+      currentAudio.onended = () => {
+        if (id === playbackId) stopSpeech();
+      };
       currentAudio.onerror = () => {
         if (id !== playbackId) return;
         stopSpeech();
@@ -237,10 +271,15 @@
   }
 
   if (!hasSpeech) {
-    sourceSpeaker.title = outputSpeaker.title = 'Đọc tiếng Trung bằng ElevenLabs';
+    sourceSpeaker.title = outputSpeaker.title =
+      'Đọc tiếng Trung bằng ElevenLabs';
   }
-  sourceSpeaker.addEventListener('click', () => speak(input.value, sourceSpeaker));
-  outputSpeaker.addEventListener('click', () => speak(translation.textContent, outputSpeaker));
+  sourceSpeaker.addEventListener('click', () =>
+    speak(input.value, sourceSpeaker)
+  );
+  outputSpeaker.addEventListener('click', () =>
+    speak(translation.textContent, outputSpeaker)
+  );
 
   function updateSourceControls() {
     const content = input.value.trim();
@@ -251,18 +290,27 @@
     let destination = '';
     if (hasInput) {
       if (window.languageUI.get() === 'en') {
-        const source = lastSourceLanguage || window.languageUI.guessSource(content);
+        const source =
+          lastSourceLanguage || window.languageUI.guessSource(content);
         destination = source === 'vi' ? 'Anh' : 'Việt';
       } else {
         destination = /[\u3400-\u9FFF]/u.test(content) ? 'Việt' : 'Trung';
       }
     }
-    targetLabel.textContent = hasInput ? 'Bản dịch · Tiếng ' + destination : 'Bản dịch';
+    targetLabel.textContent = hasInput
+      ? 'Bản dịch · Tiếng ' + destination
+      : 'Bản dịch';
   }
 
-  input.addEventListener('input', () => { lastSourceLanguage = null; updateSourceControls(); });
+  input.addEventListener('input', () => {
+    lastSourceLanguage = null;
+    updateSourceControls();
+  });
   window.addEventListener('translation-finished', (event) => {
-    if (window.languageUI.get() === 'en' && ['vi', 'en'].includes(event.detail?.sourceLanguage)) {
+    if (
+      window.languageUI.get() === 'en' &&
+      ['vi', 'en'].includes(event.detail?.sourceLanguage)
+    ) {
       lastSourceLanguage = event.detail.sourceLanguage;
       updateSourceControls();
     }
@@ -285,7 +333,11 @@
     byId('backTranslationWrapper').classList.add('hidden');
     byId('pronunciationWrapper').classList.add('hidden');
     byId('vocabularyWrapper').classList.add('hidden');
-    window.renderTranslationVocabulary?.([], '', window.languageUI?.get?.() || 'zh');
+    window.renderTranslationVocabulary?.(
+      [],
+      '',
+      window.languageUI?.get?.() || 'zh'
+    );
     byId('verificationWrapper').classList.add('hidden');
     byId('status').textContent = '';
   });
@@ -312,7 +364,11 @@
     controller?.abort();
 
     // Pinyin only applies when Chinese is the active learning language.
-    if (window.languageUI.get() !== 'zh' || !/[\u3400-\u9FFF]/u.test(text) || text.length > 1000) {
+    if (
+      window.languageUI.get() !== 'zh' ||
+      !/[\u3400-\u9FFF]/u.test(text) ||
+      text.length > 1000
+    ) {
       wrapper.hidden = true;
       output.textContent = '';
       return;

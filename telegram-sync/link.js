@@ -3,12 +3,13 @@ const crypto = require('node:crypto');
 const { TelegramLinkCode, TelegramAccount } = require('./models');
 const User = require('../modules/users/user.model');
 
-const hash = value => crypto.createHash('sha256').update(value).digest('hex');
-const validTelegramId = value => /^\d{5,20}$/.test(String(value || ''));
-const eligible = user => user?.isActive && (
-  user.role === 'admin' || (user.role === 'pro' &&
-  (!user.proExpiresAt || user.proExpiresAt > new Date()))
-);
+const hash = (value) => crypto.createHash('sha256').update(value).digest('hex');
+const validTelegramId = (value) => /^\d{5,20}$/.test(String(value || ''));
+const eligible = (user) =>
+  user?.isActive &&
+  (user.role === 'admin' ||
+    (user.role === 'pro' &&
+      (!user.proExpiresAt || user.proExpiresAt > new Date())));
 
 async function issueLinkCode(userId) {
   // Invalidate older, unused codes before issuing a new one.
@@ -23,15 +24,22 @@ async function issueLinkCode(userId) {
 }
 
 async function connectTelegram(telegramId, code) {
-  if (!validTelegramId(telegramId) || typeof code !== 'string' || !/^[a-f0-9]{24}$/.test(code)) {
+  if (
+    !validTelegramId(telegramId) ||
+    typeof code !== 'string' ||
+    !/^[a-f0-9]{24}$/.test(code)
+  ) {
     return { ok: false, reason: 'invalid' };
   }
   // Atomically consume the code; two different Telegram users cannot redeem it twice.
   const token = await TelegramLinkCode.findOneAndDelete({
-    codeHash: hash(code), expiresAt: { $gt: new Date() }
+    codeHash: hash(code),
+    expiresAt: { $gt: new Date() }
   });
   if (!token) return { ok: false, reason: 'expired' };
-  const user = await User.findById(token.userId).select('isActive role proExpiresAt').lean();
+  const user = await User.findById(token.userId)
+    .select('isActive role proExpiresAt')
+    .lean();
   if (!eligible(user)) return { ok: false, reason: 'not_eligible' };
   // A Telegram account can be linked to one web account only, and vice versa.
   // Prevent silent takeover; user must unlink in web before switching accounts.
@@ -39,8 +47,10 @@ async function connectTelegram(telegramId, code) {
     TelegramAccount.findOne({ telegramId: String(telegramId) }).lean(),
     TelegramAccount.findOne({ userId: token.userId }).lean()
   ]);
-  if ((byTg && String(byTg.userId) !== String(token.userId)) ||
-      (byWeb && byWeb.telegramId !== String(telegramId))) {
+  if (
+    (byTg && String(byTg.userId) !== String(token.userId)) ||
+    (byWeb && byWeb.telegramId !== String(telegramId))
+  ) {
     return { ok: false, reason: 'already_linked' };
   }
   try {
@@ -58,9 +68,13 @@ async function connectTelegram(telegramId, code) {
 
 async function findLinkedUser(telegramId) {
   if (!validTelegramId(telegramId)) return null;
-  const link = await TelegramAccount.findOne({ telegramId: String(telegramId) }).lean();
+  const link = await TelegramAccount.findOne({
+    telegramId: String(telegramId)
+  }).lean();
   if (!link) return null;
-  const user = await User.findById(link.userId).select('isActive role proExpiresAt').lean();
+  const user = await User.findById(link.userId)
+    .select('isActive role proExpiresAt')
+    .lean();
   return eligible(user) ? link.userId : null;
 }
 
@@ -70,4 +84,10 @@ async function unlinkWebUser(userId) {
     TelegramLinkCode.deleteMany({ userId })
   ]);
 }
-module.exports = { issueLinkCode, connectTelegram, findLinkedUser, unlinkWebUser, eligible };
+module.exports = {
+  issueLinkCode,
+  connectTelegram,
+  findLinkedUser,
+  unlinkWebUser,
+  eligible
+};

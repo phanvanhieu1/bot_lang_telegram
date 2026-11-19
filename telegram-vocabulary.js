@@ -1,7 +1,9 @@
 'use strict';
 // CSV for Anki/Quizlet: preserve original characters and escape all CSV fields.
 function vocabColumns(value) {
-  const cleaned = String(value ?? '').replace(/^\s*[-•]\s*/, '').trim();
+  const cleaned = String(value ?? '')
+    .replace(/^\s*[-•]\s*/, '')
+    .trim();
   if (!cleaned) return null;
   const colon = cleaned.search(/[:：]/);
   if (colon > 0) {
@@ -15,14 +17,18 @@ function vocabColumns(value) {
 }
 
 function exportAnkiCsv(items) {
-  const escape = value => '"' + String(value).replace(/"/g, '""') + '"';
+  const escape = (value) => '"' + String(value).replace(/"/g, '""') + '"';
   const rows = [['Front', 'Back']];
   for (const raw of items) {
     const pair = vocabColumns(raw);
     if (pair) rows.push(pair);
   }
   // BOM ensures Chinese/Vietnamese appears correctly in Excel.
-  return '\uFEFF' + rows.map(row => row.map(escape).join(',')).join('\r\n') + '\r\n';
+  return (
+    '\uFEFF' +
+    rows.map((row) => row.map(escape).join(',')).join('\r\n') +
+    '\r\n'
+  );
 }
 
 module.exports = { vocabColumns, exportAnkiCsv };

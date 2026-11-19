@@ -1,11 +1,11 @@
-
+const { observeProvider, chatDetails } = require('../debug/inspector');
 const OpenAI = require('openai');
 const { recordEvent } = require('../../api-monitoring/core');
 
 function getOpenAIKeys() {
   return (process.env.OPENAI_API_KEYS || '')
     .split(',')
-    .map(key => key.trim())
+    .map((key) => key.trim())
     .filter(Boolean);
 }
 
@@ -24,9 +24,13 @@ function createOpenAIClient(key) {
         // Local test bot should not write events into the production DB.
         if (process.env.TELEGRAM_TEST_MODE !== '1') {
           void recordEvent('translator', {
-            provider: 'openai', operation: 'api',
-            status, latencyMs: Date.now() - started
-          }).catch(error => console.warn('OpenAI monitoring:', error.message));
+            provider: 'openai',
+            operation: 'api',
+            status,
+            latencyMs: Date.now() - started
+          }).catch((error) =>
+            console.warn('OpenAI monitoring:', error.message)
+          );
         }
       }
     }
@@ -46,13 +50,10 @@ function getRandomOpenAIClient() {
   const keys = getOpenAIKeys();
 
   if (keys.length === 0) {
-    throw new Error(
-      '❌ Không tìm thấy OPENAI_API_KEYS trong file .env'
-    );
+    throw new Error('❌ Không tìm thấy OPENAI_API_KEYS trong file .env');
   }
 
-  const randomIndex =
-    Math.floor(Math.random() * keys.length);
+  const randomIndex = Math.floor(Math.random() * keys.length);
 
   return createOpenAIClient(keys[randomIndex]);
 }
@@ -61,8 +62,17 @@ function getOpenAIKeyCount() {
   return getOpenAIKeys().length;
 }
 
+function requestChatCompletion(client, body, role) {
+  return observeProvider(
+    { provider: 'openai', role, body },
+    () => client.chat.completions.create(body),
+    chatDetails
+  );
+}
+
 module.exports = {
   getRandomOpenAIClient,
   getOpenAIKeyCount,
+  requestChatCompletion,
   getShuffledOpenAIClients
 };

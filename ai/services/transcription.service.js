@@ -1,13 +1,12 @@
 const fs = require('fs');
 
-const {
-  getShuffledOpenAIClients
-} = require('../providers/openai.provider');
+const { getShuffledOpenAIClients } = require('../providers/openai.provider');
 
 // 4. CORE 2: Nhận diện giọng nói (Whisper) có FAILOVER (Chống sập)
 async function transcribeVoice(filePath) {
   const clients = getShuffledOpenAIClients();
-  if (!clients.length) throw new Error('Chưa cấu hình OPENAI_API_KEYS cho Whisper');
+  if (!clients.length)
+    throw new Error('Chưa cấu hình OPENAI_API_KEYS cho Whisper');
   let lastError = null;
   for (const [index, openai] of clients.entries()) {
     try {
@@ -20,10 +19,16 @@ async function transcribeVoice(filePath) {
       lastError = error;
       if ([400, 413, 422].includes(error?.status)) throw error;
       // Never log API keys, including prefixes.
-      console.error(`[Whisper] Lần ${index + 1}/${clients.length} thất bại:`, error?.status || error?.code || 'UNKNOWN');
+      console.error(
+        `[Whisper] Lần ${index + 1}/${clients.length} thất bại:`,
+        error?.status || error?.code || 'UNKNOWN'
+      );
     }
   }
-  const finalError = new Error('Tất cả API key OpenAI đã thử đều không khả dụng cho Whisper', { cause: lastError });
+  const finalError = new Error(
+    'Tất cả API key OpenAI đã thử đều không khả dụng cho Whisper',
+    { cause: lastError }
+  );
   finalError.status = lastError?.status;
   throw finalError;
 }

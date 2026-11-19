@@ -1,4 +1,6 @@
 .env
+.env.*
+!.env.*.example
 node_modules/
 .DS_Store
 database.json
@@ -15,3 +17,7 @@ sessions.sqlite-wal
 
 # Live quality eval outputs: possibly sensitive; never publish
 benchmarks/results/
+
+# Local API and database diagnostics
+/test-db.js
+/testAPI/

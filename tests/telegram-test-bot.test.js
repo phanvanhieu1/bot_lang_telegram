@@ -13,19 +13,35 @@ const base = {
 };
 
 test('test token must be present and must not equal production token', () => {
-  assert.throws(() => validateTestConfig({ ...base, TELEGRAM_TEST_BOT_TOKEN: '' }, ANOTHER_TOKEN), /TELEGRAM_TEST_BOT_TOKEN/);
-  assert.throws(() => validateTestConfig(base, TOKEN), /trùng token production/);
+  assert.throws(
+    () =>
+      validateTestConfig(
+        { ...base, TELEGRAM_TEST_BOT_TOKEN: '' },
+        ANOTHER_TOKEN
+      ),
+    /TELEGRAM_TEST_BOT_TOKEN/
+  );
+  assert.throws(
+    () => validateTestConfig(base, TOKEN),
+    /trùng token production/
+  );
   const config = validateTestConfig(base, ANOTHER_TOKEN);
   assert.equal(config.token, TOKEN);
   assert.equal(config.adminId, '123456789');
 });
 
 test('test bot requires its own admin and deliberately declared AI keys', () => {
-  assert.throws(() => validateTestConfig({ ...base, TELEGRAM_TEST_MASTER_ADMIN: '' }, ''), /TELEGRAM_TEST_MASTER_ADMIN/);
+  assert.throws(
+    () => validateTestConfig({ ...base, TELEGRAM_TEST_MASTER_ADMIN: '' }, ''),
+    /TELEGRAM_TEST_MASTER_ADMIN/
+  );
   const config = validateTestConfig(base, '');
   assert.equal(config.openAIKeys, '');
   assert.equal(config.elevenLabsKey, '');
-  assert.equal(config.dataDir, path.join(__dirname, '..', '.telegram-test-data'));
+  assert.equal(
+    config.dataDir,
+    path.join(__dirname, '..', '.telegram-test-data')
+  );
 });
 
 test('test storage and secret file are excluded from Git', () => {
@@ -53,6 +69,9 @@ test('production behavior still defaults to its legacy data files', () => {
 
 test('test mode does not write OpenAI events to production monitoring', () => {
   const root = path.join(__dirname, '..');
-  const openai = fs.readFileSync(path.join(root, 'ai/providers/openai.provider.js'), 'utf8');
+  const openai = fs.readFileSync(
+    path.join(root, 'ai/providers/openai.provider.js'),
+    'utf8'
+  );
   assert.match(openai, /process\.env\.TELEGRAM_TEST_MODE !== '1'/);
 });

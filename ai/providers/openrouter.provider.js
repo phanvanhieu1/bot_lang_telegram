@@ -1,56 +1,63 @@
+const { observeProvider, chatDetails } = require('../debug/inspector');
 require('dotenv').config();
 const OpenAI = require('openai');
 
-const openRouterClient = new OpenAI({
-  apiKey: process.env.OPENROUTER_API_KEY,
-  baseURL: 'https://openrouter.ai/api/v1'
-});
+let openRouterClient;
 
 async function requestOpenRouter(prompt) {
-  const messages=typeof prompt==='string'
-    ?[{role:'user',content:prompt}]
-    :[{role:'system',content:prompt.system},{role:'user',content:prompt.user}];
-  const { data, response } =
-    await openRouterClient.chat.completions
-      .create({
-        model: 'google/gemma-4-31b-it:free',
-        messages,
-        temperature: 0,
-        ...(typeof prompt==='object'?{max_tokens:prompt.maxCompletionTokens||1200}:{})
-      })
-      .withResponse();
+  if (!process.env.OPENROUTER_API_KEY) {
+    throw new Error('OPENROUTER_API_KEY is not configured');
+  }
+  openRouterClient ??= new OpenAI({
+    apiKey: process.env.OPENROUTER_API_KEY,
+    baseURL: 'https://openrouter.ai/api/v1'
+  });
 
-  const content =
-    data.choices[0]?.message?.content?.trim();
+  const messages =
+    typeof prompt === 'string'
+      ? [{ role: 'user', content: prompt }]
+      : [
+          { role: 'system', content: prompt.system },
+          { role: 'user', content: prompt.user }
+        ];
+  const body = {
+    model: 'google/gemma-4-31b-it:free',
+    messages,
+    temperature: 0,
+    ...(typeof prompt === 'object'
+      ? { max_tokens: prompt.maxCompletionTokens || 1200 }
+      : {})
+  };
+  const { data, response } = await observeProvider(
+    { provider: 'openrouter', role: 'translator', body },
+    () => openRouterClient.chat.completions.create(body).withResponse(),
+    (result) => chatDetails(result.data)
+  );
+
+  const content = data.choices[0]?.message?.content?.trim();
 
   if (!content) {
-    throw new Error(
-      'OpenRouter returned empty translation'
-    );
+    throw new Error('OpenRouter returned empty translation');
   }
 
   const rateLimit = {
     requests: {
-      limit: getHeaderNumber(
-        response.headers,
-        'x-ratelimit-limit'
-      ),
-      remaining: getHeaderNumber(
-        response.headers,
-        'x-ratelimit-remaining'
-      ),
-      reset: response.headers.get(
-        'x-ratelimit-reset'
-      )
+      limit: getHeaderNumber(response.headers, 'x-ratelimit-limit'),
+      remaining: getHeaderNumber(response.headers, 'x-ratelimit-remaining'),
+      reset: response.headers.get('x-ratelimit-reset')
     }
   };
 
   return {
     content,
     provider: 'openrouter',
-    usage:{
-      input:Number.isFinite(data.usage?.prompt_tokens)?data.usage.prompt_tokens:null,
-      output:Number.isFinite(data.usage?.completion_tokens)?data.usage.completion_tokens:null
+    usage: {
+      input: Number.isFinite(data.usage?.prompt_tokens)
+        ? data.usage.prompt_tokens
+        : null,
+      output: Number.isFinite(data.usage?.completion_tokens)
+        ? data.usage.completion_tokens
+        : null
     },
     rateLimit
   };
@@ -65,12 +72,11 @@ function getHeaderNumber(headers, name) {
 
   const number = Number(value);
 
-  return Number.isFinite(number)
-    ? number
-    : null;
+  return Number.isFinite(number) ? number : null;
 }
 
 const { observed } = require('../../api-monitoring/observe');
 module.exports = {
-  requestOpenRouter: (...args) => observed('openrouter', 'translate', () => requestOpenRouter(...args))
+  requestOpenRouter: (...args) =>
+    observed('openrouter', 'translate', () => requestOpenRouter(...args))
 };

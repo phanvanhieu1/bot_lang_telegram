@@ -4,21 +4,35 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const { MAIN_MENU, replyMenuMarkup, replyMenuOptions } = require('../telegram-main-menu');
+const {
+  MAIN_MENU,
+  replyMenuMarkup,
+  replyMenuOptions
+} = require('../telegram-main-menu');
 const { LANG_CONFIG, VOICES, SPEED_OPTIONS } = require('../config');
 
 const makeMarkup = () => ({
-  inlineKeyboard: rows => ({ reply_markup: { inline_keyboard: rows } }),
+  inlineKeyboard: (rows) => ({ reply_markup: { inline_keyboard: rows } }),
   button: { callback: (text, data) => ({ text, callback_data: data }) }
 });
 
 test('persistent reply keyboard has six actions in three rows with valid styles', () => {
   const markup = replyMenuMarkup();
-  assert.deepEqual(markup.keyboard.map(row => row.length), [2, 3, 1]);
-  assert.deepEqual(markup.keyboard.flat().map(button => button.text), [
-    MAIN_MENU.translate, MAIN_MENU.vocabulary, MAIN_MENU.voice,
-    MAIN_MENU.practice, MAIN_MENU.settings, MAIN_MENU.statistics
-  ]);
+  assert.deepEqual(
+    markup.keyboard.map((row) => row.length),
+    [2, 3, 1]
+  );
+  assert.deepEqual(
+    markup.keyboard.flat().map((button) => button.text),
+    [
+      MAIN_MENU.translate,
+      MAIN_MENU.vocabulary,
+      MAIN_MENU.voice,
+      MAIN_MENU.practice,
+      MAIN_MENU.settings,
+      MAIN_MENU.statistics
+    ]
+  );
   assert.equal(markup.keyboard[0][0].style, 'success');
   assert.equal(markup.keyboard[0][1].style, 'primary');
   assert.equal(markup.keyboard[2][0].style, 'primary');
@@ -35,9 +49,10 @@ test('settings dashboard works with saved numeric speed and all 4 voices', () =>
   const markup = makeMarkup();
   vm.runInNewContext(source, {
     module,
-    require: name => name === 'telegraf'
-      ? { Markup: markup }
-      : { LANG_CONFIG, VOICES, SPEED_OPTIONS }
+    require: (name) =>
+      name === 'telegraf'
+        ? { Markup: markup }
+        : { LANG_CONFIG, VOICES, SPEED_OPTIONS }
   });
   const ui = module.exports;
   const config = {
@@ -61,16 +76,28 @@ test('settings dashboard works with saved numeric speed and all 4 voices', () =>
     assert.ok(ui.renderDashboard(config).text.includes(VOICES[voice].name));
   }
   const voices = ui.renderMenu('🎙 Giọng đọc', VOICES, 'female2', 'set_voice');
-  assert.ok(voices.keyboard.reply_markup.inline_keyboard.flat().some(button =>
-    button.callback_data === 'set_voice_female2' && button.text.includes('✅')
-  ));
+  assert.ok(
+    voices.keyboard.reply_markup.inline_keyboard
+      .flat()
+      .some(
+        (button) =>
+          button.callback_data === 'set_voice_female2' &&
+          button.text.includes('✅')
+      )
+  );
   const display = ui.renderDisplayMenu(config);
   assert.match(display.text, /Pinyin/);
   // Menu rows come from a vm context, so convert them to a local array
   // before deepStrictEqual (cross-realm prototypes are otherwise different).
-  assert.deepEqual(Array.from(display.keyboard.reply_markup.inline_keyboard.flat()
-    .filter(button => button.callback_data.startsWith('toggle_'))
-    .map(button => button.callback_data)), ['toggle_pron', 'toggle_back', 'toggle_vocab']);
+  assert.deepEqual(
+    Array.from(
+      display.keyboard.reply_markup.inline_keyboard
+        .flat()
+        .filter((button) => button.callback_data.startsWith('toggle_'))
+        .map((button) => button.callback_data)
+    ),
+    ['toggle_pron', 'toggle_back', 'toggle_vocab']
+  );
 });
 
 test('settings actions do not change hidden legacy toggles or translate menu labels', async () => {
@@ -86,30 +113,48 @@ test('settings actions do not change hidden legacy toggles or translate menu lab
     showPronunciation: true,
     showBackTranslation: true
   };
-  let saves = 0, translations = 0;
+  let saves = 0,
+    translations = 0;
 
   class TelegrafStub {
-    constructor() { this.telegram = { setMyCommands: async () => {} }; }
-    use(fn) { handlers.use = fn; }
-    command(name, fn) { handlers.command.push([name, fn]); }
-    start(fn) { handlers.start = fn; }
-    hears(name, fn) { handlers.hears.push([name, fn]); }
-    action(pattern, fn) { handlers.action.push([pattern, fn]); }
-    on(name, fn) { handlers.on.push([name, fn]); }
-    catch(fn) { handlers.catch = fn; }
+    constructor() {
+      this.telegram = { setMyCommands: async () => {} };
+    }
+    use(fn) {
+      handlers.use = fn;
+    }
+    command(name, fn) {
+      handlers.command.push([name, fn]);
+    }
+    start(fn) {
+      handlers.start = fn;
+    }
+    hears(name, fn) {
+      handlers.hears.push([name, fn]);
+    }
+    action(pattern, fn) {
+      handlers.action.push([pattern, fn]);
+    }
+    on(name, fn) {
+      handlers.on.push([name, fn]);
+    }
+    catch(fn) {
+      handlers.catch = fn;
+    }
   }
   const Markup = makeMarkup();
   const uiModule = { exports: {} };
   vm.runInNewContext(uiFile, {
     module: uiModule,
-    require: name => name === 'telegraf'
-      ? { Markup }
-      : { LANG_CONFIG, VOICES, SPEED_OPTIONS }
+    require: (name) =>
+      name === 'telegraf' ? { Markup } : { LANG_CONFIG, VOICES, SPEED_OPTIONS }
   });
 
   const fakeSession = {
     getUserConfig: () => state,
-    saveDatabase: () => { saves++; },
+    saveDatabase: () => {
+      saves++;
+    },
     isAuthorized: () => true,
     addAuthorizedUser: () => {},
     removeAuthorizedUser: () => {},
@@ -119,8 +164,8 @@ test('settings actions do not change hidden legacy toggles or translate menu lab
     clearVocabulary: () => {}
   };
   const stub = {
-    'dotenv': { config: () => {} },
-    'telegraf': { Telegraf: TelegrafStub, Markup },
+    dotenv: { config: () => {} },
+    telegraf: { Telegraf: TelegrafStub, Markup },
     './session': fakeSession,
     './ui': uiModule.exports,
     './config': { LANG_CONFIG, VOICES, SPEED_OPTIONS },
@@ -130,18 +175,48 @@ test('settings actions do not change hidden legacy toggles or translate menu lab
     './telegram-translation': {},
     './telegram-main-menu': { MAIN_MENU, replyMenuOptions },
     './telegram-media': {},
-    './ai': { translateFull: async () => { translations++; } },
-    './ai/services/speech.service': { resolveBotSpeech: () => ({ cacheVoice: 'test' }) },
-    './telegram-sync/cache': { ready: () => false, translateViaSharedCache: async () => ({}) },
-    './telegram-sync/link': { connectTelegram: async () => ({ ok: false }), findLinkedUser: async () => null },
-    './telegram-sync/vocabulary': { saveLinkedVocabulary: async () => ({}), exportLinkedVocabulary: async () => ({}) },
-    './telegram-sync/preferences': { syncTelegramPreferences: async (ctx, next) => next() },
+    './ai': {
+      translateFull: async () => {
+        translations++;
+      }
+    },
+    './ai/services/speech.service': {
+      resolveBotSpeech: () => ({ cacheVoice: 'test' })
+    },
+    './telegram-sync/cache': {
+      ready: () => false,
+      translateViaSharedCache: async () => ({})
+    },
+    './telegram-sync/link': {
+      connectTelegram: async () => ({ ok: false }),
+      findLinkedUser: async () => null
+    },
+    './telegram-sync/vocabulary': {
+      saveLinkedVocabulary: async () => ({}),
+      exportLinkedVocabulary: async () => ({})
+    },
+    './telegram-sync/preferences': {
+      syncTelegramPreferences: async (ctx, next) => next()
+    },
     './config/database': async () => {},
-    './web-tts': { getChineseAudio: async () => ({audio: Buffer.from([])}), getVietnameseAudio: async () => ({audio: Buffer.from([])}) },
-    './errorHandler': async () => {}
+    './web-tts': {
+      getChineseAudio: async () => ({ audio: Buffer.from([]) }),
+      getVietnameseAudio: async () => ({ audio: Buffer.from([]) })
+    },
+    './errorHandler': async () => {},
+    './modules/personal-context/telegram': {
+      createTelegramConversations: () => ({
+        register() {},
+        async current() {
+          return null;
+        },
+        async capture() {}
+      })
+    },
+    './modules/personal-context/models': {}
   };
   const fakeModule = { exports: {} };
-  const fakeRequire = name => {
+  const fakeRequire = (name) => {
     if (name === 'node:crypto') return require('node:crypto');
     if (!(name in stub)) throw new Error('Unknown bot dependency: ' + name);
     return stub[name];
@@ -150,36 +225,56 @@ test('settings actions do not change hidden legacy toggles or translate menu lab
   vm.runInNewContext(botFile, {
     module: fakeModule,
     require: fakeRequire,
-    process: { env: { TELEGRAM_BOT_TOKEN: 'fake-test-token', MASTER_ADMIN: '12345', TELEGRAM_TEST_MODE: '1' } },
+    process: {
+      env: {
+        TELEGRAM_BOT_TOKEN: 'fake-test-token',
+        MASTER_ADMIN: '12345',
+        TELEGRAM_TEST_MODE: '1'
+      }
+    },
     console,
     Buffer
   });
   const context = () => {
-    const messages = [], answers = [];
+    const messages = [],
+      answers = [];
     return {
       from: { id: 12345 },
       message: { text: '' },
-      messages, answers,
-      reply: async (text, opts) => { messages.push({ text, opts }); },
-      editMessageText: async (text, opts) => { messages.push({ text, opts, edit: true }); },
-      answerCbQuery: async text => { answers.push(text); }
+      messages,
+      answers,
+      reply: async (text, opts) => {
+        messages.push({ text, opts });
+      },
+      editMessageText: async (text, opts) => {
+        messages.push({ text, opts, edit: true });
+      },
+      answerCbQuery: async (text) => {
+        answers.push(text);
+      }
     };
   };
-  const callback = data => {
+  const callback = (data) => {
     const found = handlers.action.filter(([pattern]) =>
-      (pattern instanceof RegExp
+      pattern instanceof RegExp
         ? new RegExp(pattern.source, pattern.flags).test(data)
-        : pattern === data)
+        : pattern === data
     );
     // Pattern RegExps are created in another VM context.
     const exact = handlers.action.filter(([pattern]) =>
-      typeof pattern === 'string' ? pattern === data : pattern && pattern.source
-        ? new RegExp(pattern.source, pattern.flags).test(data) : false
+      typeof pattern === 'string'
+        ? pattern === data
+        : pattern && pattern.source
+          ? new RegExp(pattern.source, pattern.flags).test(data)
+          : false
     );
     assert.equal(exact.length, 1, 'Must have one action for ' + data);
-    return [exact[0][1], data.match(new RegExp(exact[0][0].source, exact[0][0].flags))];
+    return [
+      exact[0][1],
+      data.match(new RegExp(exact[0][0].source, exact[0][0].flags))
+    ];
   };
-  const runAction = async data => {
+  const runAction = async (data) => {
     const [fn, match] = callback(data);
     const ctx = context();
     ctx.match = match || [];
@@ -191,7 +286,9 @@ test('settings actions do not change hidden legacy toggles or translate menu lab
   assert.equal(started.messages.length, 1);
   assert.equal(started.messages[0].opts.reply_markup.keyboard.length, 3);
 
-  const settingsHandler = handlers.hears.find(([name]) => name === MAIN_MENU.settings);
+  const settingsHandler = handlers.hears.find(
+    ([name]) => name === MAIN_MENU.settings
+  );
   const settings = context();
   await settingsHandler[1](settings);
   assert.ok(settings.messages[0].opts.reply_markup.inline_keyboard);
@@ -215,19 +312,27 @@ test('settings actions do not change hidden legacy toggles or translate menu lab
   assert.equal(saves, 5);
 
   const oldInvalidEdit = context();
-  oldInvalidEdit.editMessageText = async () => { throw new Error('message to edit not found'); };
+  oldInvalidEdit.editMessageText = async () => {
+    throw new Error('message to edit not found');
+  };
   const [menuHandler] = callback('menu_voice');
   await menuHandler(oldInvalidEdit);
   assert.equal(oldInvalidEdit.messages.length, 1);
   assert.equal(oldInvalidEdit.answers.length, 1);
 
   assert.equal(handlers.hears.length, 6);
-  for (const label of [MAIN_MENU.vocabulary, MAIN_MENU.practice, MAIN_MENU.statistics]) {
+  for (const label of [
+    MAIN_MENU.vocabulary,
+    MAIN_MENU.practice,
+    MAIN_MENU.statistics
+  ]) {
     const fn = handlers.hears.find(([name]) => name === label)[1];
     const ctx = context();
     await fn(ctx);
-    assert.match(ctx.messages[0].text, label === MAIN_MENU.vocabulary
-      ? /web PRO|\/link/ : /đang được phát triển/);
+    assert.match(
+      ctx.messages[0].text,
+      label === MAIN_MENU.vocabulary ? /web PRO|\/link/ : /đang được phát triển/
+    );
   }
   // Even if a menu label reaches the generic text fallback, it must be ignored.
   const fallback = handlers.on.find(([name]) => name === 'text')[1];
@@ -239,5 +344,8 @@ test('settings actions do not change hidden legacy toggles or translate menu lab
 
 test('translation cache varies with vocabulary settings', () => {
   const bot = fs.readFileSync(path.join(__dirname, '..', 'bot.js'), 'utf8');
-  assert.match(bot, /translateViaSharedCache\(text, c\.targetLang, c\.showVocabulary\)/);
+  assert.match(
+    bot,
+    /translateViaSharedCache\(\s*text\s*,\s+c\.targetLang\s*,\s+c\.showVocabulary\s*,\s*\{\s*owner/
+  );
 });

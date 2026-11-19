@@ -2,31 +2,57 @@
 // Persist only what the web translation detail pane needs to replay a completed
 // request. Historic inspection content is stored only when the user explicitly
 // enabled the AI inspector for that request.
-function historySnapshot({engine,context='auto',options={},response={}}={}){
-  const validEngine=['v1','v2','free'].includes(engine)?engine:'v1';
-  const uiOptions={
-    backTranslation:options.backTranslation!==false,
-    pronunciation:options.pronunciation!==false,
-    vocabulary:options.vocabulary!==false,
-    verification:options.verification===true
+function historySnapshot({
+  engine,
+  context = 'auto',
+  options = {},
+  response = {}
+} = {}) {
+  const validEngine = ['v1', 'v2', 'free'].includes(engine) ? engine : 'v1';
+  const uiOptions = {
+    backTranslation: options.backTranslation !== false,
+    pronunciation: options.pronunciation !== false,
+    vocabulary: options.vocabulary !== false,
+    verification: options.verification === true
   };
   // Legacy history snapshots remain byte-compatible when no model was chosen.
-  if(['gpt-4o','gpt-4o-mini'].includes(options.translationModel))
-    uiOptions.translationModel=options.translationModel;
-  const keys=['result','vocabularyItems','vocabularyError','cached','provider',
-    'requestUsage','appliedTerms','terminologyWarnings','issues',
-    'analysis','analysisTerms','translationNotes','sourceLanguage',
-    'targetLanguage','needsReview','verificationError','verification',
+  if (['gpt-4o', 'gpt-4o-mini'].includes(options.translationModel))
+    uiOptions.translationModel = options.translationModel;
+  const keys = [
+    'result',
+    'vocabularyItems',
+    'vocabularyError',
+    'cached',
+    'provider',
+    'requestUsage',
+    'appliedTerms',
+    'terminologyWarnings',
+    'issues',
+    'analysis',
+    'analysisTerms',
+    'translationNotes',
+    'sourceLanguage',
+    'targetLanguage',
+    'needsReview',
+    'verificationError',
+    'verification',
     'backTranslationWarning',
-    'translationModel'];
-  const payload={};
-  for(const key of keys){
-    if(Object.hasOwn(response,key))payload[key]=response[key];
+    'translationModel'
+  ];
+  const payload = {};
+  for (const key of keys) {
+    if (Object.hasOwn(response, key)) payload[key] = response[key];
   }
-  if(options.inspectAI===true&&response.inspection){
-    payload.inspection=response.inspection;
+  if (options.inspectAI === true && response.inspection) {
+    payload.inspection = response.inspection;
   }
-  return {version:1,engine:validEngine,context,options:uiOptions,
-    inspectEnabled:options.inspectAI===true,payload};
+  return {
+    version: 1,
+    engine: validEngine,
+    context,
+    options: uiOptions,
+    inspectEnabled: options.inspectAI === true,
+    payload
+  };
 }
-module.exports={historySnapshot};
+module.exports = { historySnapshot };

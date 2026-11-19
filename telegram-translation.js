@@ -3,27 +3,36 @@
 // Parse named fields before presenting a translation. Do not let text from
 // BACK_TRANSLATION, VOCABULARY or PRONUNCIATION leak into Copy or TTS.
 function parseTelegramTranslation(raw) {
-  const source = typeof raw === 'string' ? raw.replace(/\r\n/g, '\n').trim() : '';
+  const source =
+    typeof raw === 'string' ? raw.replace(/\r\n/g, '\n').trim() : '';
   if (!source) throw new Error('AI không trả về bản dịch');
 
-  const headings = /^\s*(TRANSLATION|BACK_TRANSLATION|PRONUNCIATION|VOCABULARY|VERIFICATION)\s*:\s*/gim;
+  const headings =
+    /^\s*(TRANSLATION|BACK_TRANSLATION|PRONUNCIATION|VOCABULARY|VERIFICATION)\s*:\s*/gim;
   const positions = Array.from(source.matchAll(headings));
   if (!positions.length) {
-    return { translation: source, backTranslation: '', pronunciation: '', vocabulary: '' };
+    return {
+      translation: source,
+      backTranslation: '',
+      pronunciation: '',
+      vocabulary: ''
+    };
   }
 
   const parsed = Object.create(null);
   for (let i = 0; i < positions.length; i++) {
     const match = positions[i];
     const name = match[1].toUpperCase();
-    const nextStart = i + 1 < positions.length ? positions[i + 1].index : source.length;
+    const nextStart =
+      i + 1 < positions.length ? positions[i + 1].index : source.length;
     const value = source.slice(match.index + match[0].length, nextStart).trim();
     if (!(name in parsed)) parsed[name] = value;
   }
 
   // Never copy or read the full raw response when the TRANSLATION field is
   // missing. A hidden extra section is not a valid translated sentence.
-  if (!parsed.TRANSLATION) throw new Error('Kết quả AI thiếu trường TRANSLATION');
+  if (!parsed.TRANSLATION)
+    throw new Error('Kết quả AI thiếu trường TRANSLATION');
 
   return {
     translation: parsed.TRANSLATION,
@@ -33,8 +42,19 @@ function parseTelegramTranslation(raw) {
   };
 }
 
-function buildTranslationButtons({ translation, speechId, vocabId, copyInlineButton, callbackButton }) {
-  if (!translation || !speechId || typeof copyInlineButton !== 'function' || typeof callbackButton !== 'function') {
+function buildTranslationButtons({
+  translation,
+  speechId,
+  vocabId,
+  copyInlineButton,
+  callbackButton
+}) {
+  if (
+    !translation ||
+    !speechId ||
+    typeof copyInlineButton !== 'function' ||
+    typeof callbackButton !== 'function'
+  ) {
     throw new TypeError('Invalid translation actions');
   }
   const row = [];
@@ -52,12 +72,14 @@ function buildCompactTranslation({ translation, pinyin, backTranslation }) {
     throw new TypeError('Missing primary translation');
   }
   const lines = ['📖 ' + translation.trim()];
-  if (typeof pinyin === 'string' && pinyin.trim()) lines.push('🔤 ' + pinyin.trim());
-  if (typeof backTranslation === 'string' && backTranslation.trim()) lines.push('🔁 ' + backTranslation.trim());
+  if (typeof pinyin === 'string' && pinyin.trim())
+    lines.push('🔤 ' + pinyin.trim());
+  if (typeof backTranslation === 'string' && backTranslation.trim())
+    lines.push('🔁 ' + backTranslation.trim());
   return lines.join('\n');
 }
 
-const hasHan = text => /[\u3400-\u9FFF]/u.test(String(text || ''));
+const hasHan = (text) => /[\u3400-\u9FFF]/u.test(String(text || ''));
 
 function getChineseSentence(source, translation, backTranslation = '') {
   if (hasHan(translation)) return translation;
@@ -77,4 +99,10 @@ function getSpeechLanguage(source, translation, targetLang) {
   return 'other';
 }
 
-module.exports = { parseTelegramTranslation, buildTranslationButtons, buildCompactTranslation, getChineseSentence, getSpeechLanguage };
+module.exports = {
+  parseTelegramTranslation,
+  buildTranslationButtons,
+  buildCompactTranslation,
+  getChineseSentence,
+  getSpeechLanguage
+};

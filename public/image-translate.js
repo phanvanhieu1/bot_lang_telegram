@@ -33,7 +33,10 @@
 
   function canUsePro() {
     const access = window.translatorAccess;
-    return access?.role === 'pro' || (access?.role === 'admin' && access?.mode === 'pro');
+    return (
+      access?.role === 'pro' ||
+      (access?.role === 'admin' && access?.mode === 'pro')
+    );
   }
   function setStatus(message = '', error = false) {
     status.textContent = message;
@@ -60,7 +63,8 @@
     transcript.replaceChildren();
     notesBox.replaceChildren();
     notesBox.hidden = true;
-    targetCaption.textContent = 'Việt ↔ ' + (window.languageUI.get() === 'en' ? 'Anh' : 'Trung');
+    targetCaption.textContent =
+      'Việt ↔ ' + (window.languageUI.get() === 'en' ? 'Anh' : 'Trung');
   }
   function switchMode(next) {
     if (next === 'image' && !canUsePro()) return;
@@ -81,7 +85,9 @@
   function refreshPermission() {
     const unlocked = canUsePro();
     imageTab.disabled = !unlocked;
-    imageTab.title = unlocked ? 'Dịch ảnh hội thoại bằng AI' : 'Chỉ dành cho tài khoản PRO';
+    imageTab.title = unlocked
+      ? 'Dịch ảnh hội thoại bằng AI'
+      : 'Chỉ dành cho tài khoản PRO';
     if (!unlocked && imageMode) switchMode('text');
     translateBtn.disabled = !unlocked || !file;
   }
@@ -91,7 +97,10 @@
   window.addEventListener('learning-language-change', () => {
     abortWork();
     clearResult();
-    if (file) setStatus('Đã đổi ngôn ngữ. Nhấn “Dịch ảnh” để dịch lại theo ngôn ngữ mới.');
+    if (file)
+      setStatus(
+        'Đã đổi ngôn ngữ. Nhấn “Dịch ảnh” để dịch lại theo ngôn ngữ mới.'
+      );
     else setStatus('');
   });
   refreshPermission();
@@ -116,7 +125,9 @@
     originalPreview.hidden = false;
     dropzone.hidden = true;
     translateBtn.disabled = !canUsePro();
-    setStatus('Ảnh đã sẵn sàng (' + (candidate.size / 1024 / 1024).toFixed(2) + ' MB).');
+    setStatus(
+      'Ảnh đã sẵn sàng (' + (candidate.size / 1024 / 1024).toFixed(2) + ' MB).'
+    );
     if (autoRun && canUsePro()) void translateImage();
   }
   fileInput.addEventListener('change', () => useImage(fileInput.files?.[0]));
@@ -133,18 +144,23 @@
     dropzone.classList.add('dragging');
   });
   workspace.addEventListener('dragleave', (event) => {
-    if (!workspace.contains(event.relatedTarget)) dropzone.classList.remove('dragging');
+    if (!workspace.contains(event.relatedTarget))
+      dropzone.classList.remove('dragging');
   });
   workspace.addEventListener('drop', (event) => {
     if (!imageMode || !canUsePro()) return;
     event.preventDefault();
     dropzone.classList.remove('dragging');
-    const image = [...(event.dataTransfer?.files || [])].find(item => ALLOWED_TYPES.includes(item.type));
+    const image = [...(event.dataTransfer?.files || [])].find((item) =>
+      ALLOWED_TYPES.includes(item.type)
+    );
     useImage(image);
   });
   document.addEventListener('paste', (event) => {
     if (!canUsePro() || document.querySelector('dialog[open]')) return;
-    const item = [...(event.clipboardData?.items || [])].find(part => part.kind === 'file' && part.type.startsWith('image/'));
+    const item = [...(event.clipboardData?.items || [])].find(
+      (part) => part.kind === 'file' && part.type.startsWith('image/')
+    );
     if (!item) return;
     const pasted = item.getAsFile();
     if (!pasted) return;
@@ -165,16 +181,41 @@
     data.messages.forEach((entry, index) => {
       const box = document.createElement('article');
       box.className = 'image-message';
-      const role = entry.side === 'left' ? 'Bên trái' : entry.side === 'right' ? 'Bên phải' : 'Không xác định';
-      textBlock(box, 'div', 'image-message-head', 'TIN NHẮN ' + (index + 1) + ' · ' + role + (entry.time ? ' · ' + entry.time : ''));
+      const role =
+        entry.side === 'left'
+          ? 'Bên trái'
+          : entry.side === 'right'
+            ? 'Bên phải'
+            : 'Không xác định';
+      textBlock(
+        box,
+        'div',
+        'image-message-head',
+        'TIN NHẮN ' +
+          (index + 1) +
+          ' · ' +
+          role +
+          (entry.time ? ' · ' + entry.time : '')
+      );
       if (entry.quoteOriginal || entry.quoteTranslation) {
-        textBlock(box, 'div', 'image-message-quote',
-          'Trích dẫn: ' + (entry.quoteOriginal || '') +
-          (entry.quoteTranslation ? '\n→ ' + entry.quoteTranslation : ''));
+        textBlock(
+          box,
+          'div',
+          'image-message-quote',
+          'Trích dẫn: ' +
+            (entry.quoteOriginal || '') +
+            (entry.quoteTranslation ? '\n→ ' + entry.quoteTranslation : '')
+        );
       }
       textBlock(box, 'div', 'image-message-original', entry.original);
       textBlock(box, 'div', 'image-message-translation', entry.translation);
-      if (entry.uncertain) textBlock(box, 'div', 'image-message-uncertain', 'Một phần tin nhắn chưa đọc rõ; cần đối chiếu ảnh gốc.');
+      if (entry.uncertain)
+        textBlock(
+          box,
+          'div',
+          'image-message-uncertain',
+          'Một phần tin nhắn chưa đọc rõ; cần đối chiếu ảnh gốc.'
+        );
       transcript.appendChild(box);
     });
     notesBox.replaceChildren();
@@ -196,12 +237,18 @@
     const paragraphs = String(value || '').split('\n');
     const rows = [];
     for (const paragraph of paragraphs) {
-      if (!paragraph.trim()) { rows.push(''); continue; }
+      if (!paragraph.trim()) {
+        rows.push('');
+        continue;
+      }
       const words = paragraph.split(/\s+/);
       let current = '';
       for (const word of words) {
         if (ctx.measureText(word).width > maxWidth) {
-          if (current) { rows.push(current); current = ''; }
+          if (current) {
+            rows.push(current);
+            current = '';
+          }
           let part = '';
           for (const char of Array.from(word)) {
             if (part && ctx.measureText(part + char).width > maxWidth) {
@@ -239,23 +286,46 @@
   function createChatCanvas(data) {
     const width = 960;
     const measure = document.createElement('canvas').getContext('2d');
-    const bodyFont = '25px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif';
-    const quoteFont = '20px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif';
+    const bodyFont =
+      '25px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif';
+    const quoteFont =
+      '20px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif';
     const all = [];
     let y = 150;
     for (let index = 0; index < data.messages.length; index++) {
       const entry = data.messages[index];
       const contentLines = wrapLines(measure, entry.translation, 640, bodyFont);
-      const quoteLines = entry.quoteTranslation ? wrapLines(measure, entry.quoteTranslation, 640, quoteFont) : [];
+      const quoteLines = entry.quoteTranslation
+        ? wrapLines(measure, entry.quoteTranslation, 640, quoteFont)
+        : [];
       measure.font = bodyFont;
-      const contentWidth = contentLines.reduce((longest, line) => Math.max(longest, measure.measureText(line).width), 0);
+      const contentWidth = contentLines.reduce(
+        (longest, line) => Math.max(longest, measure.measureText(line).width),
+        0
+      );
       measure.font = quoteFont;
-      const quoteWidth = quoteLines.reduce((longest, line) => Math.max(longest, measure.measureText(line).width), 0);
-      const bubbleWidth = Math.min(702, Math.max(230, Math.ceil(Math.max(contentWidth, quoteWidth) + 54)));
+      const quoteWidth = quoteLines.reduce(
+        (longest, line) => Math.max(longest, measure.measureText(line).width),
+        0
+      );
+      const bubbleWidth = Math.min(
+        702,
+        Math.max(230, Math.ceil(Math.max(contentWidth, quoteWidth) + 54))
+      );
       const quoteHeight = quoteLines.length ? quoteLines.length * 29 + 21 : 0;
-      const bubbleHeight = 44 + contentLines.length * 37 + (quoteHeight ? quoteHeight + 13 : 0);
+      const bubbleHeight =
+        44 + contentLines.length * 37 + (quoteHeight ? quoteHeight + 13 : 0);
       if (y + bubbleHeight + 60 > 14500) break;
-      all.push({ entry, index, y, bubbleWidth, bubbleHeight, quoteHeight, contentLines, quoteLines });
+      all.push({
+        entry,
+        index,
+        y,
+        bubbleWidth,
+        bubbleHeight,
+        quoteHeight,
+        contentLines,
+        quoteLines
+      });
       y += bubbleHeight + 64;
     }
     const omitted = data.messages.length - all.length;
@@ -267,23 +337,49 @@
     ctx.fillStyle = '#101a26';
     ctx.fillRect(0, 0, width, height);
     ctx.fillStyle = '#eff6ff';
-    ctx.font = 'bold 35px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif';
+    ctx.font =
+      'bold 35px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif';
     ctx.fillText('Hội thoại đã dịch', 36, 58);
     ctx.fillStyle = '#a4b6ca';
-    ctx.font = '21px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif';
-    const target = data.targetLanguage === 'vi' ? 'Tiếng Việt' : data.targetLanguage === 'en' ? 'Tiếng Anh' : 'Tiếng Trung';
-    ctx.fillText(target + ' · Bản dịch AI · ' + data.messages.length + ' tin nhắn', 37, 96);
+    ctx.font =
+      '21px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif';
+    const target =
+      data.targetLanguage === 'vi'
+        ? 'Tiếng Việt'
+        : data.targetLanguage === 'en'
+          ? 'Tiếng Anh'
+          : 'Tiếng Trung';
+    ctx.fillText(
+      target + ' · Bản dịch AI · ' + data.messages.length + ' tin nhắn',
+      37,
+      96
+    );
     ctx.strokeStyle = '#33495f';
-    ctx.beginPath(); ctx.moveTo(35, 120); ctx.lineTo(width - 35, 120); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(35, 120);
+    ctx.lineTo(width - 35, 120);
+    ctx.stroke();
 
     for (const row of all) {
       const right = row.entry.side === 'right';
       const x = right ? width - 38 - row.bubbleWidth : 38;
       ctx.fillStyle = '#849bb6';
-      ctx.font = 'bold 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif';
+      ctx.font =
+        'bold 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif';
       ctx.textAlign = right ? 'right' : 'left';
-      ctx.fillText((right ? 'BÊN PHẢI' : row.entry.side === 'left' ? 'BÊN TRÁI' : 'TIN NHẮN') + ' · ' + (row.index + 1) + (row.entry.time ? ' · ' + row.entry.time : '') + (row.entry.uncertain ? ' · CHƯA RÕ' : ''),
-        right ? width - 39 : 39, row.y);
+      ctx.fillText(
+        (right
+          ? 'BÊN PHẢI'
+          : row.entry.side === 'left'
+            ? 'BÊN TRÁI'
+            : 'TIN NHẮN') +
+          ' · ' +
+          (row.index + 1) +
+          (row.entry.time ? ' · ' + row.entry.time : '') +
+          (row.entry.uncertain ? ' · CHƯA RÕ' : ''),
+        right ? width - 39 : 39,
+        row.y
+      );
       ctx.textAlign = 'left';
       const top = row.y + 15;
       roundBox(ctx, x, top, row.bubbleWidth, row.bubbleHeight, 24);
@@ -291,42 +387,73 @@
       ctx.fill();
       let lineY = top + 33;
       if (row.quoteLines.length) {
-        roundBox(ctx, x + 14, top + 13, row.bubbleWidth - 28, row.quoteHeight, 9);
+        roundBox(
+          ctx,
+          x + 14,
+          top + 13,
+          row.bubbleWidth - 28,
+          row.quoteHeight,
+          9
+        );
         ctx.fillStyle = right ? '#4f80ba' : '#36506a';
         ctx.fill();
         ctx.fillStyle = '#e9f0fb';
         ctx.font = quoteFont;
         lineY = top + 44;
-        for (const line of row.quoteLines) { ctx.fillText(line, x + 28, lineY); lineY += 29; }
+        for (const line of row.quoteLines) {
+          ctx.fillText(line, x + 28, lineY);
+          lineY += 29;
+        }
         lineY = top + 30 + row.quoteHeight + 14;
       }
       ctx.fillStyle = '#ffffff';
       ctx.font = bodyFont;
-      for (const line of row.contentLines) { ctx.fillText(line, x + 26, lineY); lineY += 37; }
+      for (const line of row.contentLines) {
+        ctx.fillText(line, x + 26, lineY);
+        lineY += 37;
+      }
     }
     if (omitted) {
       ctx.fillStyle = '#e4b76b';
       ctx.font = '20px Arial, sans-serif';
-      ctx.fillText('Còn ' + omitted + ' tin nhắn: xem phần đối chiếu bên dưới.', 38, height - 55);
+      ctx.fillText(
+        'Còn ' + omitted + ' tin nhắn: xem phần đối chiếu bên dưới.',
+        38,
+        height - 55
+      );
     }
     ctx.fillStyle = '#7590a9';
     ctx.font = '15px Arial, sans-serif';
-    ctx.fillText('Bản dịch hỗ trợ hiểu nội dung, hãy đối chiếu ảnh gốc nếu có thuật ngữ khó.', 38, height - 22);
+    ctx.fillText(
+      'Bản dịch hỗ trợ hiểu nội dung, hãy đối chiếu ảnh gốc nếu có thuật ngữ khó.',
+      38,
+      height - 22
+    );
     return canvas;
   }
 
   function formatCopy(data) {
-    const labels = { left: 'Bên trái', right: 'Bên phải', unknown: 'Không xác định' };
+    const labels = {
+      left: 'Bên trái',
+      right: 'Bên phải',
+      unknown: 'Không xác định'
+    };
     const lines = [];
     data.messages.forEach((msg, index) => {
-      lines.push((index + 1) + '. ' + labels[msg.side] + (msg.time ? ' · ' + msg.time : ''));
-      if (msg.quoteTranslation) lines.push('  Trích dẫn: ' + msg.quoteTranslation);
+      lines.push(
+        index + 1 + '. ' + labels[msg.side] + (msg.time ? ' · ' + msg.time : '')
+      );
+      if (msg.quoteTranslation)
+        lines.push('  Trích dẫn: ' + msg.quoteTranslation);
       lines.push('  Gốc: ' + msg.original);
       lines.push('  Dịch: ' + msg.translation);
       if (msg.uncertain) lines.push('  (Có nội dung chưa đọc rõ)');
       lines.push('');
     });
-    if (data.notes.length) lines.push('Ghi chú:\n' + data.notes.map(note => '- ' + note).join('\n'));
+    if (data.notes.length)
+      lines.push(
+        'Ghi chú:\n' + data.notes.map((note) => '- ' + note).join('\n')
+      );
     return lines.join('\n').trim();
   }
   copyBtn.addEventListener('click', async () => {
@@ -335,7 +462,10 @@
       await navigator.clipboard.writeText(formatCopy(translatedData));
       setStatus('Đã sao chép toàn bộ nội dung hội thoại.');
     } catch (_) {
-      setStatus('Không thể sao chép tự động; bạn có thể chọn văn bản trong phần đối chiếu.', true);
+      setStatus(
+        'Không thể sao chép tự động; bạn có thể chọn văn bản trong phần đối chiếu.',
+        true
+      );
     }
   });
   saveBtn.addEventListener('click', () => {
@@ -354,7 +484,9 @@
     if (!file || !canUsePro() || controller) return;
     const requestedLanguage = window.languageUI.get();
     clearResult();
-    setStatus('AI đang đọc hội thoại và dịch. Ảnh dài có thể mất vài chục giây...');
+    setStatus(
+      'AI đang đọc hội thoại và dịch. Ảnh dài có thể mất vài chục giây...'
+    );
     const id = ++epoch;
     const signalController = new AbortController();
     controller = signalController;
@@ -379,12 +511,16 @@
       }
       const data = await response.json().catch(() => ({}));
       if (id !== epoch) return;
-      if (!response.ok || !data.success) throw new Error(data.message || 'Không thể dịch ảnh');
-      if (!Array.isArray(data.messages) || !data.messages.length) throw new Error('Không tìm thấy tin nhắn trong ảnh');
+      if (!response.ok || !data.success)
+        throw new Error(data.message || 'Không thể dịch ảnh');
+      if (!Array.isArray(data.messages) || !data.messages.length)
+        throw new Error('Không tìm thấy tin nhắn trong ảnh');
       translatedData = data;
       displayTranscript(data);
       const canvas = createChatCanvas(data);
-      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+      const blob = await new Promise((resolve) =>
+        canvas.toBlob(resolve, 'image/png')
+      );
       if (!blob) throw new Error('Không thể dựng ảnh kết quả');
       if (id !== epoch) return;
       generatedBlob = blob;
@@ -394,12 +530,25 @@
       empty.hidden = true;
       actions.hidden = false;
       details.hidden = false;
-      targetCaption.textContent = 'Tiếng ' + (data.targetLanguage === 'vi' ? 'Việt' : data.targetLanguage === 'en' ? 'Anh' : 'Trung');
-      setStatus('✓ Đã dịch ' + data.messages.length + ' tin nhắn. Mở “Đối chiếu” để xem từng câu gốc và ghi chú.');
+      targetCaption.textContent =
+        'Tiếng ' +
+        (data.targetLanguage === 'vi'
+          ? 'Việt'
+          : data.targetLanguage === 'en'
+            ? 'Anh'
+            : 'Trung');
+      setStatus(
+        '✓ Đã dịch ' +
+          data.messages.length +
+          ' tin nhắn. Mở “Đối chiếu” để xem từng câu gốc và ghi chú.'
+      );
     } catch (error) {
       if (id !== epoch) return;
       console.error('Image translation error:', error);
-      const message = error.name === 'AbortError' ? 'Yêu cầu hết thời gian xử lý, vui lòng thử lại.' : error.message;
+      const message =
+        error.name === 'AbortError'
+          ? 'Yêu cầu hết thời gian xử lý, vui lòng thử lại.'
+          : error.message;
       clearResult();
       setStatus(message || 'Không thể dịch ảnh', true);
     } finally {

@@ -7,7 +7,8 @@ const { buildSpeechRequest, VIETNAMESE_VOICE_ID } = require('../../tts-shared');
 // Flash v2.5 + language_code: 'vi', as does the web PRO endpoint.
 function resolveBotSpeech(text, voiceKey, speed) {
   const language = voiceKey === 'vi' ? 'vi' : 'zh';
-  const voiceId = language === 'zh' ? VOICES[voiceKey]?.id : VIETNAMESE_VOICE_ID;
+  const voiceId =
+    language === 'zh' ? VOICES[voiceKey]?.id : VIETNAMESE_VOICE_ID;
   return buildSpeechRequest({
     text,
     voiceId,

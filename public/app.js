@@ -1,12 +1,21 @@
-
 const textInput = document.getElementById('text');
 const targetLang = document.getElementById('targetLang');
 const translateBtn = document.getElementById('translateBtn');
-const translationEnginePicker=document.getElementById('translationEnginePicker');
-const translationModelPicker=document.getElementById('translationModelPicker');
-const translationModelSelect=document.getElementById('translationModelSelect');
-const engineV1=document.querySelector('input[name="translationEngine"][value="v1"]');
-const engineV2=document.querySelector('input[name="translationEngine"][value="v2"]');
+const translationEnginePicker = document.getElementById(
+  'translationEnginePicker'
+);
+const translationModelPicker = document.getElementById(
+  'translationModelPicker'
+);
+const translationModelSelect = document.getElementById(
+  'translationModelSelect'
+);
+const engineV1 = document.querySelector(
+  'input[name="translationEngine"][value="v1"]'
+);
+const engineV2 = document.querySelector(
+  'input[name="translationEngine"][value="v2"]'
+);
 const v2InspectLabel = document.getElementById('v2InspectLabel');
 const v2InspectToggle = document.getElementById('v2InspectToggle');
 const v1InspectLabel = document.getElementById('v1InspectLabel');
@@ -15,17 +24,15 @@ const translateText = document.getElementById('translateText');
 const status = document.getElementById('status');
 const languageSelector = document.getElementById('languageSelector');
 const translationResult = document.getElementById('translationResult');
-const backTranslationWrapper =
-  document.getElementById('backTranslationWrapper');
+const backTranslationWrapper = document.getElementById(
+  'backTranslationWrapper'
+);
 
-const backTranslation =
-  document.getElementById('backTranslation');
+const backTranslation = document.getElementById('backTranslation');
 
-const contextSelect =
-  document.getElementById('contextSelect');
+const contextSelect = document.getElementById('contextSelect');
 
-const verificationToggle =
-  document.getElementById('verificationToggle');
+const verificationToggle = document.getElementById('verificationToggle');
 
 const todayCost = document.getElementById('todayCost');
 const todayStats = document.getElementById('todayStats');
@@ -43,82 +50,108 @@ const logoutBtn = document.getElementById('logoutBtn');
 
 let historyData = [];
 let savedData = [];
-let sidebarView='history';
-let historyDetailLoad=0;
+let sidebarView = 'history';
+let historyDetailLoad = 0;
 // Invalidate pending translation/archive results when the visible input changes.
-let translationViewVersion=0;
-const savedBtn=document.getElementById('savedBtn');
-const saveTranslationBtn=document.getElementById('saveTranslationBtn');
-const historySidebarTitle=document.getElementById('historySidebarTitle');
-let activeHistoryId=null,activeSavedId=null,activeTranslationSource='';
-let savedActionBusy=false,favoriteVersion=0;
-function setSaveState({historyId=null,savedId=null,source=''}={}){
+let translationViewVersion = 0;
+const savedBtn = document.getElementById('savedBtn');
+const saveTranslationBtn = document.getElementById('saveTranslationBtn');
+const historySidebarTitle = document.getElementById('historySidebarTitle');
+let activeHistoryId = null,
+  activeSavedId = null,
+  activeTranslationSource = '';
+let savedActionBusy = false,
+  favoriteVersion = 0;
+function setSaveState({ historyId = null, savedId = null, source = '' } = {}) {
   favoriteVersion++;
-  activeHistoryId=historyId;
-  activeSavedId=savedId;
-  activeTranslationSource=source;
-  const visible=Boolean((historyId||savedId)&&translation.textContent.trim());
-  saveTranslationBtn.hidden=!visible;
-  saveTranslationBtn.disabled=savedActionBusy;
-  saveTranslationBtn.setAttribute('aria-pressed',String(Boolean(savedId)));
-  saveTranslationBtn.title=savedId?'Bỏ lưu bản dịch':'Lưu bản dịch';
-  saveTranslationBtn.setAttribute('aria-label',saveTranslationBtn.title);
+  activeHistoryId = historyId;
+  activeSavedId = savedId;
+  activeTranslationSource = source;
+  const visible = Boolean(
+    (historyId || savedId) && translation.textContent.trim()
+  );
+  saveTranslationBtn.hidden = !visible;
+  saveTranslationBtn.disabled = savedActionBusy;
+  saveTranslationBtn.setAttribute('aria-pressed', String(Boolean(savedId)));
+  saveTranslationBtn.title = savedId ? 'Bỏ lưu bản dịch' : 'Lưu bản dịch';
+  saveTranslationBtn.setAttribute('aria-label', saveTranslationBtn.title);
 }
-async function syncSavedState(historyId,version){
-  if(!historyId)return;
-  try{
-    const response=await fetch('/api/saved/status/'+encodeURIComponent(historyId),{
-      credentials:'same-origin',cache:'no-store'});
-    if(!response.ok)return;
-    const data=await response.json();
-    if(version===favoriteVersion&&activeHistoryId===historyId){
-      setSaveState({historyId,savedId:data.savedId||null,
-        source:activeTranslationSource});
+async function syncSavedState(historyId, version) {
+  if (!historyId) return;
+  try {
+    const response = await fetch(
+      '/api/saved/status/' + encodeURIComponent(historyId),
+      {
+        credentials: 'same-origin',
+        cache: 'no-store'
+      }
+    );
+    if (!response.ok) return;
+    const data = await response.json();
+    if (version === favoriteVersion && activeHistoryId === historyId) {
+      setSaveState({
+        historyId,
+        savedId: data.savedId || null,
+        source: activeTranslationSource
+      });
     }
-  }catch(_){}
+  } catch (_) {}
 }
-saveTranslationBtn.addEventListener('click',async()=>{
-  if(savedActionBusy||!translation.textContent.trim())return;
-  if(textInput.value.trim()!==activeTranslationSource)return;
-  const id=activeHistoryId,existing=activeSavedId;
-  if(!id&&!existing)return;
-  savedActionBusy=true;
-  saveTranslationBtn.disabled=true;
-  const version=favoriteVersion;
-  try{
-    const response=await fetch(existing
-      ?'/api/saved/'+encodeURIComponent(existing):'/api/saved',{
-      method:existing?'DELETE':'POST',credentials:'same-origin',
-      headers:{'Content-Type':'application/json'},
-      body:existing?undefined:JSON.stringify({historyId:id})});
-    const data=await response.json();
-    if(!response.ok||!data.success)
-      throw new Error(data.message||'Không thể cập nhật mục đã lưu');
-    if(version!==favoriteVersion)return;
-    setSaveState({historyId:id,savedId:existing?null:data.item.id,
-      source:activeTranslationSource});
-    status.textContent=existing?'✓ Đã bỏ lưu bản dịch':'★ Đã lưu bản dịch';
-    status.className='status success';
+saveTranslationBtn.addEventListener('click', async () => {
+  if (savedActionBusy || !translation.textContent.trim()) return;
+  if (textInput.value.trim() !== activeTranslationSource) return;
+  const id = activeHistoryId,
+    existing = activeSavedId;
+  if (!id && !existing) return;
+  savedActionBusy = true;
+  saveTranslationBtn.disabled = true;
+  const version = favoriteVersion;
+  try {
+    const response = await fetch(
+      existing ? '/api/saved/' + encodeURIComponent(existing) : '/api/saved',
+      {
+        method: existing ? 'DELETE' : 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: existing ? undefined : JSON.stringify({ historyId: id })
+      }
+    );
+    const data = await response.json();
+    if (!response.ok || !data.success)
+      throw new Error(data.message || 'Không thể cập nhật mục đã lưu');
+    if (version !== favoriteVersion) return;
+    setSaveState({
+      historyId: id,
+      savedId: existing ? null : data.item.id,
+      source: activeTranslationSource
+    });
+    status.textContent = existing
+      ? '✓ Đã bỏ lưu bản dịch'
+      : '★ Đã lưu bản dịch';
+    status.className = 'status success';
     // Refresh the saved list on next open, never a second translation.
-    savedData=[];
-  }catch(error){
-    status.textContent=error.message||'Không thể cập nhật mục đã lưu';
-    status.className='status error';
-  }finally{
-    savedActionBusy=false;
-    saveTranslationBtn.disabled=false;
+    savedData = [];
+  } catch (error) {
+    status.textContent = error.message || 'Không thể cập nhật mục đã lưu';
+    status.className = 'status error';
+  } finally {
+    savedActionBusy = false;
+    saveTranslationBtn.disabled = false;
   }
 });
 let languageRequestVersion = 0;
-const historyReplayNotice=document.getElementById('historyReplayNotice');
-textInput.addEventListener('input',()=>{
+const historyReplayNotice = document.getElementById('historyReplayNotice');
+textInput.addEventListener('input', () => {
   translationViewVersion++;
   historyDetailLoad++;
-  if(activeTranslationSource&&textInput.value.trim()!==activeTranslationSource)
+  if (
+    activeTranslationSource &&
+    textInput.value.trim() !== activeTranslationSource
+  )
     setSaveState(); // The shown translation no longer corresponds to input.
 });
-function clearHistoryReplayNotice(){
-  if(historyReplayNotice)historyReplayNotice.hidden=true;
+function clearHistoryReplayNotice() {
+  if (historyReplayNotice) historyReplayNotice.hidden = true;
 }
 
 const translation = document.getElementById('translation');
@@ -146,112 +179,116 @@ const naturalTranslation = document.getElementById('naturalTranslation');
 const practiceFeedback = document.getElementById('practiceFeedback');
 const practiceExplanation = document.getElementById('practiceExplanation');
 
-const backTranslationToggle =
-  document.getElementById('backTranslationToggle');
+const backTranslationToggle = document.getElementById('backTranslationToggle');
 
-const pronunciationToggle =
-  document.getElementById('pronunciationToggle');
+const pronunciationToggle = document.getElementById('pronunciationToggle');
 
-const vocabularyToggle =
-  document.getElementById('vocabularyToggle');
+const vocabularyToggle = document.getElementById('vocabularyToggle');
 
-  const pronunciationWrapper =
-  document.getElementById('pronunciationWrapper');
+const pronunciationWrapper = document.getElementById('pronunciationWrapper');
 
-const vocabularyWrapper =
-  document.getElementById('vocabularyWrapper');
+const vocabularyWrapper = document.getElementById('vocabularyWrapper');
 
-  const verificationWrapper =
-  document.getElementById('verificationWrapper');
+const verificationWrapper = document.getElementById('verificationWrapper');
 
-const verificationStatus =
-  document.getElementById('verificationStatus');
+const verificationStatus = document.getElementById('verificationStatus');
 
-const verificationConfidence =
-  document.getElementById('verificationConfidence');
+const verificationConfidence = document.getElementById(
+  'verificationConfidence'
+);
 
-const verificationMessage =
-  document.getElementById('verificationMessage');
+const verificationMessage = document.getElementById('verificationMessage');
 
-const verificationIssues =
-  document.getElementById('verificationIssues');
+const verificationIssues = document.getElementById('verificationIssues');
 
-  const freeModeBtn =
-  document.getElementById('freeModeBtn');
+const freeModeBtn = document.getElementById('freeModeBtn');
 
-const proModeBtn =
-  document.getElementById('proModeBtn');
+const proModeBtn = document.getElementById('proModeBtn');
 
-const proOptions =
-  document.getElementById('proOptions');
+const proOptions = document.getElementById('proOptions');
 
-  const accountPlanBadge =
-  document.getElementById('accountPlanBadge');
+const accountPlanBadge = document.getElementById('accountPlanBadge');
 
-  const freeLimitInfo =
-  document.getElementById('freeLimitInfo');
+const freeLimitInfo = document.getElementById('freeLimitInfo');
 
-const freeRemaining =
-  document.getElementById('freeRemaining');
+const freeRemaining = document.getElementById('freeRemaining');
 
-const freeReset =
-  document.getElementById('freeReset');
+const freeReset = document.getElementById('freeReset');
 
 let translatorMode = 'free';
 let currentUserRole = null;
 let v2EnabledForUser = false;
 let v2Busy = false;
-function v2Eligible(){
-  return v2EnabledForUser&&translatorMode==='pro'&&targetLang.value==='zh';
+function v2Eligible() {
+  return false;
 }
-function selectedEngine(){
-  return v2Eligible()&&engineV2.checked?'v2':'v1';
+function selectedEngine() {
+  return v2Eligible() && engineV2.checked ? 'v2' : 'v1';
 }
-function setEngineControlsBusy(busy){
-  contextSelect.disabled=busy;
-  engineV1.disabled=busy;engineV2.disabled=busy;
-  if(translationModelSelect)translationModelSelect.disabled=busy;
+function setEngineControlsBusy(busy) {
+  contextSelect.disabled = busy;
+  engineV1.disabled = busy;
+  engineV2.disabled = busy;
+  if (translationModelSelect) translationModelSelect.disabled = busy;
 }
-let preferredEngine=localStorage.getItem('translationEngine')==='v2'?'v2':'v1';
+let preferredEngine =
+  localStorage.getItem('translationEngine') === 'v2' ? 'v2' : 'v1';
 // One-time rollout: migrate the previous GPT-4o default to GPT-4o mini.
 // Subsequent explicit choices persist normally.
-const translatorModelPreferenceVersion='mini-default-1';
-const savedTranslatorModel=
-  localStorage.getItem('translationModelPreferenceVersion')===translatorModelPreferenceVersion
-    ?localStorage.getItem('translationModel'):null;
-if(translationModelSelect){
-  translationModelSelect.value=
-    ['gpt-4o','gpt-4o-mini'].includes(savedTranslatorModel)
-      ?savedTranslatorModel:'gpt-4o-mini';
-  localStorage.setItem('translationModel',translationModelSelect.value);
-  localStorage.setItem('translationModelPreferenceVersion',translatorModelPreferenceVersion);
+const translatorModelPreferenceVersion = 'mini-default-1';
+const savedTranslatorModel =
+  localStorage.getItem('translationModelPreferenceVersion') ===
+  translatorModelPreferenceVersion
+    ? localStorage.getItem('translationModel')
+    : null;
+if (translationModelSelect) {
+  translationModelSelect.value = ['gpt-4o', 'gpt-4o-mini'].includes(
+    savedTranslatorModel
+  )
+    ? savedTranslatorModel
+    : 'gpt-4o-mini';
+  localStorage.setItem('translationModel', translationModelSelect.value);
+  localStorage.setItem(
+    'translationModelPreferenceVersion',
+    translatorModelPreferenceVersion
+  );
 }
-translationModelSelect?.addEventListener('change',()=>{
-  if(!['gpt-4o','gpt-4o-mini'].includes(translationModelSelect.value))
-    translationModelSelect.value='gpt-4o-mini';
-  localStorage.setItem('translationModel',translationModelSelect.value);
+translationModelSelect?.addEventListener('change', () => {
+  if (!['gpt-4o', 'gpt-4o-mini'].includes(translationModelSelect.value))
+    translationModelSelect.value = 'gpt-4o-mini';
+  localStorage.setItem('translationModel', translationModelSelect.value);
   // A model switch changes the cache namespace on the next user translation.
   window.renderV2Inspection?.(null);
   window.renderRequestUsage?.(null);
 });
-function refreshV2Button(){
-  const eligible=v2Eligible();
-  translationEnginePicker.hidden=!eligible;
-  if(translationModelPicker)
-    translationModelPicker.hidden=!(translatorMode==='pro'&&targetLang.value==='zh');
+function refreshV2Button() {
+  const eligible = v2Eligible();
+  translationEnginePicker.hidden = !eligible;
+  if (translationModelPicker)
+    translationModelPicker.hidden = !(
+      translatorMode === 'pro' && targetLang.value === 'zh'
+    );
   // Preserve the preferred engine across temporary FREE/English selection.
-  engineV2.checked=eligible&&preferredEngine==='v2';
-  engineV1.checked=!engineV2.checked;
-  if(v2InspectLabel)v2InspectLabel.hidden=!(eligible&&selectedEngine()==='v2');
-  if(v1InspectLabel)v1InspectLabel.hidden=!(translatorMode==='pro'&&selectedEngine()==='v1');
+  engineV2.checked = eligible && preferredEngine === 'v2';
+  engineV1.checked = !engineV2.checked;
+  if (v2InspectLabel)
+    v2InspectLabel.hidden = !(
+      currentUserRole === 'admin' &&
+      eligible &&
+      selectedEngine() === 'v2'
+    );
+  if (v1InspectLabel)
+    v1InspectLabel.hidden = !(
+      currentUserRole === 'admin' && selectedEngine() === 'v1'
+    );
   // FREE mode must not retain any previously visible private GPT prompts.
-  if(translatorMode!=='pro')window.renderV2Inspection?.(null);
+  if (translatorMode !== 'pro') window.renderV2Inspection?.(null);
 }
-for(const radio of [engineV1,engineV2]){
-  radio.addEventListener('change',()=>{
-    if(translateBtn.disabled||v2Busy)return;
-    preferredEngine=radio.value;
-    localStorage.setItem('translationEngine',radio.value);
+for (const radio of [engineV1, engineV2]) {
+  radio.addEventListener('change', () => {
+    if (translateBtn.disabled || v2Busy) return;
+    preferredEngine = radio.value;
+    localStorage.setItem('translationEngine', radio.value);
     window.renderV2Inspection?.(null);
     window.renderRequestUsage?.(null);
     refreshV2Button();
@@ -259,10 +296,15 @@ for(const radio of [engineV1,engineV2]){
 }
 async function checkV2Access() {
   try {
-    const response = await fetch('/api/translate/v2/status', { credentials:'same-origin',cache:'no-store' });
-    const data = response.ok ? await response.json() : {enabled:false};
+    const response = await fetch('/api/translate/v2/status', {
+      credentials: 'same-origin',
+      cache: 'no-store'
+    });
+    const data = response.ok ? await response.json() : { enabled: false };
     v2EnabledForUser = data.enabled === true;
-  } catch (_) { v2EnabledForUser = false; }
+  } catch (_) {
+    v2EnabledForUser = false;
+  }
   refreshV2Button();
 }
 
@@ -290,11 +332,48 @@ function setTranslatorMode(mode) {
 
   // Other website features (such as PRO image translation) observe this state.
   window.translatorAccess = { role: currentUserRole, mode: translatorMode };
-  window.dispatchEvent(new CustomEvent('translator-access-change', {
-    detail: window.translatorAccess
-  }));
+  window.dispatchEvent(
+    new CustomEvent('translator-access-change', {
+      detail: window.translatorAccess
+    })
+  );
 }
 
+let hybridPreferencePending = false;
+
+function initializeHybridPreference(enabled) {
+  const option = document.getElementById('hybridContextOption');
+  const toggle = document.getElementById('hybridContextToggle');
+  const feedback = document.getElementById('hybridContextStatus');
+  toggle.checked = enabled;
+  const updateVisibility = () => {
+    option.hidden = translatorMode !== 'pro';
+  };
+  updateVisibility();
+  window.addEventListener('translator-access-change', updateVisibility);
+  toggle.addEventListener('change', async () => {
+    hybridPreferencePending = true;
+    toggle.disabled = true;
+    feedback.textContent = 'Đang lưu…';
+    try {
+      const response = await fetch('/api/personal/translation-preferences', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hybridContextEnabled: toggle.checked })
+      });
+      const data = await response.json();
+      if (!response.ok) throw Error('Preference update failed');
+      enabled = data.hybridContextEnabled === true;
+      feedback.textContent = '';
+    } catch {
+      feedback.textContent = 'Chưa lưu được tùy chọn. Vui lòng thử lại.';
+    } finally {
+      toggle.checked = enabled;
+      toggle.disabled = false;
+      hybridPreferencePending = false;
+    }
+  });
+}
 
 async function initializeUserRole() {
   // Không cho dịch trước khi xác thực
@@ -325,7 +404,8 @@ async function initializeUserRole() {
 
     const adminDropdown = document.getElementById('adminAccountDropdown');
     adminDropdown.hidden = currentUserRole !== 'admin';
-    document.getElementById('adminHamburger').hidden = currentUserRole !== 'admin';
+    document.getElementById('adminHamburger').hidden =
+      currentUserRole !== 'admin';
 
     // Admin có toàn bộ quyền PRO
     const hasProAccess = ['pro', 'admin'].includes(currentUserRole);
@@ -340,13 +420,16 @@ async function initializeUserRole() {
 
     userName.textContent = data.name || 'Người dùng';
     userEmail.textContent = data.email || '';
-    document.getElementById('avatarInitial').textContent =
-      (data.name || data.email || '?').trim().charAt(0).toUpperCase();
+    document.getElementById('avatarInitial').textContent = (
+      data.name ||
+      data.email ||
+      '?'
+    )
+      .trim()
+      .charAt(0)
+      .toUpperCase();
 
-    if (
-      typeof data.avatar === 'string' &&
-      data.avatar.startsWith('https://')
-    ) {
+    if (typeof data.avatar === 'string' && data.avatar.startsWith('https://')) {
       userAvatar.src = data.avatar;
       userAvatar.hidden = false;
       document.getElementById('avatarInitial').hidden = true;
@@ -359,7 +442,8 @@ async function initializeUserRole() {
     // TRANSLATOR PERMISSIONS
     // =========================
 
-    document.getElementById('practiceLauncher')
+    document
+      .getElementById('practiceLauncher')
       .classList.toggle('hidden', !hasProAccess);
 
     setTranslatorMode(hasProAccess ? 'pro' : 'free');
@@ -376,28 +460,19 @@ async function initializeUserRole() {
           ? '✦ PRO Plan'
           : 'FREE Plan';
 
-    accountPlanBadge.classList.remove(
-      'hidden',
-      'plan-free',
-      'plan-pro'
-    );
+    accountPlanBadge.classList.remove('hidden', 'plan-free', 'plan-pro');
 
-    accountPlanBadge.classList.add(
-      hasProAccess ? 'plan-pro' : 'plan-free'
-    );
+    accountPlanBadge.classList.add(hasProAccess ? 'plan-pro' : 'plan-free');
 
     // =========================
     // CHINESE PRACTICE
     // =========================
 
-    practiceModeBtn.classList.toggle(
-      'hidden',
-      !hasProAccess
-    );
+    practiceModeBtn.classList.toggle('hidden', !hasProAccess);
 
     translateBtn.disabled = false;
-    void checkV2Access();
-
+    void window.translationProfileSetup?.initialize();
+    initializeHybridPreference(data.hybridContextEnabled === true);
   } catch (error) {
     console.error('Auth error:', error);
 
@@ -407,7 +482,6 @@ async function initializeUserRole() {
     status.className = 'status error';
   }
 }
-
 
 // ADMIN ACCOUNT MENU — only activated after server confirms admin role.
 const adminMenuToggle = document.getElementById('adminMenuToggle');
@@ -446,7 +520,8 @@ adminProChoice.addEventListener('click', () => {
   status.className = 'status';
 });
 document.addEventListener('click', (event) => {
-  if (!document.getElementById('adminAccountDropdown').contains(event.target)) closeAdminMenu();
+  if (!document.getElementById('adminAccountDropdown').contains(event.target))
+    closeAdminMenu();
 });
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') closeAdminMenu();
@@ -454,11 +529,8 @@ document.addEventListener('keydown', (event) => {
 
 initializeUserRole();
 
-
-
 function loadTranslationContext() {
-  const savedContext =
-    localStorage.getItem('translationContext');
+  const savedContext = localStorage.getItem('translationContext');
 
   if (savedContext) {
     contextSelect.value = savedContext;
@@ -466,16 +538,10 @@ function loadTranslationContext() {
 }
 
 function saveTranslationContext() {
-  localStorage.setItem(
-    'translationContext',
-    contextSelect.value
-  );
+  localStorage.setItem('translationContext', contextSelect.value);
 }
 
-contextSelect.addEventListener(
-  'change',
-  saveTranslationContext
-);
+contextSelect.addEventListener('change', saveTranslationContext);
 
 loadTranslationContext();
 
@@ -487,17 +553,13 @@ function loadTranslationOptions() {
   try {
     const options = JSON.parse(saved);
 
-    verificationToggle.checked =
-  options.verification ?? false;
+    verificationToggle.checked = options.verification ?? false;
 
-    backTranslationToggle.checked =
-      options.backTranslation ?? true;
+    backTranslationToggle.checked = options.backTranslation ?? true;
 
-    pronunciationToggle.checked =
-      options.pronunciation ?? true;
+    pronunciationToggle.checked = options.pronunciation ?? true;
 
-    vocabularyToggle.checked =
-      options.vocabulary ?? true;
+    vocabularyToggle.checked = options.vocabulary ?? true;
   } catch (error) {
     console.error('Load translation options error:', error);
   }
@@ -511,10 +573,7 @@ function saveTranslationOptions() {
     verification: verificationToggle.checked
   };
 
-  localStorage.setItem(
-    'translationOptions',
-    JSON.stringify(options)
-  );
+  localStorage.setItem('translationOptions', JSON.stringify(options));
 }
 
 [
@@ -522,7 +581,7 @@ function saveTranslationOptions() {
   pronunciationToggle,
   vocabularyToggle,
   verificationToggle
-].forEach(toggle => {
+].forEach((toggle) => {
   toggle.addEventListener('change', saveTranslationOptions);
 });
 
@@ -541,7 +600,10 @@ async function evaluateLanguagePractice() {
   const requestVersion = languageRequestVersion;
 
   if (!text) {
-    modalStatus.textContent = 'Vui lòng nhập câu tiếng ' + (selectedLanguage === 'en' ? 'Anh' : 'Trung') + '.';
+    modalStatus.textContent =
+      'Vui lòng nhập câu tiếng ' +
+      (selectedLanguage === 'en' ? 'Anh' : 'Trung') +
+      '.';
     input.focus();
     return;
   }
@@ -552,14 +614,19 @@ async function evaluateLanguagePractice() {
   modalResult.classList.add('hidden');
 
   try {
-    const response = await fetch(selectedLanguage === 'en' ? '/api/practice/english' : '/api/practice/chinese', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      credentials: 'same-origin',
-      body: JSON.stringify({ text })
-    });
+    const response = await fetch(
+      selectedLanguage === 'en'
+        ? '/api/practice/english'
+        : '/api/practice/chinese',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({ text })
+      }
+    );
 
     if (response.status === 401) {
       window.location.replace('/login');
@@ -583,12 +650,10 @@ async function evaluateLanguagePractice() {
     modalStatus.textContent = '✓ Chấm bài hoàn tất';
 
     loadUsage();
-
   } catch (error) {
     if (requestVersion !== languageRequestVersion) return;
     console.error('Practice error:', error);
-    modalStatus.textContent =
-      error.message || 'Có lỗi xảy ra khi chấm bài.';
+    modalStatus.textContent = error.message || 'Có lỗi xảy ra khi chấm bài.';
   } finally {
     if (requestVersion === languageRequestVersion) {
       submitBtn.disabled = false;
@@ -603,69 +668,67 @@ function parsePracticeResult(result) {
       ? `(?=\\n(?:${nextLabels.join('|')}):|$)`
       : '$';
 
-    const regex = new RegExp(
-      `${label}:\\s*([\\s\\S]*?)${next}`,
-      'i'
-    );
+    const regex = new RegExp(`${label}:\\s*([\\s\\S]*?)${next}`, 'i');
 
     const match = result.match(regex);
 
     return match ? match[1].trim() : '';
   };
 
-  practiceScore.textContent =
-  `${getValue('SCORE', ['GRAMMAR']) || '-'}/10`;
+  practiceScore.textContent = `${getValue('SCORE', ['GRAMMAR']) || '-'}/10`;
 
-grammarScore.textContent =
-  `${getValue('GRAMMAR', ['VOCABULARY']) || '-'}/10`;
+  grammarScore.textContent = `${getValue('GRAMMAR', ['VOCABULARY']) || '-'}/10`;
 
-vocabularyScore.textContent =
-  `${getValue('VOCABULARY', ['NATURALNESS']) || '-'}/10`;
+  vocabularyScore.textContent = `${getValue('VOCABULARY', ['NATURALNESS']) || '-'}/10`;
 
-naturalScore.textContent =
-  `${getValue('NATURALNESS', ['ORIGINAL']) || '-'}/10`;
+  naturalScore.textContent = `${getValue('NATURALNESS', ['ORIGINAL']) || '-'}/10`;
 
-originalText.textContent =
-  getValue('ORIGINAL', ['ORIGINAL_PINYIN']);
+  originalText.textContent = getValue('ORIGINAL', ['ORIGINAL_PINYIN']);
 
-originalPinyin.textContent =
-  getValue('ORIGINAL_PINYIN', ['ORIGINAL_TRANSLATION']);
+  originalPinyin.textContent = getValue('ORIGINAL_PINYIN', [
+    'ORIGINAL_TRANSLATION'
+  ]);
 
-originalTranslation.textContent =
-  getValue('ORIGINAL_TRANSLATION', ['NATURAL']);
+  originalTranslation.textContent = getValue('ORIGINAL_TRANSLATION', [
+    'NATURAL'
+  ]);
 
-naturalText.textContent =
-  getValue('NATURAL', ['NATURAL_PINYIN']);
+  naturalText.textContent = getValue('NATURAL', ['NATURAL_PINYIN']);
 
-naturalPinyin.textContent =
-  getValue('NATURAL_PINYIN', ['NATURAL_TRANSLATION']);
+  naturalPinyin.textContent = getValue('NATURAL_PINYIN', [
+    'NATURAL_TRANSLATION'
+  ]);
 
-naturalTranslation.textContent =
-  getValue('NATURAL_TRANSLATION', ['FEEDBACK']);
+  naturalTranslation.textContent = getValue('NATURAL_TRANSLATION', [
+    'FEEDBACK'
+  ]);
 
-practiceFeedback.textContent =
-  getValue('FEEDBACK', ['EXPLANATION']);
+  practiceFeedback.textContent = getValue('FEEDBACK', ['EXPLANATION']);
 
-practiceExplanation.textContent =
-  getValue('EXPLANATION');
+  practiceExplanation.textContent = getValue('EXPLANATION');
 }
-
 
 // =========================
 // TRANSLATE
 // =========================
 
 // A live rerun is allowed only via the explicit button in the inspector.
-window.requestV1LiveTrace=()=>{
-  if(selectedEngine()!=='v1'||translatorMode!=='pro'||!v1InspectToggle?.checked)return;
+window.requestV1LiveTrace = () => {
+  if (
+    selectedEngine() !== 'v1' ||
+    translatorMode !== 'pro' ||
+    !v1InspectToggle?.checked
+  )
+    return;
   void translate(true);
 };
-async function translate(forceRefresh=false) {
+async function translate(forceRefresh = false) {
+  if (hybridPreferencePending) return;
   if (v2Busy) return;
   clearHistoryReplayNotice();
   // Single visible Dịch button and Enter always dispatch to selected version.
   if (translateBtn.disabled) return;
-  if(selectedEngine()==='v2')return translateV2();
+  if (selectedEngine() === 'v2') return translateV2();
 
   const text = textInput.value.trim();
   const selectedLang = targetLang.value;
@@ -678,7 +741,7 @@ async function translate(forceRefresh=false) {
     return;
   }
 
-  const viewVersion=++translationViewVersion;
+  const viewVersion = ++translationViewVersion;
   historyDetailLoad++;
   setSaveState();
   translateBtn.disabled = true;
@@ -705,142 +768,148 @@ async function translate(forceRefresh=false) {
   renderV2AnalysisDetails();
   renderTranslationDetailsSummary();
   pronunciation.textContent = '';
-vocabulary.textContent = '';
+  vocabulary.textContent = '';
   window.renderTranslationVocabulary?.([], '', selectedLang);
 
   try {
     const translateEndpoint =
-  translatorMode === 'free'
-    ? '/api/translate/free'
-    : '/api/translate';
+      translatorMode === 'free' ? '/api/translate/free' : '/api/translate';
 
     const requestBody =
-  translatorMode === 'free'
-    ? {
-        text,
-        targetLang: selectedLang,
-        context: contextSelect.value
-      }
-    : {
-        text,
-        targetLang: selectedLang,
-        fastMode: false,
-        backTranslation: backTranslationToggle.checked,
-        pronunciation: pronunciationToggle.checked,
-        vocabulary: vocabularyToggle.checked,
-        verification: verificationToggle.checked,
-        context: contextSelect.value,
-        translationModel:translationModelSelect?.value||'gpt-4o-mini',
-        inspectAI:v1InspectToggle?.checked===true,
-        forceRefresh:forceRefresh===true
-      };
+      translatorMode === 'free'
+        ? {
+            text,
+            targetLang: selectedLang,
+            context: contextSelect.value,
+            inspectAI: v1InspectToggle?.checked === true
+          }
+        : {
+            text,
+            targetLang: selectedLang,
+            fastMode: false,
+            backTranslation: backTranslationToggle.checked,
+            pronunciation: pronunciationToggle.checked,
+            vocabulary: vocabularyToggle.checked,
+            verification: verificationToggle.checked,
+            context: contextSelect.value,
+            translationModel: translationModelSelect?.value || 'gpt-4o-mini',
+            inspectAI: v1InspectToggle?.checked === true,
+            forceRefresh: forceRefresh === true
+          };
 
-const response = await fetch(translateEndpoint, {
-
+    const response = await fetch(translateEndpoint, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        ...window.translationConversation?.headers()
       },
       body: JSON.stringify(requestBody)
     });
 
+    window.translationConversation?.acknowledge(response);
     const data = await response.json();
-    if (requestVersion !== languageRequestVersion ||
-        viewVersion !== translationViewVersion ||
-        textInput.value.trim() !== text) return;
-
     if (
-  translatorMode === 'free' &&
-  data.rateLimit?.requests
-) {
-  const requests = data.rateLimit.requests;
+      requestVersion !== languageRequestVersion ||
+      viewVersion !== translationViewVersion ||
+      textInput.value.trim() !== text
+    )
+      return;
 
-  freeRemaining.textContent =
-    `Còn ${requests.remaining} / ${requests.limit} lượt`;
+    if (translatorMode === 'free' && data.rateLimit?.requests) {
+      const requests = data.rateLimit.requests;
 
-  if (requests.reset) {
-    startFreeResetCountdown(
-      requests.reset
-    );
-  } else {
-    freeReset.textContent = '';
-  }
-}
+      freeRemaining.textContent = `Còn ${requests.remaining} / ${requests.limit} lượt`;
+
+      if (requests.reset) {
+        startFreeResetCountdown(requests.reset);
+      } else {
+        freeReset.textContent = '';
+      }
+    }
 
     if (!response.ok || !data.success) {
       throw new Error(data.message || 'Dịch thất bại');
     }
 
     if (translatorMode === 'free') {
-  const freeResult = data.result || {};
+      const freeResult = data.result || {};
 
-  parseResult(
-    `TRANSLATION: ${freeResult.translation || ''}\n` +
-    `BACK_TRANSLATION: ${freeResult.backTranslation || ''}\n` +
-    `PRONUNCIATION: ${freeResult.pronunciation || ''}`
-  );
-} else {
-  parseResult(data.result);
-  // The cards are database-backed; the raw AI1 list is never rendered
-  // when the V1.1 server sends structured vocabularyItems.
-  if(vocabularyToggle.checked) {
-    window.renderTranslationVocabulary?.(
-      data.vocabularyItems,
-      data.vocabularyError || '',
-      selectedLang,
-      selectedLang==='zh'
-    );
-  } else {
-    window.renderTranslationVocabulary?.([], '', selectedLang);
-  }
-}
+      parseResult(
+        `TRANSLATION: ${freeResult.translation || ''}\n` +
+          `BACK_TRANSLATION: ${freeResult.backTranslation || ''}\n` +
+          `PRONUNCIATION: ${freeResult.pronunciation || ''}`
+      );
+    } else {
+      parseResult(data.result);
+      // The cards are database-backed; the raw AI1 list is never rendered
+      // when the V1.1 server sends structured vocabularyItems.
+      if (vocabularyToggle.checked) {
+        window.renderTranslationVocabulary?.(
+          data.vocabularyItems,
+          data.vocabularyError || '',
+          selectedLang,
+          selectedLang === 'zh'
+        );
+      } else {
+        window.renderTranslationVocabulary?.([], '', selectedLang);
+      }
+    }
 
-    if(translatorMode==='pro'){
-      renderTranslationDetailsSummary(data,'v1');
-      renderV2AnalysisDetails(data,'v1');
+    if (translatorMode === 'pro') {
+      renderTranslationDetailsSummary(data, 'v1');
+      renderV2AnalysisDetails(data, 'v1');
     }
     window.renderTermHighlights?.(data.appliedTerms || []);
     window.displayAppliedTerms?.(data.appliedTerms || []);
     window.displayTermWarning?.(data.terminologyWarnings || []);
-    window.renderRequestUsage?.(data.requestUsage||null,'v1');
-    window.renderV2Inspection?.(data.inspection||null,'v1');
-    if(textInput.value.trim()===text)
-      setSaveState({historyId:data.historyId||null,source:text});
+    window.renderRequestUsage?.(data.requestUsage || null, 'v1');
+    window.renderTranslationInspector?.(data.processingSummary);
+    if (textInput.value.trim() === text)
+      setSaveState({ historyId: data.historyId || null, source: text });
     if (selectedLang === 'en') {
-      window.dispatchEvent(new CustomEvent('translation-finished', {
-        detail: { sourceLanguage: data.sourceLanguage }
-      }));
+      window.dispatchEvent(
+        new CustomEvent('translation-finished', {
+          detail: { sourceLanguage: data.sourceLanguage }
+        })
+      );
     }
-    const glossaryMissing=Array.isArray(data.terminologyWarnings) && data.terminologyWarnings.length;
+    const glossaryMissing =
+      Array.isArray(data.terminologyWarnings) &&
+      data.terminologyWarnings.length;
     status.textContent = data.backTranslationWarning
       ? '⚠ AI trả sai ngôn ngữ dịch ngược; bản dịch chính vẫn được giữ, không gọi lại API.'
       : glossaryMissing
         ? '⚠ Bản dịch có thuật ngữ chưa khớp từ điển đã lưu'
         : '✓ Dịch thành công';
-    status.className = (glossaryMissing||data.backTranslationWarning)
-      ? 'status error' : 'status success';
+    status.className =
+      glossaryMissing || data.backTranslationWarning
+        ? 'status error'
+        : 'status success';
 
     // Cập nhật thống kê sau khi dịch
     loadUsage();
-
   } catch (error) {
-    if (requestVersion !== languageRequestVersion ||
-        viewVersion !== translationViewVersion ||
-        textInput.value.trim() !== text) return;
+    if (
+      requestVersion !== languageRequestVersion ||
+      viewVersion !== translationViewVersion ||
+      textInput.value.trim() !== text
+    )
+      return;
     console.error(error);
 
     status.textContent = error.message || 'Dịch thất bại';
     status.className = 'status error';
-
   } finally {
     if (requestVersion === languageRequestVersion) {
       translateBtn.disabled = false;
       setEngineControlsBusy(false);
       translateBtn.classList.remove('loading');
-      if(viewVersion !== translationViewVersion &&
-         textInput.value.trim() !== text){
-        status.textContent='Nội dung đã thay đổi. Nhấn Dịch để cập nhật.';
-        status.className='status';
+      if (
+        viewVersion !== translationViewVersion &&
+        textInput.value.trim() !== text
+      ) {
+        status.textContent = 'Nội dung đã thay đổi. Nhấn Dịch để cập nhật.';
+        status.className = 'status';
       }
     }
   }
@@ -851,20 +920,13 @@ let freeResetTimer = null;
 function parseResetDuration(value) {
   if (!value) return 0;
 
-  const hours =
-    Number(value.match(/([\d.]+)h/)?.[1] || 0);
+  const hours = Number(value.match(/([\d.]+)h/)?.[1] || 0);
 
-  const minutes =
-    Number(value.match(/([\d.]+)m/)?.[1] || 0);
+  const minutes = Number(value.match(/([\d.]+)m/)?.[1] || 0);
 
-  const seconds =
-    Number(value.match(/([\d.]+)s/)?.[1] || 0);
+  const seconds = Number(value.match(/([\d.]+)s/)?.[1] || 0);
 
-  return Math.ceil(
-    hours * 3600 +
-    minutes * 60 +
-    seconds
-  );
+  return Math.ceil(hours * 3600 + minutes * 60 + seconds);
 }
 
 function startFreeResetCountdown(resetValue) {
@@ -872,13 +934,11 @@ function startFreeResetCountdown(resetValue) {
     clearInterval(freeResetTimer);
   }
 
-  let remaining =
-    parseResetDuration(resetValue);
+  let remaining = parseResetDuration(resetValue);
 
   function render() {
     if (remaining <= 0) {
-      freeReset.textContent =
-        'Hạn mức đã được làm mới';
+      freeReset.textContent = 'Hạn mức đã được làm mới';
 
       clearInterval(freeResetTimer);
       freeResetTimer = null;
@@ -886,16 +946,11 @@ function startFreeResetCountdown(resetValue) {
       return;
     }
 
-    const hours =
-      Math.floor(remaining / 3600);
+    const hours = Math.floor(remaining / 3600);
 
-    const minutes =
-      Math.floor(
-        (remaining % 3600) / 60
-      );
+    const minutes = Math.floor((remaining % 3600) / 60);
 
-    const seconds =
-      remaining % 60;
+    const seconds = remaining % 60;
 
     const parts = [];
 
@@ -909,25 +964,21 @@ function startFreeResetCountdown(resetValue) {
 
     parts.push(`${seconds}s`);
 
-    freeReset.textContent =
-      `Làm mới sau ${parts.join(' ')}`;
+    freeReset.textContent = `Làm mới sau ${parts.join(' ')}`;
 
     remaining--;
   }
 
   render();
 
-  freeResetTimer =
-    setInterval(render, 1000);
+  freeResetTimer = setInterval(render, 1000);
 }
-
 
 // =========================
 // ENTER TO TRANSLATE
 // =========================
 
 textInput.addEventListener('keydown', (event) => {
-
   // Ctrl + Enter = xuống dòng
   if (event.key === 'Enter' && event.ctrlKey) {
     event.preventDefault();
@@ -950,9 +1001,7 @@ textInput.addEventListener('keydown', (event) => {
     event.preventDefault();
     if (!translateBtn.disabled) translate();
   }
-
 });
-
 
 // =========================
 // TRANSLATE BUTTON
@@ -961,71 +1010,104 @@ textInput.addEventListener('keydown', (event) => {
 translateBtn.addEventListener('click', translate);
 
 // Shared context/direction/model summary. Both engines use one detail UI.
-function renderTranslationDetailsSummary(data=null,engine='v1'){
-  const panel=document.getElementById('translationDetailsSummary');
-  if(!panel)return;
-  panel.hidden=!data;
-  if(!data)return;
-  const source=data.sourceLanguage||
-    (/[\u3400-\u9fff]/u.test(textInput.value)?'zh':'vi');
-  const target=data.targetLanguage||(source==='zh'?'vi':'zh');
-  const direction=source==='vi'&&target==='zh'?'Việt → Trung':
-    source==='zh'&&target==='vi'?'Trung → Việt':'Hai chiều';
-  const contexts={auto:'Tự động',friend:'Bạn bè',
-    colleague:'Đồng nghiệp',superior:'Cấp trên'};
-  const context=data.context||contextSelect.value;
-  const model=data.translationModel||translationModelSelect?.value||'';
-  document.getElementById('detailEngine').textContent=
-    'Phiên bản: '+(engine==='v2'?'V2':'V1');
-  document.getElementById('detailDirection').textContent='Chiều dịch: '+direction;
-  document.getElementById('detailContext').textContent=
-    'Ngữ cảnh: '+(contexts[context]||'Tự động');
-  document.getElementById('detailModel').textContent=
-    'AI dịch chính: '+(model||'Theo cấu hình máy chủ');
+function renderTranslationDetailsSummary(data = null, engine = 'v1') {
+  const panel = document.getElementById('translationDetailsSummary');
+  if (!panel) return;
+  panel.hidden = !data;
+  if (!data) return;
+  const source =
+    data.sourceLanguage ||
+    (/[\u3400-\u9fff]/u.test(textInput.value) ? 'zh' : 'vi');
+  const target = data.targetLanguage || (source === 'zh' ? 'vi' : 'zh');
+  const direction =
+    source === 'vi' && target === 'zh'
+      ? 'Việt → Trung'
+      : source === 'zh' && target === 'vi'
+        ? 'Trung → Việt'
+        : 'Hai chiều';
+  const contexts = {
+    auto: 'Tự động',
+    friend: 'Bạn bè',
+    colleague: 'Đồng nghiệp',
+    superior: 'Cấp trên'
+  };
+  const context = data.context || contextSelect.value;
+  const model = data.translationModel || translationModelSelect?.value || '';
+  document.getElementById('detailEngine').textContent =
+    'Phiên bản: ' + (engine === 'v2' ? 'V2' : 'V1');
+  document.getElementById('detailDirection').textContent =
+    'Chiều dịch: ' + direction;
+  document.getElementById('detailContext').textContent =
+    'Ngữ cảnh: ' + (contexts[context] || 'Tự động');
+  document.getElementById('detailModel').textContent =
+    'AI dịch chính: ' + (model || 'Theo cấu hình máy chủ');
 }
-function renderV2AnalysisDetails(data=null,engine='v2'){
-  const box=document.getElementById('v2AnalysisDetails');
-  if(!box)return;
-  box.hidden=!data;
-  if(!data)return;
-  const isV1=engine==='v1';
-  const analysis=data.analysis||{};
-  const domainNames={work:'Công việc',it:'IT',daily:'Đời sống',
-    mixed:'Nhiều lĩnh vực',unknown:'Chưa xác định'};
-  const contextNames={auto:'Tự động',friend:'Bạn bè',
-    colleague:'Đồng nghiệp',superior:'Cấp trên'};
-  document.getElementById('translationAnalysisTitle').textContent=isV1
-    ?'Ngữ cảnh và thông tin V1':'Phân tích V2 · Claude';
-  document.getElementById('v2AnalysisDomain').textContent=isV1
-    ?'Ngữ cảnh đã chọn: '+(contextNames[data.context||contextSelect.value]||'Tự động')
-    :'Ngữ cảnh: '+(domainNames[analysis.resolvedDomain||analysis.domain]||'Chưa xác định');
+function renderV2AnalysisDetails(data = null, engine = 'v2') {
+  const box = document.getElementById('v2AnalysisDetails');
+  if (!box) return;
+  box.hidden = !data;
+  if (!data) return;
+  const isV1 = engine === 'v1';
+  const analysis = data.analysis || {};
+  const domainNames = {
+    work: 'Công việc',
+    it: 'IT',
+    daily: 'Đời sống',
+    mixed: 'Nhiều lĩnh vực',
+    unknown: 'Chưa xác định'
+  };
+  const contextNames = {
+    auto: 'Tự động',
+    friend: 'Bạn bè',
+    colleague: 'Đồng nghiệp',
+    superior: 'Cấp trên'
+  };
+  document.getElementById('translationAnalysisTitle').textContent = isV1
+    ? 'Ngữ cảnh và thông tin V1'
+    : 'Phân tích V2 · Claude';
+  document.getElementById('v2AnalysisDomain').textContent = isV1
+    ? 'Ngữ cảnh đã chọn: ' +
+      (contextNames[data.context || contextSelect.value] || 'Tự động')
+    : 'Ngữ cảnh: ' +
+      (domainNames[analysis.resolvedDomain || analysis.domain] ||
+        'Chưa xác định');
   // V1 must not present guesses as though Claude had analyzed the sentence.
-  document.getElementById('v2AnalysisIntent').textContent=isV1
-    ?'V1 dịch trực tiếp bằng GPT; không có bước phân tích ý định riêng.'
-    :'Ý định: '+(analysis.intent||'Chưa có phân tích ngắn');
-  const notes=isV1
-    ?(Array.isArray(data.terminologyWarnings)?data.terminologyWarnings:[])
-      .map(item=>'Thuật ngữ cần đối chiếu: '+String(item))
-    :[...(Array.isArray(analysis.ambiguities)?analysis.ambiguities:[]),
-      ...(Array.isArray(data.translationNotes)?data.translationNotes:[])];
-  const filtered=notes.filter(value=>typeof value==='string'&&value.trim()).slice(0,3);
-  const note=document.getElementById('v2AnalysisNotes');
-  note.hidden=!filtered.length;
-  note.textContent=filtered.length?'Lưu ý: '+filtered.join(' · '):'';
+  document.getElementById('v2AnalysisIntent').textContent = isV1
+    ? 'V1 dịch trực tiếp bằng GPT; không có bước phân tích ý định riêng.'
+    : 'Ý định: ' + (analysis.intent || 'Chưa có phân tích ngắn');
+  const notes = isV1
+    ? (Array.isArray(data.terminologyWarnings)
+        ? data.terminologyWarnings
+        : []
+      ).map((item) => 'Thuật ngữ cần đối chiếu: ' + String(item))
+    : [
+        ...(Array.isArray(analysis.ambiguities) ? analysis.ambiguities : []),
+        ...(Array.isArray(data.translationNotes) ? data.translationNotes : [])
+      ];
+  const filtered = notes
+    .filter((value) => typeof value === 'string' && value.trim())
+    .slice(0, 3);
+  const note = document.getElementById('v2AnalysisNotes');
+  note.hidden = !filtered.length;
+  note.textContent = filtered.length ? 'Lưu ý: ' + filtered.join(' · ') : '';
 }
 
 // Run a fresh V2 request only after an explicit user click in the inspector.
-window.requestV2LiveTrace=()=>{
-  if(!v2InspectToggle?.checked||selectedEngine()!=='v2')return;
+window.requestV2LiveTrace = () => {
+  if (!v2InspectToggle?.checked || selectedEngine() !== 'v2') return;
   void translateV2(true);
 };
-async function translateV2(forceRefresh=false){
-  if(selectedEngine()!=='v2'||v2Busy||translateBtn.disabled)return;
+async function translateV2(forceRefresh = false) {
+  if (selectedEngine() !== 'v2' || v2Busy || translateBtn.disabled) return;
   clearHistoryReplayNotice();
   const text = textInput.value.trim();
-  if (!text) { status.textContent = 'Vui lòng nhập nội dung cần dịch'; textInput.focus(); return; }
+  if (!text) {
+    status.textContent = 'Vui lòng nhập nội dung cần dịch';
+    textInput.focus();
+    return;
+  }
   const version = languageRequestVersion;
-  const viewVersion=++translationViewVersion;
+  const viewVersion = ++translationViewVersion;
   historyDetailLoad++;
   setSaveState();
   v2Busy = true;
@@ -1044,122 +1126,154 @@ async function translateV2(forceRefresh=false){
   window.renderTranslationVocabulary?.([], '', 'zh');
   try {
     const response = await fetch('/api/translate/v2', {
-      method:'POST', headers:{'Content-Type':'application/json'},credentials:'same-origin',
-      body:JSON.stringify({text,targetLang:'zh',context:contextSelect.value,
-        backTranslation:backTranslationToggle.checked,
-        pronunciation:pronunciationToggle.checked,
-        vocabulary:vocabularyToggle.checked,
-        verification:verificationToggle.checked,
-        translationModel:translationModelSelect?.value||'gpt-4o-mini',
-        inspectAI:v2InspectToggle?.checked===true,
-        forceRefresh})
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...window.translationConversation?.headers()
+      },
+      credentials: 'same-origin',
+      body: JSON.stringify({
+        text,
+        targetLang: 'zh',
+        context: contextSelect.value,
+        backTranslation: backTranslationToggle.checked,
+        pronunciation: pronunciationToggle.checked,
+        vocabulary: vocabularyToggle.checked,
+        verification: verificationToggle.checked,
+        translationModel: translationModelSelect?.value || 'gpt-4o-mini',
+        inspectAI: v2InspectToggle?.checked === true,
+        forceRefresh
+      })
     });
+    window.translationConversation?.acknowledge(response);
     const data = await response.json();
-    if (version !== languageRequestVersion ||
-        viewVersion !== translationViewVersion ||
-        textInput.value.trim() !== text) return;
-    if (!response.ok || !data.success) throw new Error(data.message || 'Dịch chuyên sâu thất bại');
+    if (
+      version !== languageRequestVersion ||
+      viewVersion !== translationViewVersion ||
+      textInput.value.trim() !== text
+    )
+      return;
+    if (!response.ok || !data.success)
+      throw new Error(data.message || 'Dịch chuyên sâu thất bại');
     // V1 and V2 use the same labeled result and exactly the same UI parser,
     // toggles and output containers. Two-stage AI is only a server concern.
     parseResult(data.result);
-    setSaveState({historyId:data.historyId||null,source:text});
+    setSaveState({ historyId: data.historyId || null, source: text });
     window.renderTermHighlights?.(data.appliedTerms || []);
     window.displayAppliedTerms?.(data.appliedTerms || []);
-    window.renderRequestUsage?.(data.requestUsage||null,'v2');
-    window.renderV2Inspection?.(data.inspection||null,'v2');
-    window.displayTermWarning?.((data.issues||[]).filter(x=>x.includes('Thuật ngữ')));
-    const cards=vocabularyToggle.checked&&Array.isArray(data.vocabularyItems)
-      ? data.vocabularyItems:[];
+    window.renderRequestUsage?.(data.requestUsage || null, 'v2');
+    window.renderV2Inspection?.(data.debug || null, 'v2');
+    window.displayTermWarning?.(
+      (data.issues || []).filter((x) => x.includes('Thuật ngữ'))
+    );
+    const cards =
+      vocabularyToggle.checked && Array.isArray(data.vocabularyItems)
+        ? data.vocabularyItems
+        : [];
     window.renderTranslationVocabulary?.(
-      cards,vocabularyToggle.checked?(data.vocabularyError||''):'','zh',
-      vocabularyToggle.checked);
-    renderTranslationDetailsSummary(data,'v2');
+      cards,
+      vocabularyToggle.checked ? data.vocabularyError || '' : '',
+      'zh',
+      vocabularyToggle.checked
+    );
+    renderTranslationDetailsSummary(data, 'v2');
     renderV2AnalysisDetails(data);
     // The legacy V2-only suggestion/analysis panels remain hidden. V2 uses
     // the exact same vocabulary cards and detail sections as V1.
-    const direction = data.sourceLanguage === 'vi' && data.targetLanguage === 'zh'
-      ? 'Việt → Trung' : data.sourceLanguage === 'zh' && data.targetLanguage === 'vi'
-        ? 'Trung → Việt' : 'Trung ↔ Việt';
-    const count = Array.isArray(data.appliedTerms) ? data.appliedTerms.length : 0;
+    const direction =
+      data.sourceLanguage === 'vi' && data.targetLanguage === 'zh'
+        ? 'Việt → Trung'
+        : data.sourceLanguage === 'zh' && data.targetLanguage === 'vi'
+          ? 'Trung → Việt'
+          : 'Trung ↔ Việt';
+    const count = Array.isArray(data.appliedTerms)
+      ? data.appliedTerms.length
+      : 0;
     if (data.backTranslationWarning) {
-      status.textContent = '⚠ Bản dịch ngược sai ngôn ngữ đã bị loại; bản dịch chính vẫn được giữ, không gọi thêm API.';
+      status.textContent =
+        '⚠ Bản dịch ngược sai ngôn ngữ đã bị loại; bản dịch chính vẫn được giữ, không gọi thêm API.';
       status.className = 'status error';
     } else if (data.verificationError && verificationToggle.checked) {
-      status.textContent = '⚠ Dịch V2 thành công, nhưng kiểm chứng độc lập chưa hoàn thành';
+      status.textContent =
+        '⚠ Dịch V2 thành công, nhưng kiểm chứng độc lập chưa hoàn thành';
       status.className = 'status error';
     } else if (data.needsReview) {
-      status.textContent = '⚠ Dịch V2 ('+direction+') cần kiểm tra: ' + (data.issues || []).slice(0,2).join('; ');
+      status.textContent =
+        '⚠ Dịch V2 (' +
+        direction +
+        ') cần kiểm tra: ' +
+        (data.issues || []).slice(0, 2).join('; ');
       status.className = 'status error';
     } else {
-      status.textContent = '✓ Dịch V2 '+direction+' · '+count+
+      status.textContent =
+        '✓ Dịch V2 ' +
+        direction +
+        ' · ' +
+        count +
         ' thuật ngữ đã xác nhận được áp dụng (chưa kiểm định toàn bộ ngữ nghĩa)';
       status.className = 'status success';
     }
     loadUsage();
   } catch (error) {
-    if (version === languageRequestVersion &&
-        viewVersion === translationViewVersion &&
-        textInput.value.trim() === text) {
+    if (
+      version === languageRequestVersion &&
+      viewVersion === translationViewVersion &&
+      textInput.value.trim() === text
+    ) {
       status.textContent = error.message || 'Dịch chuyên sâu thất bại';
       status.className = 'status error';
     }
   } finally {
     v2Busy = false;
     // A previous V2 call must not unlock a newer V1 request after language switch.
-    if(version===languageRequestVersion){
+    if (version === languageRequestVersion) {
       translateBtn.disabled = false;
       translateBtn.classList.remove('loading');
       setEngineControlsBusy(false);
       refreshV2Button();
-      if(viewVersion !== translationViewVersion &&
-         textInput.value.trim() !== text){
-        status.textContent='Nội dung đã thay đổi. Nhấn Dịch để cập nhật.';
-        status.className='status';
+      if (
+        viewVersion !== translationViewVersion &&
+        textInput.value.trim() !== text
+      ) {
+        status.textContent = 'Nội dung đã thay đổi. Nhấn Dịch để cập nhật.';
+        status.className = 'status';
       }
     }
   }
 }
-
 
 // =========================
 // PARSE RESULT
 // =========================
 
 function parseResult(result) {
-
   const translationMatch = result.match(
-  /TRANSLATION:\s*([\s\S]*?)(?=BACK_TRANSLATION:|PRONUNCIATION:|VOCABULARY:|VERIFICATION:|$)/i
-);
+    /TRANSLATION:\s*([\s\S]*?)(?=BACK_TRANSLATION:|PRONUNCIATION:|VOCABULARY:|VERIFICATION:|$)/i
+  );
 
   const backTranslationMatch = result.match(
-  /BACK_TRANSLATION:\s*([\s\S]*?)(?=PRONUNCIATION:|VOCABULARY:|VERIFICATION:|$)/i
-);
+    /BACK_TRANSLATION:\s*([\s\S]*?)(?=PRONUNCIATION:|VOCABULARY:|VERIFICATION:|$)/i
+  );
 
-const pronunciationMatch = result.match(
-  /PRONUNCIATION:\s*([\s\S]*?)(?=VOCABULARY:|VERIFICATION:|$)/i
-);
+  const pronunciationMatch = result.match(
+    /PRONUNCIATION:\s*([\s\S]*?)(?=VOCABULARY:|VERIFICATION:|$)/i
+  );
 
-const vocabularyMatch = result.match(
-  /VOCABULARY:\s*([\s\S]*?)(?=VERIFICATION:|$)/i
-);
+  const vocabularyMatch = result.match(
+    /VOCABULARY:\s*([\s\S]*?)(?=VERIFICATION:|$)/i
+  );
 
-const verificationMatch = result.match(
-  /VERIFICATION:\s*({[\s\S]*})\s*$/i
-);
+  const verificationMatch = result.match(/VERIFICATION:\s*({[\s\S]*})\s*$/i);
 
   // Bản dịch chính
-  translation.textContent = translationMatch
-    ? translationMatch[1].trim()
-    : '';
+  translation.textContent = translationMatch ? translationMatch[1].trim() : '';
 
   const hasResult = Boolean(translation.textContent.trim());
   copyBtn.hidden = !hasResult;
   document.getElementById('outputSpeakBtn').hidden = !hasResult;
 
   // Dịch ngược
-  const backText = backTranslationMatch
-    ? backTranslationMatch[1].trim()
-    : '';
+  const backText = backTranslationMatch ? backTranslationMatch[1].trim() : '';
 
   backTranslation.textContent = backText;
 
@@ -1175,114 +1289,98 @@ const verificationMatch = result.match(
     : '';
 
   // Từ vựng
-  vocabulary.textContent = vocabularyMatch
-    ? vocabularyMatch[1].trim()
-    : '';
+  vocabulary.textContent = vocabularyMatch ? vocabularyMatch[1].trim() : '';
 
-    verificationWrapper.classList.add('hidden');
+  verificationWrapper.classList.add('hidden');
 
-verificationWrapper.classList.remove(
-  'verification-pass',
-  'verification-warning',
-  'verification-fail'
-);
+  verificationWrapper.classList.remove(
+    'verification-pass',
+    'verification-warning',
+    'verification-fail'
+  );
 
-verificationStatus.textContent = '';
-verificationConfidence.textContent = '';
-verificationMessage.textContent = '';
-verificationIssues.innerHTML = '';
+  verificationStatus.textContent = '';
+  verificationConfidence.textContent = '';
+  verificationMessage.textContent = '';
+  verificationIssues.innerHTML = '';
 
-if (verificationToggle.checked && verificationMatch) {
-  try {
-    const data = JSON.parse(verificationMatch[1]);
+  if (verificationToggle.checked && verificationMatch) {
+    try {
+      const data = JSON.parse(verificationMatch[1]);
 
-    const status = String(data.status || '').toUpperCase();
+      const status = String(data.status || '').toUpperCase();
 
-    const statusConfig = {
-      PASS: {
-        text: '✓ Bản dịch chính xác',
-        className: 'verification-pass'
-      },
-      WARNING: {
-        text: '⚠ Cần kiểm tra',
-        className: 'verification-warning'
-      },
-      FAIL: {
-        text: '✕ Bản dịch có vấn đề',
-        className: 'verification-fail'
+      const statusConfig = {
+        PASS: {
+          text: '✓ Bản dịch chính xác',
+          className: 'verification-pass'
+        },
+        WARNING: {
+          text: '⚠ Cần kiểm tra',
+          className: 'verification-warning'
+        },
+        FAIL: {
+          text: '✕ Bản dịch có vấn đề',
+          className: 'verification-fail'
+        }
+      };
+
+      const config = statusConfig[status] || statusConfig.WARNING;
+
+      verificationStatus.textContent = config.text;
+
+      if (
+        data.confidence !== null &&
+        data.confidence !== undefined &&
+        Number.isFinite(Number(data.confidence))
+      ) {
+        verificationConfidence.textContent = `${Number(data.confidence)}%`;
       }
-    };
 
-    const config =
-      statusConfig[status] || statusConfig.WARNING;
+      verificationMessage.textContent = data.message || '';
 
-    verificationStatus.textContent = config.text;
+      if (Array.isArray(data.issues)) {
+        data.issues.forEach((issue) => {
+          const li = document.createElement('li');
 
-    if (data.confidence !== null && data.confidence !== undefined &&
-      Number.isFinite(Number(data.confidence))) {
-      verificationConfidence.textContent =
-        `${Number(data.confidence)}%`;
+          li.textContent =
+            typeof issue === 'string' ? issue : JSON.stringify(issue);
+
+          verificationIssues.appendChild(li);
+        });
+      }
+
+      verificationWrapper.classList.add(config.className);
+
+      verificationWrapper.classList.remove('hidden');
+    } catch (error) {
+      console.error('Verification parse error:', error);
     }
-
-    verificationMessage.textContent =
-      data.message || '';
-
-    if (Array.isArray(data.issues)) {
-      data.issues.forEach(issue => {
-        const li = document.createElement('li');
-
-        li.textContent =
-          typeof issue === 'string'
-            ? issue
-            : JSON.stringify(issue);
-
-        verificationIssues.appendChild(li);
-      });
-    }
-
-    verificationWrapper.classList.add(
-      config.className
-    );
-
-    verificationWrapper.classList.remove('hidden');
-
-  } catch (error) {
-    console.error(
-      'Verification parse error:',
-      error
-    );
   }
-}
 
   if (
-  targetLang.value === 'zh' &&
-  (translatorMode === 'free' ||
-    pronunciationToggle.checked) &&
-  !/[\u3400-\u9FFF]/u.test(textInput.value) &&
-  pronunciation.textContent.trim()
-) {
-  pronunciationWrapper.classList.remove('hidden');
-} else {
-  pronunciationWrapper.classList.add('hidden');
-}
+    targetLang.value === 'zh' &&
+    (translatorMode === 'free' || pronunciationToggle.checked) &&
+    !/[\u3400-\u9FFF]/u.test(textInput.value) &&
+    pronunciation.textContent.trim()
+  ) {
+    pronunciationWrapper.classList.remove('hidden');
+  } else {
+    pronunciationWrapper.classList.add('hidden');
+  }
 
-if (
-  vocabularyToggle.checked &&
-  vocabulary.textContent.trim()
-) {
-  vocabularyWrapper.classList.remove('hidden');
-} else {
-  vocabularyWrapper.classList.add('hidden');
+  if (vocabularyToggle.checked && vocabulary.textContent.trim()) {
+    vocabularyWrapper.classList.remove('hidden');
+  } else {
+    vocabularyWrapper.classList.add('hidden');
+  }
 }
-}
-
 
 // =========================
 // COPY TRANSLATION
 // =========================
 
 copyBtn.addEventListener('click', async () => {
-
   const text = translation.textContent.trim();
 
   if (!text) {
@@ -1292,7 +1390,6 @@ copyBtn.addEventListener('click', async () => {
   }
 
   try {
-
     await navigator.clipboard.writeText(text);
 
     const originalTitle = copyBtn.title;
@@ -1306,18 +1403,13 @@ copyBtn.addEventListener('click', async () => {
       copyBtn.title = originalTitle;
       copyBtn.setAttribute('aria-label', 'Sao chép bản dịch');
     }, 1500);
-
   } catch (error) {
-
     console.error(error);
 
     status.textContent = 'Không thể copy';
     status.className = 'status error';
-
   }
-
 });
-
 
 // =========================
 // LOAD USAGE
@@ -1329,22 +1421,22 @@ async function loadUsage() {
 
 function openHistory() {
   historyDetailLoad++;
-  sidebarView='history';
-  historySidebarTitle.textContent='Lịch sử dịch';
-  clearHistoryBtn.hidden=false;
-  historySearch.placeholder='Tìm trong lịch sử...';
-  historySearch.value='';
+  sidebarView = 'history';
+  historySidebarTitle.textContent = 'Lịch sử dịch';
+  clearHistoryBtn.hidden = false;
+  historySearch.placeholder = 'Tìm trong lịch sử...';
+  historySearch.value = '';
   historySidebar.classList.add('active');
   historyOverlay.classList.add('active');
   void loadHistory();
 }
 function openSaved() {
   historyDetailLoad++;
-  sidebarView='saved';
-  historySidebarTitle.textContent='Đã lưu';
-  clearHistoryBtn.hidden=true;
-  historySearch.placeholder='Tìm bản dịch đã lưu...';
-  historySearch.value='';
+  sidebarView = 'saved';
+  historySidebarTitle.textContent = 'Đã lưu';
+  clearHistoryBtn.hidden = true;
+  historySearch.placeholder = 'Tìm bản dịch đã lưu...';
+  historySearch.value = '';
   historySidebar.classList.add('active');
   historyOverlay.classList.add('active');
   void loadSaved();
@@ -1356,42 +1448,65 @@ function closeHistory() {
 }
 
 historyBtn.addEventListener('click', openHistory);
-savedBtn.addEventListener('click',openSaved);
+savedBtn.addEventListener('click', openSaved);
 closeHistoryBtn.addEventListener('click', closeHistory);
 historyOverlay.addEventListener('click', closeHistory);
 
 historySearch.addEventListener('input', () => {
   const term = historySearch.value.trim().toLocaleLowerCase('vi-VN');
 
-  const collection=sidebarView==='saved'?savedData:historyData;
-  renderHistory(term?collection.filter(item=>
-    [item.text,item.result,item.targetLang].some(value=>
-      String(value||'').toLocaleLowerCase('vi-VN').includes(term)))
-    :collection);
+  const collection = sidebarView === 'saved' ? savedData : historyData;
+  renderHistory(
+    term
+      ? collection.filter((item) =>
+          [item.text, item.result, item.targetLang].some((value) =>
+            String(value || '')
+              .toLocaleLowerCase('vi-VN')
+              .includes(term)
+          )
+        )
+      : collection
+  );
 });
 
 clearHistoryBtn.addEventListener('click', async () => {
   const selectedLanguage = targetLang.value;
-  if (!historyData.some(item => (item.learningLang || 'zh') === selectedLanguage)) return;
+  if (
+    !historyData.some(
+      (item) => (item.learningLang || 'zh') === selectedLanguage
+    )
+  )
+    return;
 
-  if (!window.confirm('Bạn có chắc muốn xóa lịch sử dịch tiếng ' + (selectedLanguage === 'en' ? 'Anh' : 'Trung') + '?')) {
+  if (
+    !window.confirm(
+      'Bạn có chắc muốn xóa lịch sử dịch tiếng ' +
+        (selectedLanguage === 'en' ? 'Anh' : 'Trung') +
+        '?'
+    )
+  ) {
     return;
   }
 
   clearHistoryBtn.disabled = true;
 
   try {
-    const response = await fetch('/api/history?learningLang=' + encodeURIComponent(selectedLanguage), {
-      method: 'DELETE',
-      credentials: 'same-origin'
-    });
+    const response = await fetch(
+      '/api/history?learningLang=' + encodeURIComponent(selectedLanguage),
+      {
+        method: 'DELETE',
+        credentials: 'same-origin'
+      }
+    );
     const data = await response.json();
 
     if (!response.ok || !data.success) {
       throw new Error(data.message || 'Không thể xóa lịch sử');
     }
 
-    historyData = historyData.filter(item => (item.learningLang || 'zh') !== selectedLanguage);
+    historyData = historyData.filter(
+      (item) => (item.learningLang || 'zh') !== selectedLanguage
+    );
     historySearch.value = '';
     renderHistory(historyData);
   } catch (error) {
@@ -1402,25 +1517,35 @@ clearHistoryBtn.addEventListener('click', async () => {
   }
 });
 
-async function loadSaved(){
-  historyList.textContent='Đang tải bản dịch đã lưu...';
-  try{
-    const response=await fetch('/api/saved',{credentials:'same-origin',
-      cache:'no-store'});
-    const data=await response.json();
-    if(!response.ok||!data.success)
-      throw new Error(data.message||'Không thể tải bản dịch đã lưu');
-    savedData=Array.isArray(data.saved)?data.saved:[];
-    if(sidebarView==='saved'){
-      const term=historySearch.value.trim().toLocaleLowerCase('vi-VN');
-      renderHistory(term?savedData.filter(item=>
-        [item.text,item.result,item.targetLang].some(value=>
-          String(value||'').toLocaleLowerCase('vi-VN').includes(term)))
-        :savedData);
+async function loadSaved() {
+  historyList.textContent = 'Đang tải bản dịch đã lưu...';
+  try {
+    const response = await fetch('/api/saved', {
+      credentials: 'same-origin',
+      cache: 'no-store'
+    });
+    const data = await response.json();
+    if (!response.ok || !data.success)
+      throw new Error(data.message || 'Không thể tải bản dịch đã lưu');
+    savedData = Array.isArray(data.saved) ? data.saved : [];
+    if (sidebarView === 'saved') {
+      const term = historySearch.value.trim().toLocaleLowerCase('vi-VN');
+      renderHistory(
+        term
+          ? savedData.filter((item) =>
+              [item.text, item.result, item.targetLang].some((value) =>
+                String(value || '')
+                  .toLocaleLowerCase('vi-VN')
+                  .includes(term)
+              )
+            )
+          : savedData
+      );
     }
-  }catch(error){
-    if(sidebarView==='saved'){
-      historyList.textContent=error.message||'Không thể tải bản dịch đã lưu';
+  } catch (error) {
+    if (sidebarView === 'saved') {
+      historyList.textContent =
+        error.message || 'Không thể tải bản dịch đã lưu';
     }
   }
 }
@@ -1434,14 +1559,20 @@ async function loadHistory() {
     }
 
     historyData = data.history;
-    if(sidebarView==='history'){
-      const term=historySearch.value.trim().toLocaleLowerCase('vi-VN');
-      renderHistory(term?historyData.filter(item=>
-        [item.text,item.result,item.targetLang].some(value=>
-          String(value||'').toLocaleLowerCase('vi-VN').includes(term)))
-        :historyData);
+    if (sidebarView === 'history') {
+      const term = historySearch.value.trim().toLocaleLowerCase('vi-VN');
+      renderHistory(
+        term
+          ? historyData.filter((item) =>
+              [item.text, item.result, item.targetLang].some((value) =>
+                String(value || '')
+                  .toLocaleLowerCase('vi-VN')
+                  .includes(term)
+              )
+            )
+          : historyData
+      );
     }
-
   } catch (error) {
     console.error('History error:', error);
 
@@ -1450,162 +1581,218 @@ async function loadHistory() {
   }
 }
 
-async function openHistoryDetail(item){
+async function openHistoryDetail(item) {
   // Saved and history records both replay the full archived result.
-  const source=sidebarView;
-  if(translateBtn.disabled||v2Busy)return;
-  const current=++historyDetailLoad;
-  const viewVersion=++translationViewVersion;
-  try{
-    const response=await fetch(
-      (source==='saved'?'/api/saved/':'/api/history/')+
-        encodeURIComponent(item.id),{
-      credentials:'same-origin',cache:'no-store'
-    });
-    const data=await response.json();
-    if(!response.ok||!data.success||!data.item)
-      throw new Error(data.message||'Không thể mở lịch sử');
-    if(current!==historyDetailLoad ||
-       viewVersion!==translationViewVersion)return;
-    const saved=data.item;
-    const detail=saved.details&&typeof saved.details==='object'?saved.details:null;
-    const payload=detail?.payload||{};
-    const historicalEngine=detail?.engine||'v1';
-    const historicalLang=saved.learningLang||'zh';
+  const source = sidebarView;
+  if (translateBtn.disabled || v2Busy) return;
+  const current = ++historyDetailLoad;
+  const viewVersion = ++translationViewVersion;
+  try {
+    const response = await fetch(
+      (source === 'saved' ? '/api/saved/' : '/api/history/') +
+        encodeURIComponent(item.id),
+      {
+        credentials: 'same-origin',
+        cache: 'no-store'
+      }
+    );
+    const data = await response.json();
+    if (!response.ok || !data.success || !data.item)
+      throw new Error(data.message || 'Không thể mở lịch sử');
+    if (current !== historyDetailLoad || viewVersion !== translationViewVersion)
+      return;
+    const saved = data.item;
+    const detail =
+      saved.details && typeof saved.details === 'object' ? saved.details : null;
+    const payload = detail?.payload || {};
+    const historicalEngine = detail?.engine || 'v1';
+    const historicalLang = saved.learningLang || 'zh';
     // The current history sidebar is already scoped to the learning language.
-    if(historicalLang!==targetLang.value)return;
-    const options=detail?.options||null;
-    if(!options){
+    if (historicalLang !== targetLang.value) return;
+    const options = detail?.options || null;
+    if (!options) {
       // Old rows only have the labeled result. Reveal the fields they contain
       // instead of hiding verification/vocabulary with unrelated new settings.
-      verificationToggle.checked=/VERIFICATION:\s*\{/i.test(saved.result||'');
-      vocabularyToggle.checked=/VOCABULARY:/i.test(saved.result||'');
-      backTranslationToggle.checked=/BACK_TRANSLATION:/i.test(saved.result||'');
+      verificationToggle.checked = /VERIFICATION:\s*\{/i.test(
+        saved.result || ''
+      );
+      vocabularyToggle.checked = /VOCABULARY:/i.test(saved.result || '');
+      backTranslationToggle.checked = /BACK_TRANSLATION:/i.test(
+        saved.result || ''
+      );
     }
-    if(options&&translatorMode==='pro'){
-      for(const [control,value] of [
-        [backTranslationToggle,options.backTranslation],
-        [pronunciationToggle,options.pronunciation],
-        [vocabularyToggle,options.vocabulary],
-        [verificationToggle,options.verification]
-      ]){
-        if(typeof value==='boolean')control.checked=value;
+    if (options && translatorMode === 'pro') {
+      for (const [control, value] of [
+        [backTranslationToggle, options.backTranslation],
+        [pronunciationToggle, options.pronunciation],
+        [vocabularyToggle, options.vocabulary],
+        [verificationToggle, options.verification]
+      ]) {
+        if (typeof value === 'boolean') control.checked = value;
       }
     }
-    if(['auto','friend','colleague','superior'].includes(detail?.context)){
-      contextSelect.value=detail.context;
+    if (['auto', 'friend', 'colleague', 'superior'].includes(detail?.context)) {
+      contextSelect.value = detail.context;
     }
-    const historicalModel=options?.translationModel||payload?.translationModel;
-    if(translationModelSelect&&['gpt-4o','gpt-4o-mini'].includes(historicalModel))
-      translationModelSelect.value=historicalModel;
+    const historicalModel =
+      options?.translationModel || payload?.translationModel;
+    if (
+      translationModelSelect &&
+      ['gpt-4o', 'gpt-4o-mini'].includes(historicalModel)
+    )
+      translationModelSelect.value = historicalModel;
     // The V2 preference is visual only; history replay never invokes V2.
-    if(['v1','v2'].includes(historicalEngine)&&v2Eligible()){
-      preferredEngine=historicalEngine;
+    if (['v1', 'v2'].includes(historicalEngine) && v2Eligible()) {
+      preferredEngine = historicalEngine;
       refreshV2Button();
     }
-    textInput.value=saved.text||'';
-    textInput.dispatchEvent(new Event('input',{bubbles:true}));
-    const archivedResult=typeof saved.result==='string'?saved.result:'';
+    textInput.value = saved.text || '';
+    textInput.dispatchEvent(new Event('input', { bubbles: true }));
+    const archivedResult = typeof saved.result === 'string' ? saved.result : '';
     parseResult(archivedResult);
-    const currentHistoryId=source==='saved'?saved.historyId:saved.id;
-    setSaveState({historyId:currentHistoryId,
-      savedId:source==='saved'?saved.id:null,source:saved.text});
-    if(source==='history'){
-      const version=favoriteVersion;
-      void syncSavedState(currentHistoryId,version);
+    const currentHistoryId = source === 'saved' ? saved.historyId : saved.id;
+    setSaveState({
+      historyId: currentHistoryId,
+      savedId: source === 'saved' ? saved.id : null,
+      source: saved.text
+    });
+    if (source === 'history') {
+      const version = favoriteVersion;
+      void syncSavedState(currentHistoryId, version);
     }
-    if(detail&&Array.isArray(payload.vocabularyItems)){
+    if (detail && Array.isArray(payload.vocabularyItems)) {
       window.renderTranslationVocabularySnapshot?.(
-        payload.vocabularyItems,payload.vocabularyError||'',
+        payload.vocabularyItems,
+        payload.vocabularyError || '',
         vocabularyToggle.checked
       );
-    }else{
+    } else {
       // Legacy rows have only the raw VOCABULARY text. Preserve that.
       window.renderTranslationVocabulary?.(undefined);
     }
-    window.displayAppliedTerms?.(payload.appliedTerms||[]);
-    window.renderTermHighlights?.(payload.appliedTerms||[]);
-    window.displayTermWarning?.(payload.terminologyWarnings||
-      (Array.isArray(payload.issues)?payload.issues.filter(x=>
-        typeof x==='string'&&x.includes('Thuật ngữ')):[]));
+    window.displayAppliedTerms?.(payload.appliedTerms || []);
+    window.renderTermHighlights?.(payload.appliedTerms || []);
+    window.displayTermWarning?.(
+      payload.terminologyWarnings ||
+        (Array.isArray(payload.issues)
+          ? payload.issues.filter(
+              (x) => typeof x === 'string' && x.includes('Thuật ngữ')
+            )
+          : [])
+    );
     window.renderV2ClaudeTerms?.([]);
     renderTranslationDetailsSummary(
-      historicalEngine==='free'?null:{
-        ...payload,context:detail?.context||contextSelect.value
-      },historicalEngine);
-    renderV2AnalysisDetails(
-      historicalEngine==='v2'||historicalEngine==='v1'
-        ?{...payload,context:detail?.context||contextSelect.value}:null,
-      historicalEngine==='v1'?'v1':'v2'
+      historicalEngine === 'free'
+        ? null
+        : {
+            ...payload,
+            context: detail?.context || contextSelect.value
+          },
+      historicalEngine
     );
-    window.renderRequestUsage?.(payload.requestUsage||null,
-      historicalEngine==='v2'?'v2':'v1');
+    renderV2AnalysisDetails(
+      historicalEngine === 'v2' || historicalEngine === 'v1'
+        ? { ...payload, context: detail?.context || contextSelect.value }
+        : null,
+      historicalEngine === 'v1' ? 'v1' : 'v2'
+    );
+    window.renderRequestUsage?.(
+      payload.requestUsage || null,
+      historicalEngine === 'v2' ? 'v2' : 'v1'
+    );
     // Persisted transcript exists only if inspection was explicitly enabled.
     // History playback does not show an action that can silently bill API fees.
-    const archivedInspection=payload.inspection?{
-      ...payload.inspection,historical:true
-    }:{
-      historical:true,cacheHit:false,stages:[],
-      notice:detail
-        ?detail.inspectionUnavailable||
-          'Luồng prompt/phản hồi AI không được lưu cho lượt dịch này.'
-        :'Bản ghi cũ: chưa lưu thông số token và luồng AI.'
-    };
-    if(historicalEngine==='free'){
-      window.renderV2Inspection?.(null,'v1');
-    }else{
-      window.renderV2Inspection?.(archivedInspection,
-        historicalEngine==='v2'?'v2':'v1');
+    const archivedInspection = payload.inspection
+      ? {
+          ...payload.inspection,
+          historical: true
+        }
+      : {
+          historical: true,
+          cacheHit: false,
+          stages: [],
+          notice: detail
+            ? detail.inspectionUnavailable ||
+              'Luồng prompt/phản hồi AI không được lưu cho lượt dịch này.'
+            : 'Bản ghi cũ: chưa lưu thông số token và luồng AI.'
+        };
+    if (historicalEngine === 'free') {
+      window.renderV2Inspection?.(null, 'v1');
+    } else {
+      window.renderV2Inspection?.(
+        archivedInspection,
+        historicalEngine === 'v2' ? 'v2' : 'v1'
+      );
     }
-    if(historicalLang==='en'){
-      window.dispatchEvent(new CustomEvent('translation-finished',{
-        detail:{sourceLanguage:payload.sourceLanguage}
-      }));
+    if (historicalLang === 'en') {
+      window.dispatchEvent(
+        new CustomEvent('translation-finished', {
+          detail: { sourceLanguage: payload.sourceLanguage }
+        })
+      );
     }
-    const stamp=new Date(saved.time).toLocaleString('vi-VN');
-    if(historyReplayNotice){
-      historyReplayNotice.textContent=
-        (source==='saved'?'Đang xem mục Đã lưu · ':'Đang xem bản dịch từ lịch sử · ')+stamp+
-        ' · '+(historicalEngine==='v2'?'V2':historicalEngine==='free'?'FREE':'V1')+
-        (detail?' · Thông số tại thời điểm dịch':
-          ' · Bản ghi cũ không có thông số chi tiết')+
+    const stamp = new Date(saved.time).toLocaleString('vi-VN');
+    if (historyReplayNotice) {
+      historyReplayNotice.textContent =
+        (source === 'saved'
+          ? 'Đang xem mục Đã lưu · '
+          : 'Đang xem bản dịch từ lịch sử · ') +
+        stamp +
+        ' · ' +
+        (historicalEngine === 'v2'
+          ? 'V2'
+          : historicalEngine === 'free'
+            ? 'FREE'
+            : 'V1') +
+        (detail
+          ? ' · Thông số tại thời điểm dịch'
+          : ' · Bản ghi cũ không có thông số chi tiết') +
         ' · Không gọi lại AI';
-      historyReplayNotice.hidden=false;
+      historyReplayNotice.hidden = false;
     }
-    status.textContent=source==='saved'
-      ?'✓ Đã mở bản dịch đã lưu (không gọi API dịch)'
-      :'✓ Đã mở bản dịch từ lịch sử (không gọi API dịch)';
-    status.className='status success';
+    status.textContent =
+      source === 'saved'
+        ? '✓ Đã mở bản dịch đã lưu (không gọi API dịch)'
+        : '✓ Đã mở bản dịch từ lịch sử (không gọi API dịch)';
+    status.className = 'status success';
     closeHistory();
     document.getElementById('translationDetails')?.scrollIntoView?.({
-      behavior:'smooth',block:'start'
+      behavior: 'smooth',
+      block: 'start'
     });
-  }catch(error){
-    if(current!==historyDetailLoad ||
-       viewVersion!==translationViewVersion)return;
-    status.textContent=error.message||'Không thể xem lại bản dịch';
-    status.className='status error';
+  } catch (error) {
+    if (current !== historyDetailLoad || viewVersion !== translationViewVersion)
+      return;
+    status.textContent = error.message || 'Không thể xem lại bản dịch';
+    status.className = 'status error';
   }
 }
 
 function renderHistory(items) {
-  items = items.filter(item => (item.learningLang || 'zh') === targetLang.value);
+  items = items.filter(
+    (item) => (item.learningLang || 'zh') === targetLang.value
+  );
   historyList.innerHTML = '';
 
   if (!items.length) {
-    historyList.innerHTML=sidebarView==='saved'
-      ?'<div class="history-empty">Chưa có bản dịch đã lưu. Nhấn ngôi sao trong ô bản dịch để lưu.</div>'
-      :'<div class="history-empty">Chưa có lịch sử dịch</div>';
+    historyList.innerHTML =
+      sidebarView === 'saved'
+        ? '<div class="history-empty">Chưa có bản dịch đã lưu. Nhấn ngôi sao trong ô bản dịch để lưu.</div>'
+        : '<div class="history-empty">Chưa có lịch sử dịch</div>';
     return;
   }
 
-  items.forEach(item => {
+  items.forEach((item) => {
     const element = document.createElement('button');
-    element.type='button';
-    element.className='history-item'+(sidebarView==='saved'?' saved-history-item':'');
-    element.title='Mở lại bản dịch và tất cả thông số đã lưu';
-    element.setAttribute('aria-label','Xem lại bản dịch: '+String(item.text||'').slice(0,100));
-    element.addEventListener('click',()=>openHistoryDetail(item));
+    element.type = 'button';
+    element.className =
+      'history-item' + (sidebarView === 'saved' ? ' saved-history-item' : '');
+    element.title = 'Mở lại bản dịch và tất cả thông số đã lưu';
+    element.setAttribute(
+      'aria-label',
+      'Xem lại bản dịch: ' + String(item.text || '').slice(0, 100)
+    );
+    element.addEventListener('click', () => openHistoryDetail(item));
 
     const date = new Date(item.time);
 
@@ -1618,9 +1805,7 @@ function renderHistory(items) {
       /TRANSLATION:\s*([\s\S]*?)(?=BACK_TRANSLATION:|PRONUNCIATION:|VOCABULARY:|VERIFICATION:|$)/i
     );
 
-    const translatedText = translationMatch
-      ? translationMatch[1].trim()
-      : '';
+    const translatedText = translationMatch ? translationMatch[1].trim() : '';
 
     const langNames = {
       zh: '🇨🇳 Trung',
@@ -1633,17 +1818,17 @@ function renderHistory(items) {
     element.innerHTML = `
       <div class="history-item-top">
         <span class="history-item-lang">
-          ${langNames[item.learningLang||item.targetLang] || item.targetLang}
+          ${langNames[item.learningLang || item.targetLang] || item.targetLang}
         </span>
 
         <span class="history-item-time">
-          ${item.engine==='v2'?'V2 · ':item.engine==='v1'?'V1 · ':item.engine==='free'?'FREE · ':''}${time}
+          ${item.engine === 'v2' ? 'V2 · ' : item.engine === 'v1' ? 'V1 · ' : item.engine === 'free' ? 'FREE · ' : ''}${time}
         </span>
       </div>
 
       <div class="history-item-source"></div>
       <div class="history-item-result"></div>
-      ${sidebarView==='saved'?'<span class="saved-history-marker" aria-hidden="true">★</span>':''}
+      ${sidebarView === 'saved' ? '<span class="saved-history-marker" aria-hidden="true">★</span>' : ''}
     `;
 
     element.querySelector('.history-item-source').textContent = item.text;
@@ -1652,9 +1837,6 @@ function renderHistory(items) {
     historyList.appendChild(element);
   });
 }
-
-
-
 
 async function performLogout() {
   try {
@@ -1667,13 +1849,14 @@ async function performLogout() {
     }
 
     window.location.href = '/login';
-
   } catch (error) {
     console.error('Logout error:', error);
   }
 }
 logoutBtn.addEventListener('click', performLogout);
-document.getElementById('regularLogoutBtn').addEventListener('click', performLogout);
+document
+  .getElementById('regularLogoutBtn')
+  .addEventListener('click', performLogout);
 
 // =========================
 // INITIAL LOAD
@@ -1702,7 +1885,8 @@ window.addEventListener('learning-language-change', () => {
   window.renderV2ClaudeTerms?.([]);
   renderV2AnalysisDetails();
   renderTranslationDetailsSummary();
-  translation.innerHTML = '<div class="translation-placeholder"><span class="translation-placeholder-icon">文</span><p>Bản dịch sẽ xuất hiện tại đây</p></div>';
+  translation.innerHTML =
+    '<div class="translation-placeholder"><span class="translation-placeholder-icon">文</span><p>Bản dịch sẽ xuất hiện tại đây</p></div>';
   copyBtn.hidden = true;
   document.getElementById('outputSpeakBtn').hidden = true;
   pronunciation.textContent = '';
@@ -1711,7 +1895,11 @@ window.addEventListener('learning-language-change', () => {
   backTranslationWrapper.classList.add('hidden');
   pronunciationWrapper.classList.add('hidden');
   vocabularyWrapper.classList.add('hidden');
-  window.renderTranslationVocabulary?.([], '', window.languageUI?.get?.() || 'zh');
+  window.renderTranslationVocabulary?.(
+    [],
+    '',
+    window.languageUI?.get?.() || 'zh'
+  );
   verificationWrapper.classList.add('hidden');
   const practiceResultBox = document.getElementById('practiceModalResult');
   practiceResultBox.classList.add('hidden');
@@ -1722,8 +1910,10 @@ window.addEventListener('learning-language-change', () => {
   document.getElementById('submitPracticeBtn').disabled = false;
   document.getElementById('submitPracticeBtn').textContent = 'Chấm bài →';
   historySearch.value = '';
-  renderHistory(sidebarView==='saved'?savedData:historyData);
-  document.getElementById('text').dispatchEvent(new Event('input', { bubbles: true }));
+  renderHistory(sidebarView === 'saved' ? savedData : historyData);
+  document
+    .getElementById('text')
+    .dispatchEvent(new Event('input', { bubbles: true }));
 });
 
 // ===== PRACTICE MODAL =====
@@ -1749,13 +1939,9 @@ practiceModal.addEventListener('click', (event) => {
   }
 });
 
-const submitPracticeBtn =
-  document.getElementById('submitPracticeBtn');
+const submitPracticeBtn = document.getElementById('submitPracticeBtn');
 
-submitPracticeBtn.addEventListener(
-  'click',
-  evaluateLanguagePractice
-);
+submitPracticeBtn.addEventListener('click', evaluateLanguagePractice);
 
 const practiceInput = document.getElementById('practiceInput');
 

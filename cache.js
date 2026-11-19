@@ -25,7 +25,10 @@ function setCachedAudio(text, voice, speed, buffer) {
   if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
     throw new TypeError('Empty audio buffer');
   }
-  const destination = path.join(CACHE_DIR, `${hashAudio(text, voice, speed)}.mp3`);
+  const destination = path.join(
+    CACHE_DIR,
+    `${hashAudio(text, voice, speed)}.mp3`
+  );
   // Write atomically so an interrupted synthesis never leaves partial audio.
   const temp = destination + '.' + process.pid + '.tmp';
   try {

@@ -1,4 +1,5 @@
 require('dotenv').config();
+const { prepareRequest } = require('./ai/pipeline/prepare-request');
 
 const { pinyin } = require('pinyin-pro');
 const { getChineseAudio, getVietnameseAudio } = require('./web-tts');
@@ -14,10 +15,27 @@ const {
   revokeActiveFreeSessions,
   destroySession
 } = require('./web-maintenance');
-const { translateEnglishFree, translateEnglishPro, evaluateEnglish } = require('./web-english');
-const {sourceLanguage,translationLanguageIssue,backTranslationLanguageIssue}=require('./ai/utils/translation-language');
+const {
+  translateEnglishFree,
+  translateEnglishPro,
+  evaluateEnglish
+} = require('./web-english');
+const {
+  translationLanguageIssue,
+  backTranslationLanguageIssue
+} = require('./ai/utils/translation-language');
 const express = require('express');
 const path = require('path');
+const { createPersonalRouter } = require('./modules/personal-context/routes');
+const { captureWebTurn } = require('./modules/personal-context/conversations');
+const {
+  translationDebug,
+  omitArchivedInspection
+} = require('./ai/debug/inspector');
+const {
+  UserProfile,
+  ConversationSession
+} = require('./modules/personal-context/models');
 const session = require('express-session');
 const MongoStore = require('connect-mongo').default;
 const mongoose = require('mongoose');
@@ -26,18 +44,32 @@ const connectDatabase = require('./config/database');
 const userRoutes = require('./modules/users/user.routes');
 const apiMonitoringRoutes = require('./api-monitoring/router');
 const telegramLinkRoutes = require('./telegram-sync/routes');
+const {
+  processingSummary
+} = require('./ai/translation-inspector/summary-builder');
+const { createInspectorRouter } = require('./ai/translation-inspector/routes');
 const { createV2Router } = require('./ai/v2/routes');
-const glossaryRoutes=require('./ai/terminology/routes');
-const {lookupUserTerms,termHighlights,validateAppliedTerms}=require('./ai/terminology/resolver');
+const glossaryRoutes = require('./ai/terminology/routes');
+const {
+  lookupUserTerms,
+  termHighlights,
+  validateAppliedTerms
+} = require('./ai/terminology/resolver');
 const { startQuotaPolling } = require('./api-monitoring/quotas');
 const { addUsage, getUsageStats } = require('./usage');
-const { proRequestUsage,freeRequestUsage } = require('./translation-request-usage');
-const {historySnapshot}=require('./history-snapshot');
-const {recordTranslationHistorySafely}=require('./history-guard');
 const {
-  saveHistoryTranslation,listSavedTranslations,getSavedTranslation,
-  getSavedStatus,removeSavedTranslation
-}=require('./saved-translations');
+  proRequestUsage,
+  freeRequestUsage
+} = require('./translation-request-usage');
+const { historySnapshot } = require('./history-snapshot');
+const { recordTranslationHistorySafely } = require('./history-guard');
+const {
+  saveHistoryTranslation,
+  listSavedTranslations,
+  getSavedTranslation,
+  getSavedStatus,
+  removeSavedTranslation
+} = require('./saved-translations');
 const {
   translateFull,
   evaluateChinese,
@@ -57,10 +89,9 @@ const {
   clearHistory
 } = require('./history');
 
-const { translateFree } =
-  require('./freeTranslator');
+const { translateFree } = require('./freeTranslator');
 
-  const {
+const {
   requireAuth: requireMongoAuth,
   requireRole
 } = require('./modules/users/user.middleware');
@@ -71,10 +102,10 @@ const User = require('./modules/users/user.model');
 // because a personal dictionary read/write is temporarily unavailable.
 async function personalVocabularyCards(args) {
   try {
-    return { items:await resolveTranslationVocabulary(args), error:null };
-  } catch(error) {
-    console.error('Vocabulary V1.1 resolution:',error.message);
-    return {items:[],error:'Kho từ vựng đang tạm thời không khả dụng'};
+    return { items: await resolveTranslationVocabulary(args), error: null };
+  } catch (error) {
+    console.error('Vocabulary V1.1 resolution:', error.message);
+    return { items: [], error: 'Kho từ vựng đang tạm thời không khả dụng' };
   }
 }
 
@@ -105,18 +136,20 @@ app.use(express.urlencoded({ extended: true }));
 
 app.set('trust proxy', 1);
 
-app.use(session({
-  store: sessionStore,
-  secret: process.env.SESSION_SECRET,
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: SESSION_TTL_SECONDS * 1000
-  }
-}));
+app.use(
+  session({
+    store: sessionStore,
+    secret: process.env.SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: SESSION_TTL_SECONDS * 1000
+    }
+  })
+);
 
 // FREE maintenance is server-enforced on every request, including API calls
 // and already-authenticated sessions. PRO and admin users remain unaffected.
@@ -153,19 +186,28 @@ app.get('/api/admin/maintenance', requireRole('admin'), async (req, res) => {
     return res.json({ success: true, enabled: await freeMaintenanceEnabled() });
   } catch (error) {
     console.error('Maintenance status error:', error.message);
-    return res.status(500).json({ success: false, message: 'Không thể xem trạng thái bảo trì' });
+    return res
+      .status(500)
+      .json({ success: false, message: 'Không thể xem trạng thái bảo trì' });
   }
 });
 
 app.put('/api/admin/maintenance', requireRole('admin'), async (req, res) => {
   const origin = req.get('origin');
   const expectedOrigin = req.protocol + '://' + req.get('host');
-  if ((origin && origin !== expectedOrigin) ||
-      (req.get('sec-fetch-site') && !['same-origin', 'none'].includes(req.get('sec-fetch-site')))) {
-    return res.status(403).json({ success: false, message: 'Yêu cầu không cùng nguồn gốc' });
+  if (
+    (origin && origin !== expectedOrigin) ||
+    (req.get('sec-fetch-site') &&
+      !['same-origin', 'none'].includes(req.get('sec-fetch-site')))
+  ) {
+    return res
+      .status(403)
+      .json({ success: false, message: 'Yêu cầu không cùng nguồn gốc' });
   }
   if (typeof req.body?.enabled !== 'boolean') {
-    return res.status(400).json({ success: false, message: 'enabled phải là boolean' });
+    return res
+      .status(400)
+      .json({ success: false, message: 'enabled phải là boolean' });
   }
   try {
     const setting = await updateFreeMaintenance(req.body.enabled, req.user._id);
@@ -183,28 +225,42 @@ app.put('/api/admin/maintenance', requireRole('admin'), async (req, res) => {
     }
     res.set('Cache-Control', 'no-store');
     return res.json({
-      success: true, enabled: setting.enabled, revokedSessions, sessionsRevoked,
+      success: true,
+      enabled: setting.enabled,
+      revokedSessions,
+      sessionsRevoked,
       message: setting.enabled
         ? 'Đã bật bảo trì cho tài khoản FREE'
         : 'Đã tắt bảo trì, người dùng FREE có thể đăng nhập lại'
     });
   } catch (error) {
     console.error('Maintenance update error:', error.message);
-    return res.status(500).json({ success: false, message: 'Không thể cập nhật chế độ bảo trì' });
+    return res
+      .status(500)
+      .json({ success: false, message: 'Không thể cập nhật chế độ bảo trì' });
   }
 });
 
 app.use('/api/vocabulary', vocabularyRoutes);
-app.use('/api/terminology',glossaryRoutes);
+app.use('/api/terminology', glossaryRoutes);
 app.use('/api/admin/users', userRoutes);
 app.use('/api/monitoring', apiMonitoringRoutes);
 app.use('/api/telegram', telegramLinkRoutes);
+app.use('/api/translation-inspector', createInspectorRouter());
+app.use('/api/personal', createPersonalRouter());
+app.get('/personal', requireMongoAuth, (req, res) => {
+  res.set('Cache-Control', 'private, no-store');
+  return res.sendFile(path.join(__dirname, 'views', 'personal.html'));
+});
 // V2 is separately gated and disabled by default. The legacy /api/translate remains unchanged.
-app.use('/api/translate/v2', createV2Router());
+app.use(
+  '/api/translate/v2',
+  createV2Router({ env: { ...process.env, V2_ENABLED: 'false' } })
+);
 app.use('/auth', googleAuthRoutes);
 
 app.post('/api/logout', (req, res) => {
-  req.session.destroy(error => {
+  req.session.destroy((error) => {
     if (error) {
       return res.status(500).json({
         success: false
@@ -219,13 +275,9 @@ app.post('/api/logout', (req, res) => {
   });
 });
 
-
 app.get('/api/auth', async (req, res) => {
   try {
-    if (
-      req.session.authenticated !== true ||
-      !req.session.userId
-    ) {
+    if (req.session.authenticated !== true || !req.session.userId) {
       return res.json({
         success: true,
         authenticated: false,
@@ -259,6 +311,7 @@ app.get('/api/auth', async (req, res) => {
     return res.json({
       success: true,
       authenticated: true,
+      hybridContextEnabled: user.hybridContextEnabled === true,
       role,
       maintenance: await freeMaintenanceEnabled(),
       email: user.email,
@@ -275,18 +328,13 @@ app.get('/api/auth', async (req, res) => {
   }
 });
 
-
 const requireAuth = requireMongoAuth;
 
 const requirePro = requireRole('pro', 'admin');
 
-
 app.get('/login', async (req, res) => {
   try {
-    if (
-      req.session.authenticated === true &&
-      req.session.userId
-    ) {
+    if (req.session.authenticated === true && req.session.userId) {
       const user = await User.findById(req.session.userId);
 
       if (user && user.isActive) {
@@ -294,20 +342,15 @@ app.get('/login', async (req, res) => {
       }
     }
 
-    return res.sendFile(
-      path.join(__dirname, 'public', 'login.html')
-    );
+    return res.sendFile(path.join(__dirname, 'public', 'login.html'));
   } catch (error) {
     console.error('Login page error:', error.message);
 
-    return res.status(500).send(
-      'Không thể kiểm tra trạng thái đăng nhập'
-    );
+    return res.status(500).send('Không thể kiểm tra trạng thái đăng nhập');
   }
 });
 
-
-app.get('/telegram/connect', requireRole('pro','admin'), (req, res) => {
+app.get('/telegram/connect', requireRole('pro', 'admin'), (req, res) => {
   res.set('Cache-Control', 'private, no-store');
   return res.sendFile(path.join(__dirname, 'views', 'telegram-connect.html'));
 });
@@ -318,18 +361,12 @@ app.get('/admin/monitoring', requireRole('admin'), (req, res) => {
 });
 
 app.get('/admin', requireRole('admin'), (req, res) => {
-  return res.sendFile(
-    path.join(__dirname, 'views', 'admin.html')
-  );
+  return res.sendFile(path.join(__dirname, 'views', 'admin.html'));
 });
-
 
 app.get('/', async (req, res) => {
   try {
-    if (
-      req.session.authenticated !== true ||
-      !req.session.userId
-    ) {
+    if (req.session.authenticated !== true || !req.session.userId) {
       return res.redirect('/login');
     }
 
@@ -347,19 +384,13 @@ app.get('/', async (req, res) => {
       });
     }
 
-    return res.sendFile(
-      path.join(__dirname, 'public', 'index.html')
-    );
-
+    return res.sendFile(path.join(__dirname, 'public', 'index.html'));
   } catch (error) {
     console.error('Home auth error:', error.message);
 
-    return res.status(500).send(
-      'Không thể xác thực tài khoản'
-    );
+    return res.status(500).send('Không thể xác thực tài khoản');
   }
 });
-
 
 app.get('/login.html', (req, res) => {
   res.redirect('/login');
@@ -370,7 +401,11 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Authenticated Mandarin speech synthesis; never expose ElevenLabs credentials.
 app.post('/api/tts/chinese', requireAuth, async (req, res) => {
   try {
-    const { audio, cached } = await getChineseAudio(req.body?.text, req.body?.voiceId, req.body?.speed);
+    const { audio, cached } = await getChineseAudio(
+      req.body?.text,
+      req.body?.voiceId,
+      req.body?.speed
+    );
     res.set('Content-Type', 'audio/mpeg');
     res.set('Cache-Control', 'private, no-store');
     res.set('X-Audio-Cache', cached ? 'HIT' : 'MISS');
@@ -379,7 +414,8 @@ app.post('/api/tts/chinese', requireAuth, async (req, res) => {
     console.error('Chinese TTS error:', error.message);
     return res.status(error.status || 502).json({
       success: false,
-      message: error.status === 400 ? error.message : 'Không thể tạo giọng đọc lúc này'
+      message:
+        error.status === 400 ? error.message : 'Không thể tạo giọng đọc lúc này'
     });
   }
 });
@@ -387,7 +423,10 @@ app.post('/api/tts/chinese', requireAuth, async (req, res) => {
 // Vietnamese ElevenLabs voice is fixed server-side and available to PRO users.
 app.post('/api/tts/vietnamese', requirePro, async (req, res) => {
   try {
-    const { audio, cached } = await getVietnameseAudio(req.body?.text, req.body?.speed);
+    const { audio, cached } = await getVietnameseAudio(
+      req.body?.text,
+      req.body?.speed
+    );
     res.set('Content-Type', 'audio/mpeg');
     res.set('Cache-Control', 'private, no-store');
     res.set('X-Audio-Cache', cached ? 'HIT' : 'MISS');
@@ -396,7 +435,10 @@ app.post('/api/tts/vietnamese', requirePro, async (req, res) => {
     console.error('Vietnamese TTS error:', error.message);
     return res.status(error.status || 502).json({
       success: false,
-      message: error.status === 400 ? error.message : 'Không thể tạo giọng đọc tiếng Việt lúc này'
+      message:
+        error.status === 400
+          ? error.message
+          : 'Không thể tạo giọng đọc tiếng Việt lúc này'
     });
   }
 });
@@ -406,7 +448,10 @@ app.post('/api/tts/vietnamese', requirePro, async (req, res) => {
 app.post(
   '/api/image/translate',
   requirePro,
-  express.raw({ type: ['image/png', 'image/jpeg', 'image/webp'], limit: '5mb' }),
+  express.raw({
+    type: ['image/png', 'image/jpeg', 'image/webp'],
+    limit: '5mb'
+  }),
   async (req, res) => {
     res.set('Cache-Control', 'private, no-store');
     try {
@@ -418,7 +463,9 @@ app.post(
       }
       const language = req.get('X-Learning-Language') || 'zh';
       if (!['zh', 'en'].includes(language)) {
-        return res.status(400).json({ success: false, message: 'Ngôn ngữ không hợp lệ' });
+        return res
+          .status(400)
+          .json({ success: false, message: 'Ngôn ngữ không hợp lệ' });
       }
       const result = await translateChatImage(req.body, language);
       const usage = result.usage;
@@ -426,8 +473,10 @@ app.post(
         await addUsage({
           userId: req.user._id,
           totalTokens: usage.total_tokens,
-          cost: ((usage.prompt_tokens || 0) * 2.5 +
-            (usage.completion_tokens || 0) * 10) / 1_000_000
+          cost:
+            ((usage.prompt_tokens || 0) * 2.5 +
+              (usage.completion_tokens || 0) * 10) /
+            1_000_000
         });
       }
       // Image translation has no PRO vocabulary-toggle payload: do not auto-collect.
@@ -442,7 +491,9 @@ app.post(
       console.error('PRO image translation error:', error.message);
       return res.status(error.status || 502).json({
         success: false,
-        message: error.status ? error.message : 'Không thể dịch ảnh lúc này, vui lòng thử lại'
+        message: error.status
+          ? error.message
+          : 'Không thể dịch ảnh lúc này, vui lòng thử lại'
       });
     }
   }
@@ -453,11 +504,7 @@ app.get('/api/pinyin', requireAuth, (req, res) => {
   try {
     const text = req.query.text;
 
-    if (
-      typeof text !== 'string' ||
-      !text.trim() ||
-      text.length > 1000
-    ) {
+    if (typeof text !== 'string' || !text.trim() || text.length > 1000) {
       return res.status(400).json({
         error: 'Invalid text'
       });
@@ -482,70 +529,80 @@ app.get('/api/pinyin', requireAuth, (req, res) => {
 });
 
 // Test server
-app.get('/api/status',requireAuth, (req, res) => {
+app.get('/api/status', requireAuth, (req, res) => {
   res.json({
     success: true,
     message: 'Web server is running'
   });
 });
 
-app.post(['/api/practice/chinese', '/api/practice/english'], requirePro, async (req, res) => {
-  const englishPractice = req.path.endsWith('/english');
-  try {
-    const { text } = req.body;
+app.post(
+  ['/api/practice/chinese', '/api/practice/english'],
+  requirePro,
+  async (req, res) => {
+    const englishPractice = req.path.endsWith('/english');
+    try {
+      const { text } = req.body;
 
-    if (typeof text !== 'string' || !text.trim()) {
-      return res.status(400).json({
+      if (typeof text !== 'string' || !text.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Vui lòng nhập nội dung tiếng Trung'
+        });
+      }
+
+      if (text.trim().length > 2000) {
+        return res.status(400).json({
+          success: false,
+          message: 'Nội dung quá dài'
+        });
+      }
+
+      if (!englishPractice && !/[\u3400-\u9FFF]/u.test(text)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Vui lòng nhập ít nhất một chữ tiếng Trung để chấm bài'
+        });
+      }
+
+      if (englishPractice && !/[a-z]/i.test(text)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Vui lòng nhập câu tiếng Anh để chấm bài'
+        });
+      }
+
+      const result = englishPractice
+        ? await evaluateEnglish(text)
+        : await evaluateChinese(text);
+
+      const inputTokens = result.usage?.prompt_tokens || 0;
+      const outputTokens = result.usage?.completion_tokens || 0;
+      const totalTokens = result.usage?.total_tokens || 0;
+
+      const cost =
+        (inputTokens / 1_000_000) * 2.5 + (outputTokens / 1_000_000) * 10;
+
+      await addUsage({
+        userId: req.user._id,
+        totalTokens,
+        cost
+      });
+
+      return res.json({
+        success: true,
+        result: result.content
+      });
+    } catch (error) {
+      console.error('Practice evaluation error:', error);
+
+      return res.status(500).json({
         success: false,
-        message: 'Vui lòng nhập nội dung tiếng Trung'
+        message: 'Không thể chấm bài lúc này'
       });
     }
-
-    if (text.trim().length > 2000) {
-      return res.status(400).json({
-        success: false,
-        message: 'Nội dung quá dài'
-      });
-    }
-
-    if (!englishPractice && !/[\u3400-\u9FFF]/u.test(text)) {
-      return res.status(400).json({ success: false, message: 'Vui lòng nhập ít nhất một chữ tiếng Trung để chấm bài' });
-    }
-
-    if (englishPractice && !/[a-z]/i.test(text)) {
-      return res.status(400).json({ success: false, message: 'Vui lòng nhập câu tiếng Anh để chấm bài' });
-    }
-
-    const result = englishPractice ? await evaluateEnglish(text) : await evaluateChinese(text);
-
-    const inputTokens = result.usage?.prompt_tokens || 0;
-    const outputTokens = result.usage?.completion_tokens || 0;
-    const totalTokens = result.usage?.total_tokens || 0;
-
-    const cost =
-      (inputTokens / 1_000_000) * 2.5 +
-      (outputTokens / 1_000_000) * 10;
-
-    await addUsage({
-      userId: req.user._id,
-      totalTokens,
-      cost
-    });
-
-    return res.json({
-      success: true,
-      result: result.content
-    });
-
-  } catch (error) {
-    console.error('Practice evaluation error:', error);
-
-    return res.status(500).json({
-      success: false,
-      message: 'Không thể chấm bài lúc này'
-    });
   }
-});
+);
 
 function parseTranslationResult(content) {
   const translationMatch = content.match(
@@ -560,9 +617,7 @@ function parseTranslationResult(content) {
     /PRONUNCIATION:\s*([\s\S]*?)(?=VOCABULARY:|$)/i
   );
 
-  const vocabularyMatch = content.match(
-    /VOCABULARY:\s*([\s\S]*?)$/i
-  );
+  const vocabularyMatch = content.match(/VOCABULARY:\s*([\s\S]*?)$/i);
 
   const data = {};
 
@@ -585,20 +640,33 @@ function parseTranslationResult(content) {
   return data;
 }
 
-async function persistProCache(text, lang, isFast, context, fields, translationModel = null, termScope = null) {
+async function persistProCache(
+  text,
+  lang,
+  isFast,
+  context,
+  fields,
+  translationModel = null,
+  termScope = null
+) {
   try {
-    await setWebCachedText(text, lang, isFast, context, fields, translationModel, termScope);
+    await setWebCachedText(
+      text,
+      lang,
+      isFast,
+      context,
+      fields,
+      translationModel,
+      termScope
+    );
   } catch (error) {
     // Never make users repeat a paid translation if only cache persistence fails.
-    console.error('PRO MongoDB cache write error:', error);
+    console.error('PRO MongoDB cache write failed');
   }
 }
 
 function hasCacheField(data, field) {
-  return (
-    data &&
-    Object.prototype.hasOwnProperty.call(data, field)
-  );
+  return data && Object.prototype.hasOwnProperty.call(data, field);
 }
 
 function containsChinese(text) {
@@ -612,7 +680,7 @@ function addPinyinToVocabulary(vocabulary) {
 
   return vocabulary
     .split('\n')
-    .map(line => {
+    .map((line) => {
       const trimmed = line.trim();
 
       if (!trimmed) return '';
@@ -625,13 +693,9 @@ function addPinyinToVocabulary(vocabulary) {
         return trimmed;
       }
 
-      const chinese = cleanLine
-        .slice(0, separatorIndex)
-        .trim();
+      const chinese = cleanLine.slice(0, separatorIndex).trim();
 
-      const meaning = cleanLine
-        .slice(separatorIndex + 1)
-        .trim();
+      const meaning = cleanLine.slice(separatorIndex + 1).trim();
 
       if (!containsChinese(chinese)) {
         return trimmed;
@@ -648,187 +712,258 @@ function addPinyinToVocabulary(vocabulary) {
 app.post(
   '/api/translate/free',
   requireAuth,
-  async (req, res) => {
-    try {
-      const { text, targetLang: requestedLang = 'zh', context: freeContext = 'auto' } = req.body || {};
-
-      if (typeof text !== 'string' || !text.trim()) {
-        return res.status(400).json({
-          success: false,
-          message: 'Vui lòng nhập nội dung cần dịch'
-        });
-      }
-
-      if (!['zh', 'en'].includes(requestedLang)) {
-        return res.status(400).json({ success: false, message: 'Ngôn ngữ không được hỗ trợ' });
-      }
-      if (requestedLang === 'en') {
-        if (text.length > 2000) {
-          return res.status(400).json({ success: false, message: 'Nội dung quá dài' });
-        }
-        const en = await translateEnglishFree(text.trim(),{context:freeContext});
-        const responseBody={
-          success: true,
-          mode: 'free',
-          provider: en.provider,
-          cached: en.cached,
-          sourceLanguage: en.parsed.sourceLanguage,
-          result: {
-            translation: en.parsed.translation,
-            backTranslation: en.parsed.backTranslation,
-            pronunciation: ''
-          },
-          rateLimit: en.rateLimit,
-          requestUsage:freeRequestUsage(en)
-        };
-        const historyId=await recordTranslationHistorySafely({userId:req.user._id,text:text.trim(),
-          targetLang:en.parsed.sourceLanguage==='en'?'vi':'en',
-          learningLang:'en',result:en.content,
-          details:historySnapshot({engine:'free',context:freeContext,
-            options:{backTranslation:true,pronunciation:false,vocabulary:false},
-            response:responseBody})});
-        return res.json({...responseBody,historyId});
-      }
-
-      const freeIsChinese=containsChinese(text.trim());
-      const freeTerms=await lookupUserTerms(req.user._id,text.trim(),{
-        context:['auto','friend','colleague','superior'].includes(freeContext)?freeContext:'auto',
-        sourceLang:freeIsChinese?'zh':'vi',
-        targetLang:freeIsChinese?'vi':'zh',
-        v1AutoCandidates:true});
-      const result = await translateFree(text.trim(),{
-         terms:freeTerms,
-         context:['auto','friend','colleague','superior'].includes(freeContext)
-           ?freeContext:'auto'
-       });
-
-      const inputIsChinese =
-  containsChinese(text);
-
-const chineseText =
-  inputIsChinese
-    ? text.trim()
-    : result.parsed.translation;
-
-const pronunciation =
-  generatePinyin(chineseText);
-
-      const resultText=[
-        `TRANSLATION: ${result.parsed.translation || ''}`,
-        `BACK_TRANSLATION: ${result.parsed.backTranslation || ''}`,
-        `PRONUNCIATION: ${pronunciation || ''}`
-      ].join('\n');
-      const responseBody={
-  success: true,
-  mode: 'free',
-  provider: result.provider,
-  cached: result.cached || false,
-
-  result: {
-    translation:
-      result.parsed.translation,
-
-    pronunciation,
-
-    backTranslation:
-      result.parsed.backTranslation
-  },
-
-  rateLimit:result.rateLimit || null,
-  requestUsage:freeRequestUsage(result),
-  appliedTerms:termHighlights(result.parsed.translation,freeTerms),
-  terminologyWarnings:validateAppliedTerms(result.parsed.translation,freeTerms)
-};
-      const historyId=await recordTranslationHistorySafely({userId:req.user._id,text:text.trim(),
-        targetLang:inputIsChinese?'vi':'zh',learningLang:'zh',
-        result:resultText,details:historySnapshot({
-          engine:'free',context:freeContext,
-          options:{backTranslation:true,pronunciation:true,vocabulary:false},
-          response:{...responseBody,result:resultText}})});
-      return res.json({...responseBody,historyId});
-
-    } catch (error) {
-  console.error(
-    'Free translate error:',
-    error
-  );
-
-  const providers =
-    error.providers || {};
-
-  const groqError =
-    providers.groq;
-
-  const openRouterError =
-    providers.openrouter;
-
-  // OpenRouter bị giới hạn bởi shared pool
-  // của provider phía sau, không phải quota user.
-  if (
-    openRouterError?.type ===
-    'UPSTREAM_RATE_LIMIT'
-  ) {
-    return res.status(503).json({
-      success: false,
-      mode: 'free',
-      errorCode:
-        'FREE_PROVIDERS_BUSY',
-      message:
-        'Hệ thống dịch FREE đang bận. Vui lòng thử lại sau.'
-    });
-  }
-
-  // Cả hai provider đều báo rate limit.
-  if (
-    groqError?.type === 'RATE_LIMIT' &&
-    openRouterError?.type ===
-      'RATE_LIMIT'
-  ) {
-    return res.status(429).json({
-      success: false,
-      mode: 'free',
-      errorCode:
-        'FREE_RATE_LIMIT',
-      message:
-        'Hạn mức dịch FREE hiện đã đạt giới hạn. Vui lòng thử lại sau.'
-    });
-  }
-
-  // Provider/server gặp sự cố.
-  if (
-    groqError?.type ===
-      'PROVIDER_ERROR' ||
-    openRouterError?.type ===
-      'PROVIDER_ERROR'
-  ) {
-    return res.status(503).json({
-      success: false,
-      mode: 'free',
-      errorCode:
-        'FREE_PROVIDER_ERROR',
-      message:
-        'Dịch FREE đang gặp sự cố từ nhà cung cấp. Vui lòng thử lại sau.'
-    });
-  }
-
-  // Không xác định được nguyên nhân.
-  return res.status(503).json({
-    success: false,
-    mode: 'free',
-    errorCode:
-      'FREE_UNAVAILABLE',
-    message:
-      'Dịch FREE hiện tạm thời không khả dụng.'
-  });
-}
-  }
+  translationDebug('free'),
+  handleFreeTranslation
 );
 
-// Translation API
-app.post('/api/translate',requirePro, async (req, res) => {
-  const requestStarted=Date.now();
+async function handleFreeTranslation(req, res) {
   try {
-    const { text,
+    const {
+      text,
+      targetLang: requestedLang = 'zh',
+      context: freeContext = 'auto'
+    } = req.body || {};
+
+    if (typeof text !== 'string' || !text.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng nhập nội dung cần dịch'
+      });
+    }
+
+    if (!['zh', 'en'].includes(requestedLang)) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'Ngôn ngữ không được hỗ trợ' });
+    }
+    const pipeline = await prepareRequest({
+      text: text.trim(),
+      targetLang: requestedLang,
+      user: req.user,
+      enabled: false
+    });
+    if (requestedLang === 'en') {
+      if (text.length > 2000) {
+        return res
+          .status(400)
+          .json({ success: false, message: 'Nội dung quá dài' });
+      }
+      const en = await translateEnglishFree(text.trim(), {
+        context: freeContext,
+        prepared: pipeline.prepared
+      });
+      const responseBody = {
+        success: true,
+        mode: 'free',
+        provider: en.provider,
+        cached: en.cached,
+        sourceLanguage: en.parsed.sourceLanguage,
+        result: {
+          translation: en.parsed.translation,
+          backTranslation: en.parsed.backTranslation,
+          pronunciation: ''
+        },
+        rateLimit: en.rateLimit,
+        requestUsage: freeRequestUsage(en)
+      };
+      const historyId = await recordTranslationHistorySafely({
+        userId: req.user._id,
+        text: text.trim(),
+        targetLang: en.parsed.sourceLanguage === 'en' ? 'vi' : 'en',
+        learningLang: 'en',
+        result: en.content,
+        details: historySnapshot({
+          engine: 'free',
+          context: freeContext,
+          options: {
+            backTranslation: true,
+            pronunciation: false,
+            vocabulary: false
+          },
+          response: responseBody
+        })
+      });
+      await captureWebTurn(req, res, {
+        source: text.trim(),
+        translation: en.parsed.translation,
+        sourceLanguage: en.parsed.sourceLanguage,
+        targetLanguage: en.parsed.sourceLanguage === 'en' ? 'vi' : 'en'
+      });
+      responseBody.processingSummary = processingSummary(req, res, {
+        sourceLanguage: en.parsed.sourceLanguage,
+        targetLanguage: en.parsed.sourceLanguage === 'en' ? 'vi' : 'en',
+        requestUsage: responseBody.requestUsage,
+        context: freeContext,
+        cacheHit: en.cached,
+        translation: en.parsed.translation
+      });
+      return res.json({ ...responseBody, historyId });
+    }
+
+    const freeIsChinese = pipeline.prepared.sourceLanguage === 'zh';
+    const freeTerms = await lookupUserTerms(
+      req.user._id,
+      pipeline.prepared.evidenceText,
+      {
+        context: ['auto', 'friend', 'colleague', 'superior'].includes(
+          freeContext
+        )
+          ? freeContext
+          : 'auto',
+        sourceLang: freeIsChinese ? 'zh' : 'vi',
+        targetLang: freeIsChinese ? 'vi' : 'zh',
+        v1AutoCandidates: true
+      }
+    );
+    const result = await translateFree(text.trim(), {
+      terms: freeTerms,
+      prepared: pipeline.prepared,
+      context: ['auto', 'friend', 'colleague', 'superior'].includes(freeContext)
+        ? freeContext
+        : 'auto'
+    });
+
+    const inputIsChinese = freeIsChinese;
+
+    const chineseText = inputIsChinese
+      ? text.trim()
+      : result.parsed.translation;
+
+    const pronunciation = generatePinyin(chineseText);
+
+    const resultText = [
+      `TRANSLATION: ${result.parsed.translation || ''}`,
+      `BACK_TRANSLATION: ${result.parsed.backTranslation || ''}`,
+      `PRONUNCIATION: ${pronunciation || ''}`
+    ].join('\n');
+    const responseBody = {
+      success: true,
+      mode: 'free',
+      provider: result.provider,
+      cached: result.cached || false,
+
+      result: {
+        translation: result.parsed.translation,
+
+        pronunciation,
+
+        backTranslation: result.parsed.backTranslation
+      },
+
+      rateLimit: result.rateLimit || null,
+      requestUsage: freeRequestUsage(result),
+      appliedTerms: termHighlights(result.parsed.translation, freeTerms),
+      terminologyWarnings: validateAppliedTerms(
+        result.parsed.translation,
+        freeTerms
+      )
+    };
+    const historyId = await recordTranslationHistorySafely({
+      userId: req.user._id,
+      text: text.trim(),
+      targetLang: inputIsChinese ? 'vi' : 'zh',
+      learningLang: 'zh',
+      result: resultText,
+      details: historySnapshot({
+        engine: 'free',
+        context: freeContext,
+        options: {
+          backTranslation: true,
+          pronunciation: true,
+          vocabulary: false
+        },
+        response: { ...responseBody, result: resultText }
+      })
+    });
+    await captureWebTurn(req, res, {
+      source: text.trim(),
+      translation: result.parsed.translation,
+      sourceLanguage: inputIsChinese ? 'zh' : 'vi',
+      targetLanguage: inputIsChinese ? 'vi' : 'zh'
+    });
+    responseBody.processingSummary = processingSummary(req, res, {
+      sourceLanguage: inputIsChinese ? 'zh' : 'vi',
+      targetLanguage: inputIsChinese ? 'vi' : 'zh',
+      requestUsage: responseBody.requestUsage,
+      context: freeContext,
+      cacheHit: result.cached,
+      translation: result.parsed.translation,
+      glossaryUsage: result.cached ? 'not_sent_cache' : 'sent'
+    });
+    return res.json({ ...responseBody, historyId });
+  } catch (error) {
+    if (error?.code === 'TRANSLATION_MARKER_MISMATCH') {
+      return res.status(422).json({ success: false, message: error.message });
+    }
+    console.error('Free translate failed');
+
+    const providers = error.providers || {};
+
+    const groqError = providers.groq;
+
+    const openRouterError = providers.openrouter;
+
+    // OpenRouter bị giới hạn bởi shared pool
+    // của provider phía sau, không phải quota user.
+    if (openRouterError?.type === 'UPSTREAM_RATE_LIMIT') {
+      return res.status(503).json({
+        success: false,
+        mode: 'free',
+        errorCode: 'FREE_PROVIDERS_BUSY',
+        message: 'Hệ thống dịch FREE đang bận. Vui lòng thử lại sau.'
+      });
+    }
+
+    // Cả hai provider đều báo rate limit.
+    if (
+      groqError?.type === 'RATE_LIMIT' &&
+      openRouterError?.type === 'RATE_LIMIT'
+    ) {
+      return res.status(429).json({
+        success: false,
+        mode: 'free',
+        errorCode: 'FREE_RATE_LIMIT',
+        message: 'Hạn mức dịch FREE hiện đã đạt giới hạn. Vui lòng thử lại sau.'
+      });
+    }
+
+    // Provider/server gặp sự cố.
+    if (
+      groqError?.type === 'PROVIDER_ERROR' ||
+      openRouterError?.type === 'PROVIDER_ERROR'
+    ) {
+      return res.status(503).json({
+        success: false,
+        mode: 'free',
+        errorCode: 'FREE_PROVIDER_ERROR',
+        message:
+          'Dịch FREE đang gặp sự cố từ nhà cung cấp. Vui lòng thử lại sau.'
+      });
+    }
+
+    // Không xác định được nguyên nhân.
+    return res.status(503).json({
+      success: false,
+      mode: 'free',
+      errorCode: 'FREE_UNAVAILABLE',
+      message: 'Dịch FREE hiện tạm thời không khả dụng.'
+    });
+  }
+}
+
+// Translation API
+app.post(
+  '/api/translate',
+  requirePro,
+  translationDebug('v1'),
+  handleProTranslation
+);
+
+async function handleProTranslation(req, res) {
+  const requestStarted = Date.now();
+  try {
+    const {
+      text,
       targetLang = 'zh',
       fastMode = false,
       backTranslation = true,
@@ -839,28 +974,34 @@ app.post('/api/translate',requirePro, async (req, res) => {
       inspectAI = false,
       forceRefresh = false,
       translationModel = null
-     } = req.body || {};
+    } = req.body || {};
     // Explicit model selection applies to Chinese/Vietnamese PRO translation.
     // The English route remains unchanged, and legacy callers may omit it.
-    if(translationModel!==null&&
-       !['gpt-4o','gpt-4o-mini'].includes(translationModel))
-      return res.status(400).json({success:false,
-        message:'Model dịch chính không được hỗ trợ.'});
-    if(typeof inspectAI!=='boolean'||typeof forceRefresh!=='boolean'||
-       (forceRefresh&&!inspectAI)){
-      return res.status(400).json({success:false,
-        message:'Chỉ được chạy lại GPT khi đã bật Xem luồng GPT (V1).'});
+    if (
+      translationModel !== null &&
+      !['gpt-4o', 'gpt-4o-mini'].includes(translationModel)
+    )
+      return res.status(400).json({
+        success: false,
+        message: 'Model dịch chính không được hỗ trợ.'
+      });
+    if (
+      typeof inspectAI !== 'boolean' ||
+      typeof forceRefresh !== 'boolean' ||
+      (forceRefresh && !inspectAI)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'Chỉ được chạy lại GPT khi đã bật Xem luồng GPT (V1).'
+      });
     }
-    if(inspectAI)res.set('Cache-Control','private, no-store');
-    const trace=[];
-    const onInspect=inspectAI?stage=>trace.push(stage):null;
-    const inspectionFor=cacheHit=>inspectAI?{inspection:{
-      cacheHit,stages:trace,
-      notice:cacheHit
-        ?'Bản dịch lấy từ cache; lượt này không gọi GPT để dịch. Chạy mới để xem toàn bộ prompt và phản hồi sẽ phát sinh phí API.'
-        :'Đây là prompt, payload và phản hồi GPT thực tế của lượt này; không gồm suy luận nội bộ ẩn.'
-    }}:{};
-
+    if (inspectAI) res.set('Cache-Control', 'private, no-store');
+    const trace = [];
+    const onInspect = inspectAI
+      ? ({ role, provider, model, usage, ms }) => {
+          trace.push({ role, provider, model, usage, ms });
+        }
+      : null;
 
     if (typeof text !== 'string' || !text.trim()) {
       return res.status(400).json({
@@ -870,405 +1011,511 @@ app.post('/api/translate',requirePro, async (req, res) => {
     }
 
     if (!['zh', 'en'].includes(targetLang)) {
-      return res.status(400).json({ success: false, message: 'Ngôn ngữ không được hỗ trợ' });
+      return res
+        .status(400)
+        .json({ success: false, message: 'Ngôn ngữ không được hỗ trợ' });
     }
+    const pipeline = await prepareRequest({
+      text: text.trim(),
+      targetLang,
+      user: req.user,
+      sessionId: req.get('x-conversation-session')
+    });
     if (targetLang === 'en') {
       if (typeof text !== 'string' || text.length > 2000) {
-        return res.status(400).json({ success: false, message: 'Nội dung quá dài' });
+        return res
+          .status(400)
+          .json({ success: false, message: 'Nội dung quá dài' });
       }
       const en = await translateEnglishPro(text.trim(), {
-        backTranslation, vocabulary, verification, context,
-        inspectStage:onInspect,forceRefresh
+        backTranslation,
+        vocabulary,
+        verification,
+        context,
+        inspectStage: onInspect,
+        ...pipeline,
+        forceRefresh
       });
       const tokens = en.usage?.total_tokens || 0;
       if (tokens > 0) {
         await addUsage({
           userId: req.user._id,
           totalTokens: tokens,
-          cost: ((en.usage?.prompt_tokens || 0) * 2.5 +
-            (en.usage?.completion_tokens || 0) * 10) / 1_000_000
+          cost:
+            ((en.usage?.prompt_tokens || 0) * 2.5 +
+              (en.usage?.completion_tokens || 0) * 10) /
+            1_000_000
         });
       }
-      const personal=vocabulary
+      const personal = vocabulary
         ? await personalVocabularyCards({
-          userId:req.user._id,language:'en',
-          foreignText:en.parsed.sourceLanguage==='en' ? text.trim() : en.parsed.translation,
-          vocabulary:en.parsed.vocabulary || ''
-        })
-        : {items:[],error:null};
-      const responseBody={
+            userId: req.user._id,
+            language: 'en',
+            foreignText:
+              en.parsed.sourceLanguage === 'en'
+                ? text.trim()
+                : en.parsed.translation,
+            vocabulary: en.parsed.vocabulary || ''
+          })
+        : { items: [], error: null };
+      const responseBody = {
         success: true,
         result: en.content,
-        vocabularyItems:personal.items,
-        vocabularyError:personal.error,
+        vocabularyItems: personal.items,
+        vocabularyError: personal.error,
         cached: en.cached,
         sourceLanguage: en.parsed.sourceLanguage,
         usage: en.usage,
-        requestUsage:{...proRequestUsage(en.usage,en.cached,trace),
-          elapsedMs:Date.now()-requestStarted},
-        ...inspectionFor(!trace.some(stage=>
-          stage.role==='translator'||stage.role==='supplement'))
+        requestUsage: {
+          ...proRequestUsage(en.usage, en.cached, trace),
+          elapsedMs: Date.now() - requestStarted
+        }
       };
-      const historyId=await recordTranslationHistorySafely({userId:req.user._id,text:text.trim(),
-        targetLang:en.parsed.sourceLanguage==='en'?'vi':'en',
-        learningLang:'en',result:en.content,
-        details:historySnapshot({engine:'v1',context,
-          options:{backTranslation,pronunciation:false,vocabulary,verification,inspectAI},
-          response:responseBody})});
-      return res.json({...responseBody,historyId});
+      const historyId = await recordTranslationHistorySafely({
+        userId: req.user._id,
+        text: text.trim(),
+        targetLang: en.parsed.sourceLanguage === 'en' ? 'vi' : 'en',
+        learningLang: 'en',
+        result: en.content,
+        details: historySnapshot({
+          engine: 'v1',
+          context,
+          options: {
+            backTranslation,
+            pronunciation: false,
+            vocabulary,
+            verification
+          },
+          response: responseBody
+        })
+      });
+      await captureWebTurn(req, res, {
+        source: text.trim(),
+        translation: en.parsed.translation,
+        sourceLanguage: en.parsed.sourceLanguage,
+        targetLanguage: en.parsed.sourceLanguage === 'en' ? 'vi' : 'en'
+      });
+      responseBody.processingSummary = processingSummary(req, res, {
+        sourceLanguage: en.parsed.sourceLanguage,
+        targetLanguage: en.parsed.sourceLanguage === 'en' ? 'vi' : 'en',
+        requestUsage: responseBody.requestUsage,
+        context,
+        cacheHit: en.cachedTranslation,
+        translation: en.parsed.translation
+      });
+      return res.json({ ...responseBody, historyId });
     }
 
     const inputText = text.trim();
-const inputIsChinese = sourceLanguage(inputText)==='zh';
-const appliedTerms=await lookupUserTerms(req.user._id,inputText,{
-  context,sourceLang:inputIsChinese?'zh':'vi',targetLang:inputIsChinese?'vi':'zh',
-  v1AutoCandidates:true
-});
+    const inputIsChinese = pipeline.prepared.sourceLanguage === 'zh';
+    const appliedTerms = await lookupUserTerms(
+      req.user._id,
+      pipeline.prepared.evidenceText,
+      {
+        context,
+        sourceLang: inputIsChinese ? 'zh' : 'vi',
+        targetLang: inputIsChinese ? 'vi' : 'zh',
+        v1AutoCandidates: true
+      }
+    );
 
-const shouldBackTranslate =
-  backTranslation &&
-  !inputIsChinese &&
-  targetLang === 'zh';
+    const shouldBackTranslate =
+      backTranslation && !inputIsChinese && targetLang === 'zh';
 
-  // Match-specific glossary cache is private to the owner and its approved
-  // term versions. Never reuse this result across accounts or glossary edits.
-  const termScope=proTermScope(req.user._id,appliedTerms);
-  let cachedData = forceRefresh ? null : await getWebCachedText(
-  text.trim(),targetLang,fastMode,context,translationModel,termScope
-);
-// Old cache may contain English although the selected target was Vietnamese.
-if(cachedData&&translationLanguageIssue(inputText,cachedData.translation))
-  cachedData=null;
-// Older PRO cache rows may contain an English BACK_TRANSLATION from GPT mini.
-// Sanitize them without another model request; preserve the main translation.
-let backTranslationWarning=cachedData?.backTranslationWarning||null;
-if(shouldBackTranslate&&cachedData?.backTranslation){
-  const issue=backTranslationLanguageIssue(inputText,cachedData.backTranslation);
-  if(issue){
-    backTranslationWarning=issue;
-    cachedData={...cachedData,backTranslation:''};
-    await persistProCache(inputText,targetLang,
-      fastMode,context,{backTranslation:'',backTranslationWarning:issue},translationModel,termScope);
-  }
-}
-
-const missing = {
-  translation: !cachedData?.translation,
-
-  backTranslation:
-    shouldBackTranslate &&
-    !hasCacheField(cachedData, 'backTranslation'),
-
-  vocabulary:
-    vocabulary &&
-    (!hasCacheField(cachedData, 'vocabulary') ||
-      cachedData?.vocabularyVersion !== 2)
-};
-
-
-const hasMissingData =
-  missing.translation ||
-  missing.backTranslation ||
-  missing.vocabulary;
-  let result;
-  let verificationUsage = null;
-
-if (hasMissingData) {
-  result = await translateFull(
-    text.trim(),
-    targetLang,
-    fastMode,
-    null,
-    [],
-    true,
-    {
-      backTranslation: missing.backTranslation,
-      vocabulary: missing.vocabulary,
-      existingTranslation: cachedData?.translation || null,
-      terms:appliedTerms,
-      context,
-      translationModel,
-      inspectStage:onInspect
+    // Match-specific glossary cache is private to the owner and its approved
+    // term versions. Never reuse this result across accounts or glossary edits.
+    const glossaryScope = proTermScope(req.user._id, appliedTerms);
+    const termScope = pipeline.cacheScope
+      ? pipeline.cacheScope + ':' + (glossaryScope || '')
+      : glossaryScope;
+    const persistCache = (...args) =>
+      pipeline.bypassCache ? undefined : persistProCache(...args);
+    let cachedData =
+      forceRefresh || pipeline.bypassCache
+        ? null
+        : await getWebCachedText(
+            text.trim(),
+            targetLang,
+            fastMode,
+            context,
+            translationModel,
+            termScope
+          );
+    // Old cache may contain English although the selected target was Vietnamese.
+    if (
+      cachedData &&
+      translationLanguageIssue(inputText, cachedData.translation)
+    )
+      cachedData = null;
+    // Older PRO cache rows may contain an English BACK_TRANSLATION from GPT mini.
+    // Sanitize them without another model request; preserve the main translation.
+    let backTranslationWarning = cachedData?.backTranslationWarning || null;
+    if (shouldBackTranslate && cachedData?.backTranslation) {
+      const issue = backTranslationLanguageIssue(
+        inputText,
+        cachedData.backTranslation
+      );
+      if (issue) {
+        backTranslationWarning = issue;
+        cachedData = { ...cachedData, backTranslation: '' };
+        await persistCache(
+          inputText,
+          targetLang,
+          fastMode,
+          context,
+          { backTranslation: '', backTranslationWarning: issue },
+          translationModel,
+          termScope
+        );
+      }
     }
-  );
-}
 
-let finalCache = cachedData || {};
+    const missing = {
+      translation: !cachedData?.translation,
 
-if (result) {
-  const newData = parseTranslationResult(result.content);
-  if(result.backTranslationWarning)
-    backTranslationWarning=result.backTranslationWarning;
-  // Defense in depth: do not persist or display an invalid back-translation.
-  if(shouldBackTranslate&&newData.backTranslation){
-    const issue=backTranslationLanguageIssue(inputText,newData.backTranslation);
-    if(issue){backTranslationWarning=issue;newData.backTranslation='';}
-  }
-  // Persist the same warning with a cached result and clear stale warnings on
-  // a fresh valid translation, without requiring another paid model request.
-  newData.backTranslationWarning=backTranslationWarning||null;
-  // Previously cached translations contain legacy WORD-only vocabulary.
-  // Upgrade only the lexical field, preserving the already cached translation.
-  if (missing.vocabulary) newData.vocabularyVersion = 2;
+      backTranslation:
+        shouldBackTranslate && !hasCacheField(cachedData, 'backTranslation'),
 
-  // Nếu đã có translation trong cache thì đây là request bổ sung.
-  // Tuyệt đối không cho response bổ sung ghi đè bản dịch chính.
-  if (cachedData?.translation) {
-    delete newData.translation;
-  }
+      vocabulary:
+        vocabulary &&
+        (!hasCacheField(cachedData, 'vocabulary') ||
+          cachedData?.vocabularyVersion !== 2)
+    };
 
-  // Field đã được yêu cầu nhưng AI không trả về
-  // => đánh dấu là đã xử lý, giá trị rỗng
-  if (
-    missing.backTranslation &&
-    !hasCacheField(newData, 'backTranslation')
-  ) {
-    newData.backTranslation = '';
-  }
+    const hasMissingData =
+      missing.translation || missing.backTranslation || missing.vocabulary;
+    let result;
+    let verificationUsage = null;
 
-  if (
-    missing.vocabulary &&
-    !hasCacheField(newData, 'vocabulary')
-  ) {
-    newData.vocabulary = '';
-  }
-  if (
-    missing.backTranslation &&
-    !hasCacheField(newData, 'backTranslation')
-  ) {
-    newData.backTranslation = '';
-  }
+    if (hasMissingData) {
+      result = await translateFull(
+        text.trim(),
+        targetLang,
+        fastMode,
+        null,
+        [],
+        true,
+        {
+          backTranslation: missing.backTranslation,
+          vocabulary: missing.vocabulary,
+          existingTranslation: cachedData?.translation || null,
+          terms: appliedTerms,
+          ...pipeline,
+          context,
+          translationModel,
+          inspectStage: onInspect
+        }
+      );
+    }
 
-  if (
-    missing.vocabulary &&
-    !hasCacheField(newData, 'vocabulary')
-  ) {
-    newData.vocabulary = '';
-  }
+    let finalCache = cachedData || {};
 
-  await persistProCache(
-  text.trim(),
-  targetLang,
-  fastMode,
-  context,
-  newData,
-  translationModel,
-  termScope
-);
+    if (result) {
+      const newData = parseTranslationResult(result.content);
+      if (result.backTranslationWarning)
+        backTranslationWarning = result.backTranslationWarning;
+      // Defense in depth: do not persist or display an invalid back-translation.
+      if (shouldBackTranslate && newData.backTranslation) {
+        const issue = backTranslationLanguageIssue(
+          inputText,
+          newData.backTranslation
+        );
+        if (issue) {
+          backTranslationWarning = issue;
+          newData.backTranslation = '';
+        }
+      }
+      // Persist the same warning with a cached result and clear stale warnings on
+      // a fresh valid translation, without requiring another paid model request.
+      newData.backTranslationWarning = backTranslationWarning || null;
+      // Previously cached translations contain legacy WORD-only vocabulary.
+      // Upgrade only the lexical field, preserving the already cached translation.
+      if (missing.vocabulary) newData.vocabularyVersion = 2;
 
-  finalCache = {
-    ...finalCache,
-    ...newData
-  };
-}
+      // Nếu đã có translation trong cache thì đây là request bổ sung.
+      // Tuyệt đối không cho response bổ sung ghi đè bản dịch chính.
+      if (cachedData?.translation) {
+        delete newData.translation;
+      }
 
-if (
-  pronunciation &&
-  !hasCacheField(finalCache, 'pronunciation')
-) {
-  // Nếu input chứa chữ Hán → lấy Pinyin từ input.
-  // Nếu input không có chữ Hán → lấy Pinyin từ bản dịch tiếng Trung.
-  const chineseText = /[\u3400-\u9FFF]/u.test(text.trim())
-    ? text.trim()
-    : finalCache.translation;
+      // Field đã được yêu cầu nhưng AI không trả về
+      // => đánh dấu là đã xử lý, giá trị rỗng
+      if (
+        missing.backTranslation &&
+        !hasCacheField(newData, 'backTranslation')
+      ) {
+        newData.backTranslation = '';
+      }
 
-  if (
-    chineseText &&
-    /[\u3400-\u9FFF]/u.test(chineseText)
-  ) {
-    const localPinyin = generatePinyin(chineseText);
+      if (missing.vocabulary && !hasCacheField(newData, 'vocabulary')) {
+        newData.vocabulary = '';
+      }
+      if (
+        missing.backTranslation &&
+        !hasCacheField(newData, 'backTranslation')
+      ) {
+        newData.backTranslation = '';
+      }
 
-    finalCache.pronunciation = localPinyin;
+      if (missing.vocabulary && !hasCacheField(newData, 'vocabulary')) {
+        newData.vocabulary = '';
+      }
 
-    await persistProCache(
-  text.trim(),
-  targetLang,
-  fastMode,
-  context,
-  {
-    pronunciation: localPinyin
-  },
-  translationModel,
-  termScope
-);
-  }
-}
+      await persistCache(
+        text.trim(),
+        targetLang,
+        fastMode,
+        context,
+        newData,
+        translationModel,
+        termScope
+      );
 
-let hasValidVerification =
-  verification &&
-  finalCache.verification &&
-  finalCache.verification.translation === finalCache.translation;
+      finalCache = {
+        ...finalCache,
+        ...newData
+      };
+    }
 
-if (
-  verification &&
-  finalCache.translation &&
-  !hasValidVerification
-) {
-  const verificationResult = await verifyTranslation(
-    inputText,
-    finalCache.translation,
-    context,
-    onInspect?{onInspect}:null
-  );
+    if (pronunciation && !hasCacheField(finalCache, 'pronunciation')) {
+      // Nếu input chứa chữ Hán → lấy Pinyin từ input.
+      // Nếu input không có chữ Hán → lấy Pinyin từ bản dịch tiếng Trung.
+      const chineseText = inputIsChinese ? text.trim() : finalCache.translation;
 
-  verificationUsage = verificationResult.usage;
+      if (chineseText && /[\u3400-\u9FFF]/u.test(chineseText)) {
+        const localPinyin = generatePinyin(chineseText);
 
-  const verificationData = {
-    translation: finalCache.translation,
-    ...verificationResult.verification
-  };
+        finalCache.pronunciation = localPinyin;
 
-  finalCache.verification = verificationData;
+        await persistCache(
+          text.trim(),
+          targetLang,
+          fastMode,
+          context,
+          {
+            pronunciation: localPinyin
+          },
+          translationModel,
+          termScope
+        );
+      }
+    }
 
-  await persistProCache(
-    inputText,
-    targetLang,
-    fastMode,
-    context,
-    {
-      verification: verificationData
-    },
-    translationModel,
-    termScope
-  );
+    let hasValidVerification =
+      verification &&
+      finalCache.verification &&
+      finalCache.verification.translation === finalCache.translation;
 
-  hasValidVerification = true;
-}
+    if (verification && finalCache.translation && !hasValidVerification) {
+      const verificationResult = await verifyTranslation(
+        inputText,
+        finalCache.translation,
+        context,
+        onInspect ? { onInspect } : null
+      );
 
-let responseContent = '';
+      verificationUsage = verificationResult.usage;
 
-if (finalCache.translation) {
-  responseContent += `TRANSLATION: ${finalCache.translation}`;
-}
+      const verificationData = {
+        translation: finalCache.translation,
+        ...verificationResult.verification
+      };
 
-if (shouldBackTranslate && finalCache.backTranslation) {
-  responseContent += `\nBACK_TRANSLATION: ${finalCache.backTranslation}`;
-}
+      finalCache.verification = verificationData;
 
-if (pronunciation && finalCache.pronunciation) {
-  responseContent += `\nPRONUNCIATION: ${finalCache.pronunciation}`;
-}
+      await persistCache(
+        inputText,
+        targetLang,
+        fastMode,
+        context,
+        {
+          verification: verificationData
+        },
+        translationModel,
+        termScope
+      );
 
-if (vocabulary && finalCache.vocabulary) {
-  // Typed V1.1 entries receive Pinyin from MongoDB, not mixed into the
-  // AI1 payload. Keep the legacy renderer compatible with older cache.
-  const vocabularyWithPinyin =
-    /\[(?:WORD|PHRASE|PATTERN)\]/i.test(finalCache.vocabulary)
-      ? finalCache.vocabulary
-      : addPinyinToVocabulary(finalCache.vocabulary);
+      hasValidVerification = true;
+    }
 
-  responseContent +=
-    `\nVOCABULARY:\n${vocabularyWithPinyin}`;
-}
+    let responseContent = '';
 
-if (hasValidVerification) {
-  responseContent += `\nVERIFICATION: ${JSON.stringify(
-    finalCache.verification
-  )}`;
-}
+    if (finalCache.translation) {
+      responseContent += `TRANSLATION: ${finalCache.translation}`;
+    }
 
-let usage = {
-  promptTokens: 0,
-  completionTokens: 0,
-  totalTokens: 0,
-  cost: 0
-};
+    if (shouldBackTranslate && finalCache.backTranslation) {
+      responseContent += `\nBACK_TRANSLATION: ${finalCache.backTranslation}`;
+    }
 
-// Usage của lần dịch
-if (result?.usage) {
-  usage.promptTokens +=
-    result.usage.prompt_tokens || 0;
+    if (pronunciation && finalCache.pronunciation) {
+      responseContent += `\nPRONUNCIATION: ${finalCache.pronunciation}`;
+    }
 
-  usage.completionTokens +=
-    result.usage.completion_tokens || 0;
+    if (vocabulary && finalCache.vocabulary) {
+      // Typed V1.1 entries receive Pinyin from MongoDB, not mixed into the
+      // AI1 payload. Keep the legacy renderer compatible with older cache.
+      const vocabularyWithPinyin = /\[(?:WORD|PHRASE|PATTERN)\]/i.test(
+        finalCache.vocabulary
+      )
+        ? finalCache.vocabulary
+        : addPinyinToVocabulary(finalCache.vocabulary);
 
-  usage.totalTokens +=
-    result.usage.total_tokens || 0;
-}
+      responseContent += `\nVOCABULARY:\n${vocabularyWithPinyin}`;
+    }
 
-// Usage của lần kiểm chứng
-if (verificationUsage) {
-  usage.promptTokens +=
-    verificationUsage.prompt_tokens || 0;
+    if (hasValidVerification) {
+      responseContent += `\nVERIFICATION: ${JSON.stringify(
+        finalCache.verification
+      )}`;
+    }
 
-  usage.completionTokens +=
-    verificationUsage.completion_tokens || 0;
+    let usage = {
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      cost: 0
+    };
 
-  usage.totalTokens +=
-    verificationUsage.total_tokens || 0;
-}
+    // Usage của lần dịch
+    if (result?.usage) {
+      usage.promptTokens += result.usage.prompt_tokens || 0;
 
-// Charge each actual GPT stage at its own model rate. The verification
-// service stays on GPT-4o even when the primary translation uses GPT-4o-mini.
-const billableStages=[];
-if(result?.usage) billableStages.push({
-  role:cachedData?.translation?'supplement':'translator',
-  provider:'openai',model:result.usage.model||translationModel||'gpt-4o',
-  usage:{input:result.usage.prompt_tokens||0,
-    output:result.usage.completion_tokens||0,
-    cacheRead:result.usage.prompt_tokens_details?.cached_tokens||0}
-});
-if(verificationUsage) billableStages.push({
-  role:'verification',provider:'openai',model:'gpt-4o',
-  usage:{input:verificationUsage.prompt_tokens||0,
-    output:verificationUsage.completion_tokens||0}
-});
-usage.model=result?.usage?.model||translationModel||'gpt-4o';
-const requestCostSummary=proRequestUsage(usage,!result&&!verificationUsage,
-  trace.length?trace:billableStages);
-usage.cost=requestCostSummary.estimatedCostUsd??0;
+      usage.completionTokens += result.usage.completion_tokens || 0;
 
-// Chỉ ghi usage nếu request này thực sự gọi OpenAI
-if (usage.totalTokens > 0) {
-  await addUsage({
-    userId: req.user._id,
-    totalTokens: usage.totalTokens,
-    cost: usage.cost
-  });
-}
+      usage.totalTokens += result.usage.total_tokens || 0;
+    }
 
-const personal=vocabulary
-  ? await personalVocabularyCards({
-    userId:req.user._id,language:'zh',
-    foreignText:inputIsChinese ? inputText : finalCache.translation,
-    vocabulary:finalCache.vocabulary || ''
-  })
-  : {items:[],error:null};
+    // Usage của lần kiểm chứng
+    if (verificationUsage) {
+      usage.promptTokens += verificationUsage.prompt_tokens || 0;
 
-const responseBody={
-  success: true,
-  result: responseContent,
-  sourceLanguage:inputIsChinese?'zh':'vi',
-  targetLanguage:inputIsChinese?'vi':'zh',
-  context,
-  vocabularyItems:personal.items,
-  vocabularyError:personal.error,
-  cached: !result && !verificationUsage,
-  usage,
-  translationModel:translationModel||result?.usage?.model||null,
-  ...(backTranslationWarning?{backTranslationWarning}:{}),
-  requestUsage:{...requestCostSummary,
-    elapsedMs:Date.now()-requestStarted},
-  ...inspectionFor(!result),
-  appliedTerms:termHighlights(finalCache.translation||'',appliedTerms),
-  terminologyWarnings:validateAppliedTerms(finalCache.translation||'',appliedTerms)
-};
-const historyId=await recordTranslationHistorySafely({userId:req.user._id,text:text.trim(),targetLang,
-  learningLang:'zh',result:responseContent,
-  details:historySnapshot({engine:'v1',context,
-    options:{backTranslation,pronunciation,vocabulary,verification,inspectAI,translationModel},
-    response:responseBody})});
-return res.json({...responseBody,historyId});
+      usage.completionTokens += verificationUsage.completion_tokens || 0;
 
+      usage.totalTokens += verificationUsage.total_tokens || 0;
+    }
+
+    // Charge each actual GPT stage at its own model rate. The verification
+    // service stays on GPT-4o even when the primary translation uses GPT-4o-mini.
+    const billableStages = [];
+    if (result?.usage)
+      billableStages.push({
+        role: cachedData?.translation ? 'supplement' : 'translator',
+        provider: 'openai',
+        model: result.usage.model || translationModel || 'gpt-4o',
+        usage: {
+          input: result.usage.prompt_tokens || 0,
+          output: result.usage.completion_tokens || 0,
+          cacheRead: result.usage.prompt_tokens_details?.cached_tokens || 0
+        }
+      });
+    if (verificationUsage)
+      billableStages.push({
+        role: 'verification',
+        provider: 'openai',
+        model: 'gpt-4o',
+        usage: {
+          input: verificationUsage.prompt_tokens || 0,
+          output: verificationUsage.completion_tokens || 0
+        }
+      });
+    usage.model = result?.usage?.model || translationModel || 'gpt-4o';
+    const requestCostSummary = proRequestUsage(
+      usage,
+      !result && !verificationUsage,
+      trace.length ? trace : billableStages
+    );
+    usage.cost = requestCostSummary.estimatedCostUsd ?? 0;
+
+    // Chỉ ghi usage nếu request này thực sự gọi OpenAI
+    if (usage.totalTokens > 0) {
+      await addUsage({
+        userId: req.user._id,
+        totalTokens: usage.totalTokens,
+        cost: usage.cost
+      });
+    }
+
+    const personal = vocabulary
+      ? await personalVocabularyCards({
+          userId: req.user._id,
+          language: 'zh',
+          foreignText: inputIsChinese ? inputText : finalCache.translation,
+          vocabulary: finalCache.vocabulary || ''
+        })
+      : { items: [], error: null };
+
+    const responseBody = {
+      success: true,
+      result: responseContent,
+      sourceLanguage: inputIsChinese ? 'zh' : 'vi',
+      targetLanguage: inputIsChinese ? 'vi' : 'zh',
+      context,
+      vocabularyItems: personal.items,
+      vocabularyError: personal.error,
+      cached: !result && !verificationUsage,
+      usage,
+      translationModel: translationModel || result?.usage?.model || null,
+      ...(backTranslationWarning ? { backTranslationWarning } : {}),
+      requestUsage: {
+        ...requestCostSummary,
+        elapsedMs: Date.now() - requestStarted
+      },
+      appliedTerms: termHighlights(finalCache.translation || '', appliedTerms),
+      terminologyWarnings: validateAppliedTerms(
+        finalCache.translation || '',
+        appliedTerms
+      )
+    };
+    const historyId = await recordTranslationHistorySafely({
+      userId: req.user._id,
+      text: text.trim(),
+      targetLang,
+      learningLang: 'zh',
+      result: responseContent,
+      details: historySnapshot({
+        engine: 'v1',
+        context,
+        options: {
+          backTranslation,
+          pronunciation,
+          vocabulary,
+          verification,
+          translationModel
+        },
+        response: responseBody
+      })
+    });
+    await captureWebTurn(req, res, {
+      source: text.trim(),
+      translation: finalCache.translation,
+      sourceLanguage: responseBody.sourceLanguage,
+      targetLanguage: responseBody.targetLanguage
+    });
+    responseBody.processingSummary = processingSummary(req, res, {
+      sourceLanguage: responseBody.sourceLanguage,
+      targetLanguage: responseBody.targetLanguage,
+      requestUsage: responseBody.requestUsage,
+      context,
+      cacheHit: !result || Boolean(cachedData?.translation),
+      cacheStatus:
+        result && cachedData?.translation ? 'partial' : result ? 'miss' : 'hit',
+      translation: finalCache.translation,
+      glossaryUsage: result ? 'sent' : 'not_sent_cache'
+    });
+    return res.json({ ...responseBody, historyId });
   } catch (error) {
-  console.error('Translation error:', error);
+    console.error('Translation failed');
 
-  res.status(500).json({
-    success: false,
-    message: 'Dịch thất bại'
-  });
+    res.status(error?.code === 'TRANSLATION_MARKER_MISMATCH' ? 422 : 500).json({
+      success: false,
+      message:
+        error?.code === 'TRANSLATION_MARKER_MISMATCH'
+          ? error.message
+          : 'Dịch thất bại'
+    });
+  }
 }
-});
 
 app.get('/api/usage', requireAuth, async (req, res) => {
   try {
@@ -1286,66 +1533,90 @@ app.get('/api/usage', requireAuth, async (req, res) => {
 
 // All Saved actions require an authenticated owner; clients send only a
 // history ID. Server copies the authenticated owner's persisted translation.
-function savedSameOrigin(req,res,next){
-  const origin=req.get('origin');
-  const expected=req.protocol+'://'+req.get('host');
-  const site=req.get('sec-fetch-site');
-  if((origin&&origin!==expected)||(site&&
-      !['same-origin','none'].includes(site))){
-    return res.status(403).json({success:false,message:'Yêu cầu khác nguồn gốc'});
+function savedSameOrigin(req, res, next) {
+  const origin = req.get('origin');
+  const expected = req.protocol + '://' + req.get('host');
+  const site = req.get('sec-fetch-site');
+  if (
+    (origin && origin !== expected) ||
+    (site && !['same-origin', 'none'].includes(site))
+  ) {
+    return res
+      .status(403)
+      .json({ success: false, message: 'Yêu cầu khác nguồn gốc' });
   }
   next();
 }
-app.get('/api/saved',requireAuth,async(req,res)=>{
-  try{
-    res.set('Cache-Control','private, no-store');
-    const saved=await listSavedTranslations(req.user._id);
-    return res.json({success:true,saved});
-  }catch(error){
+app.get('/api/saved', requireAuth, async (req, res) => {
+  try {
+    res.set('Cache-Control', 'private, no-store');
+    const saved = await listSavedTranslations(req.user._id);
+    return res.json({ success: true, saved });
+  } catch (error) {
     console.error('Saved translations list unavailable');
-    return res.status(500).json({success:false,message:'Không thể tải mục đã lưu'});
+    return res
+      .status(500)
+      .json({ success: false, message: 'Không thể tải mục đã lưu' });
   }
 });
-app.get('/api/saved/status/:historyId',requireAuth,async(req,res)=>{
-  try{
-    res.set('Cache-Control','private, no-store');
-    const id=await getSavedStatus(req.user._id,req.params.historyId);
-    return res.json({success:true,savedId:id});
-  }catch(error){
-    return res.status(500).json({success:false,message:'Không thể kiểm tra mục đã lưu'});
+app.get('/api/saved/status/:historyId', requireAuth, async (req, res) => {
+  try {
+    res.set('Cache-Control', 'private, no-store');
+    const id = await getSavedStatus(req.user._id, req.params.historyId);
+    return res.json({ success: true, savedId: id });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ success: false, message: 'Không thể kiểm tra mục đã lưu' });
   }
 });
-app.post('/api/saved',requireAuth,savedSameOrigin,async(req,res)=>{
-  try{
-    const saved=await saveHistoryTranslation(req.user._id,req.body?.historyId);
-    if(!saved)return res.status(404).json({success:false,
-      message:'Không tìm thấy bản dịch thuộc tài khoản này'});
-    res.set('Cache-Control','private, no-store');
-    return res.json({success:true,item:saved});
-  }catch(error){
+app.post('/api/saved', requireAuth, savedSameOrigin, async (req, res) => {
+  try {
+    const saved = await saveHistoryTranslation(
+      req.user._id,
+      req.body?.historyId
+    );
+    if (!saved)
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy bản dịch thuộc tài khoản này'
+      });
+    res.set('Cache-Control', 'private, no-store');
+    return res.json({ success: true, item: saved });
+  } catch (error) {
     console.error('Saved translation create failed');
-    return res.status(500).json({success:false,message:'Không thể lưu bản dịch'});
+    return res
+      .status(500)
+      .json({ success: false, message: 'Không thể lưu bản dịch' });
   }
 });
-app.get('/api/saved/:id',requireAuth,async(req,res)=>{
-  try{
-    const item=await getSavedTranslation(req.user._id,req.params.id);
-    res.set('Cache-Control','private, no-store');
-    if(!item)return res.status(404).json({success:false,
-      message:'Không tìm thấy bản dịch đã lưu'});
-    return res.json({success:true,item});
-  }catch(error){
-    return res.status(500).json({success:false,message:'Không thể mở bản dịch đã lưu'});
+app.get('/api/saved/:id', requireAuth, async (req, res) => {
+  try {
+    const item = await getSavedTranslation(req.user._id, req.params.id);
+    res.set('Cache-Control', 'private, no-store');
+    if (!item)
+      return res
+        .status(404)
+        .json({ success: false, message: 'Không tìm thấy bản dịch đã lưu' });
+    return res.json({ success: true, item: omitArchivedInspection(item) });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ success: false, message: 'Không thể mở bản dịch đã lưu' });
   }
 });
-app.delete('/api/saved/:id',requireAuth,savedSameOrigin,async(req,res)=>{
-  try{
-    const removed=await removeSavedTranslation(req.user._id,req.params.id);
-    if(!removed)return res.status(404).json({success:false,
-      message:'Không tìm thấy bản dịch đã lưu'});
-    return res.json({success:true});
-  }catch(error){
-    return res.status(500).json({success:false,message:'Không thể bỏ lưu bản dịch'});
+app.delete('/api/saved/:id', requireAuth, savedSameOrigin, async (req, res) => {
+  try {
+    const removed = await removeSavedTranslation(req.user._id, req.params.id);
+    if (!removed)
+      return res
+        .status(404)
+        .json({ success: false, message: 'Không tìm thấy bản dịch đã lưu' });
+    return res.json({ success: true });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ success: false, message: 'Không thể bỏ lưu bản dịch' });
   }
 });
 
@@ -1363,17 +1634,21 @@ app.get('/api/history', requireAuth, async (req, res) => {
 });
 
 // Detail is fetched on click, never sent in the searchable list.
-app.get('/api/history/:id',requireAuth,async(req,res)=>{
-  try{
-    const item=await getHistoryDetail(req.user._id,req.params.id);
-    res.set('Cache-Control','private, no-store');
-    if(!item)return res.status(404).json({success:false,
-      message:'Không tìm thấy bản dịch trong lịch sử'});
-    return res.json({success:true,item});
-  }catch(error){
+app.get('/api/history/:id', requireAuth, async (req, res) => {
+  try {
+    const item = await getHistoryDetail(req.user._id, req.params.id);
+    res.set('Cache-Control', 'private, no-store');
+    if (!item)
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy bản dịch trong lịch sử'
+      });
+    return res.json({ success: true, item: omitArchivedInspection(item) });
+  } catch (error) {
     console.error('History detail unavailable');
-    return res.status(500).json({success:false,
-      message:'Không thể mở chi tiết bản dịch'});
+    return res
+      .status(500)
+      .json({ success: false, message: 'Không thể mở chi tiết bản dịch' });
   }
 });
 
@@ -1381,7 +1656,9 @@ app.delete('/api/history', requireAuth, async (req, res) => {
   try {
     const lang = req.query.learningLang;
     if (lang && !['zh', 'en'].includes(lang)) {
-      return res.status(400).json({ success: false, message: 'Ngôn ngữ không hợp lệ' });
+      return res
+        .status(400)
+        .json({ success: false, message: 'Ngôn ngữ không hợp lệ' });
     }
     await clearHistory(req.user._id, lang || null);
     res.json({ success: true });
@@ -1394,13 +1671,16 @@ app.delete('/api/history', requireAuth, async (req, res) => {
   }
 });
 
-
 async function startServer() {
   try {
     await databaseReady;
     // Ensure the session collection and its TTL index are ready before
     // accepting Google OAuth callbacks.
     await sessionStore.collectionP;
+    await Promise.all([
+      UserProfile.createIndexes(),
+      ConversationSession.createIndexes()
+    ]);
     startVocabularyWorker();
     startQuotaPolling();
 

@@ -23,9 +23,7 @@ function replyMenuMarkup() {
         { text: MAIN_MENU.practice },
         { text: MAIN_MENU.settings }
       ],
-      [
-        { text: MAIN_MENU.statistics, style: 'primary' }
-      ]
+      [{ text: MAIN_MENU.statistics, style: 'primary' }]
     ],
     resize_keyboard: true,
     is_persistent: true,

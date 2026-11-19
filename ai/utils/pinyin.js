@@ -1,4 +1,3 @@
-
 const { pinyin } = require('pinyin-pro');
 
 function generatePinyin(text) {

@@ -1,74 +1,69 @@
+const { observeProvider, chatDetails } = require('../debug/inspector');
 require('dotenv').config();
 const OpenAI = require('openai');
 
-const groqClient = new OpenAI({
-  apiKey: process.env.GROQ_API_KEY,
-  baseURL: 'https://api.groq.com/openai/v1'
-});
+let groqClient;
 
 async function requestGroq(prompt) {
-  const messages=typeof prompt==='string'
-    ?[{role:'user',content:prompt}]
-    :[{role:'system',content:prompt.system},{role:'user',content:prompt.user}];
-  const { data, response } =
-    await groqClient.chat.completions
-      .create({
-        model: 'qwen/qwen3.8-27b',
-        messages,
-        temperature: 0,
-        ...(typeof prompt==='object'?{max_completion_tokens:prompt.maxCompletionTokens||1200}:{})
-      })
-      .withResponse();
+  if (!process.env.GROQ_API_KEY) {
+    throw new Error('GROQ_API_KEY is not configured');
+  }
+  groqClient ??= new OpenAI({
+    apiKey: process.env.GROQ_API_KEY,
+    baseURL: 'https://api.groq.com/openai/v1'
+  });
 
-  const content =
-    data.choices[0]?.message?.content?.trim();
+  const messages =
+    typeof prompt === 'string'
+      ? [{ role: 'user', content: prompt }]
+      : [
+          { role: 'system', content: prompt.system },
+          { role: 'user', content: prompt.user }
+        ];
+  const body = {
+    model: 'qwen/qwen3.8-27b',
+    messages,
+    temperature: 0,
+    ...(typeof prompt === 'object'
+      ? { max_completion_tokens: prompt.maxCompletionTokens || 1200 }
+      : {})
+  };
+  const { data, response } = await observeProvider(
+    { provider: 'groq', role: 'translator', body },
+    () => groqClient.chat.completions.create(body).withResponse(),
+    (result) => chatDetails(result.data)
+  );
+
+  const content = data.choices[0]?.message?.content?.trim();
 
   if (!content) {
-    throw new Error(
-      'Groq returned empty translation'
-    );
+    throw new Error('Groq returned empty translation');
   }
 
   const rateLimit = {
     requests: {
-      limit: Number(
-        response.headers.get(
-          'x-ratelimit-limit-requests'
-        )
-      ),
-      remaining: Number(
-        response.headers.get(
-          'x-ratelimit-remaining-requests'
-        )
-      ),
-      reset: response.headers.get(
-        'x-ratelimit-reset-requests'
-      )
+      limit: Number(response.headers.get('x-ratelimit-limit-requests')),
+      remaining: Number(response.headers.get('x-ratelimit-remaining-requests')),
+      reset: response.headers.get('x-ratelimit-reset-requests')
     },
 
     tokens: {
-      limit: Number(
-        response.headers.get(
-          'x-ratelimit-limit-tokens'
-        )
-      ),
-      remaining: Number(
-        response.headers.get(
-          'x-ratelimit-remaining-tokens'
-        )
-      ),
-      reset: response.headers.get(
-        'x-ratelimit-reset-tokens'
-      )
+      limit: Number(response.headers.get('x-ratelimit-limit-tokens')),
+      remaining: Number(response.headers.get('x-ratelimit-remaining-tokens')),
+      reset: response.headers.get('x-ratelimit-reset-tokens')
     }
   };
 
   return {
     content,
     provider: 'groq',
-    usage:{
-      input:Number.isFinite(data.usage?.prompt_tokens)?data.usage.prompt_tokens:null,
-      output:Number.isFinite(data.usage?.completion_tokens)?data.usage.completion_tokens:null
+    usage: {
+      input: Number.isFinite(data.usage?.prompt_tokens)
+        ? data.usage.prompt_tokens
+        : null,
+      output: Number.isFinite(data.usage?.completion_tokens)
+        ? data.usage.completion_tokens
+        : null
     },
     rateLimit
   };
@@ -76,5 +71,6 @@ async function requestGroq(prompt) {
 
 const { observed } = require('../../api-monitoring/observe');
 module.exports = {
-  requestGroq: (...args) => observed('groq', 'translate', () => requestGroq(...args))
+  requestGroq: (...args) =>
+    observed('groq', 'translate', () => requestGroq(...args))
 };

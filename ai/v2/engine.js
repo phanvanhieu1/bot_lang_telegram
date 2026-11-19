@@ -2,229 +2,400 @@
 // V2: Claude understands the original; confirmed user glossary outranks
 // speculative analysis; OpenAI translates; deterministic checks validate.
 // No terminology is ever auto-saved from model output.
-const {createProviders,safeError}=require('./providers');
-const {termHighlights,validateAppliedTerms,contextDomain}=require('../terminology/resolver');
-const {sanitizeClaudeTerms}=require('./vocabulary');
-const {analyzerBudget}=require('./analyzer-budget');
-const {sourceLanguage,translationLanguageIssue,backTranslationLanguageIssue}=require('../utils/translation-language');
-const {sanitizeProperNames}=require('../prompts/proper-names');
-const {ANALYZER_SYSTEM,ANALYZER_JSON_SCHEMA,TRANSLATOR_SYSTEM}=
-  require('./prompts-en');
-const {chooseTranslatorTier}=require('./model-router');
-const {getV2ModelSettings}=require('./providers');
-const {entityCandidates,classifyNames,missingProtectedNameOccurrences,
-  conciseTranslationAnalysis}=require('./entity-detection');
-const ENGINE_VERSION='v2.9.0';
+const { createProviders, safeError } = require('./providers');
+const {
+  termHighlights,
+  validateAppliedTerms,
+  contextDomain
+} = require('../terminology/resolver');
+const { sanitizeClaudeTerms } = require('./vocabulary');
+const { analyzerBudget } = require('./analyzer-budget');
+const {
+  sourceLanguage,
+  translationLanguageIssue,
+  backTranslationLanguageIssue
+} = require('../utils/translation-language');
+const { sanitizeProperNames } = require('../prompts/proper-names');
+const {
+  ANALYZER_SYSTEM,
+  ANALYZER_JSON_SCHEMA,
+  TRANSLATOR_SYSTEM
+} = require('./prompts-en');
+const { chooseTranslatorTier } = require('./model-router');
+const { getV2ModelSettings } = require('./providers');
+const {
+  entityCandidates,
+  classifyNames,
+  missingProtectedNameOccurrences,
+  conciseTranslationAnalysis
+} = require('./entity-detection');
+const ENGINE_VERSION = 'v2.9.0';
 
 function parseObject(raw) {
-  const s=String(raw||'').replace(/<think>[\s\S]*?<\/think>/g,'')
-    .replace(/^\s*```(?:json)?/i,'').replace(/```\s*$/,'').trim();
+  const s = String(raw || '')
+    .replace(/<think>[\s\S]*?<\/think>/g, '')
+    .replace(/^\s*```(?:json)?/i, '')
+    .replace(/```\s*$/, '')
+    .trim();
   let value;
-  try{value=JSON.parse(s);}
-  catch(_){
-    const a=s.indexOf('{'),b=s.lastIndexOf('}');
-    if(a<0||b<=a)throw safeError('V2_INVALID_AGENT_JSON');
-    try{value=JSON.parse(s.slice(a,b+1));}
-    catch(_){throw safeError('V2_INVALID_AGENT_JSON');}
+  try {
+    value = JSON.parse(s);
+  } catch (_) {
+    const a = s.indexOf('{'),
+      b = s.lastIndexOf('}');
+    if (a < 0 || b <= a) throw safeError('V2_INVALID_AGENT_JSON');
+    try {
+      value = JSON.parse(s.slice(a, b + 1));
+    } catch (_) {
+      throw safeError('V2_INVALID_AGENT_JSON');
+    }
   }
-  if(!value||typeof value!=='object'||Array.isArray(value))throw safeError('V2_INVALID_AGENT_JSON');
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw safeError('V2_INVALID_AGENT_JSON');
   return value;
 }
 function detectDirection(text) {
-  const source=sourceLanguage(text);
-  return {source,target:source==='zh'?'vi':'zh'};
+  const source = sourceLanguage(text);
+  return { source, target: source === 'zh' ? 'vi' : 'zh' };
 }
 // Extract whole protected tokens, not substrings: "500" must not match
 // "1500"; "50%" must not be accepted as "50". Keep duplicates so that
 // dropping one of several identical IDs/numbers can be flagged for review.
 function protectedTokens(text) {
-  const pattern=/https?:\/\/[^\s，。！？；]+|(?<![A-Za-z0-9_])[A-Z][A-Z0-9_]{1,}(?![A-Za-z0-9_])|(?<![A-Za-z0-9_])[-+]?\d+(?:[.,]\d+)*(?:[%％])?(?![A-Za-z0-9_])/g;
-  return String(text||'').match(pattern)||[];
+  const pattern =
+    /https?:\/\/[^\s，。！？；]+|(?<![A-Za-z0-9_])[A-Z][A-Z0-9_]{1,}(?![A-Za-z0-9_])|(?<![A-Za-z0-9_])[-+]?\d+(?:[.,]\d+)*(?:[%％])?(?![A-Za-z0-9_])/g;
+  return String(text || '').match(pattern) || [];
 }
 // Small, explicitly counted PEOPLE can naturally be written with Chinese
 // numerals and classifiers: "1 người" -> "一个人", "2 người" -> "两个人".
 // Do NOT relax codes, money, percentages, dates, or arbitrary numbers.
-function personCountEquivalences(original,translation) {
-  if(/[\u3400-\u9fff]/u.test(original)||
-     !/[\u3400-\u9fff]/u.test(translation))return new Map();
-  const allDigits=new Map(),peopleDigits=new Map(),translatedCounts=new Map();
-  for(const token of protectedTokens(original)){
-    if(/^[1-9]$/.test(token))
-      allDigits.set(token,(allDigits.get(token)||0)+1);
+function personCountEquivalences(original, translation) {
+  if (
+    /[\u3400-\u9fff]/u.test(original) ||
+    !/[\u3400-\u9fff]/u.test(translation)
+  )
+    return new Map();
+  const allDigits = new Map(),
+    peopleDigits = new Map(),
+    translatedCounts = new Map();
+  for (const token of protectedTokens(original)) {
+    if (/^[1-9]$/.test(token))
+      allDigits.set(token, (allDigits.get(token) || 0) + 1);
   }
-  for(const m of String(original).matchAll(/(?<![A-Za-z0-9_])([1-9])\s+người\b/giu)){
-    peopleDigits.set(m[1],(peopleDigits.get(m[1])||0)+1);
+  for (const m of String(original).matchAll(
+    /(?<![A-Za-z0-9_])([1-9])\s+người\b/giu
+  )) {
+    peopleDigits.set(m[1], (peopleDigits.get(m[1]) || 0) + 1);
   }
-  const numerals={'1':'一','2':'[二两]','3':'三','4':'四',
-    '5':'五','6':'六','7':'七','8':'八','9':'九'};
-  for(const [digit,chinese] of Object.entries(numerals)){
+  const numerals = {
+    1: '一',
+    2: '[二两]',
+    3: '三',
+    4: '四',
+    5: '五',
+    6: '六',
+    7: '七',
+    8: '八',
+    9: '九'
+  };
+  for (const [digit, chinese] of Object.entries(numerals)) {
     // Bound the numeral so "一个人" cannot be credited inside "二十一个人".
-    const expression=new RegExp(
-      '(?<![0-9零一二两三四五六七八九十百千万亿])'+
-      chinese+'(?:个|位|名)?(?:人|同事|员工|工人)', 'gu');
-    const count=[...String(translation).matchAll(expression)].length;
+    const expression = new RegExp(
+      '(?<![0-9零一二两三四五六七八九十百千万亿])' +
+        chinese +
+        '(?:个|位|名)?(?:人|同事|员工|工人)',
+      'gu'
+    );
+    const count = [...String(translation).matchAll(expression)].length;
     // If the same digit also marks an amount, code or another quantity,
     // do not auto-credit it. A doubtful case must remain REVIEW.
-    if(count>0&&peopleDigits.get(digit)===allDigits.get(digit))
-      translatedCounts.set(digit,count);
+    if (count > 0 && peopleDigits.get(digit) === allDigits.get(digit))
+      translatedCounts.set(digit, count);
   }
   return translatedCounts;
 }
-function missingProtected(text,translation) {
-  const counts=new Map();
-  for(const token of protectedTokens(translation))
-    counts.set(token,(counts.get(token)||0)+1);
-  const semanticCounts=personCountEquivalences(String(text||''),String(translation||''));
-  return protectedTokens(text).filter(token=>{
-    const exact=counts.get(token)||0;
-    if(exact){counts.set(token,exact-1);return false;}
-    const equivalent=semanticCounts.get(token)||0;
-    if(equivalent){semanticCounts.set(token,equivalent-1);return false;}
+function missingProtected(text, translation) {
+  const counts = new Map();
+  for (const token of protectedTokens(translation))
+    counts.set(token, (counts.get(token) || 0) + 1);
+  const semanticCounts = personCountEquivalences(
+    String(text || ''),
+    String(translation || '')
+  );
+  return protectedTokens(text).filter((token) => {
+    const exact = counts.get(token) || 0;
+    if (exact) {
+      counts.set(token, exact - 1);
+      return false;
+    }
+    const equivalent = semanticCounts.get(token) || 0;
+    if (equivalent) {
+      semanticCounts.set(token, equivalent - 1);
+      return false;
+    }
     return true;
   });
 }
-function safeFrame(obj,budget,sourceText) {
-  if(typeof obj.intent!=='string'||typeof obj.domain!=='string')
+function safeFrame(obj, budget, sourceText) {
+  if (typeof obj.intent !== 'string' || typeof obj.domain !== 'string')
     throw safeError('V2_INVALID_ANALYSIS');
   return {
-    domain:['work','it','daily','mixed','unknown'].includes(obj.domain)?obj.domain:'unknown',
-    intent:obj.intent.slice(0,budget.limits.intentChars),
-    tone:String(obj.tone||'').slice(0,130),
-    facts:Array.isArray(obj.facts)?obj.facts.slice(0,budget.limits.facts)
-      .map(x=>String(x).slice(0,180)):[],
-    terms:Array.isArray(obj.terms)?obj.terms.slice(0,budget.limits.terms)
-      .filter(x=>x&&typeof x.source==='string').map(x=>({
-        source:x.source.slice(0,80),meaning:String(x.meaning||'').slice(0,120)
-      })):[],
-    patterns:Array.isArray(obj.patterns)?obj.patterns.slice(0,budget.limits.patterns)
-      .filter(x=>x&&typeof x.source==='string'&&typeof x.meaning==='string')
-      .map(x=>({source:x.source.slice(0,80),meaning:x.meaning.slice(0,160)})):[],
-    ambiguities:Array.isArray(obj.ambiguities)?
-      obj.ambiguities.slice(0,budget.limits.ambiguities)
-        .map(x=>String(x).slice(0,180)):[],
+    domain: ['work', 'it', 'daily', 'mixed', 'unknown'].includes(obj.domain)
+      ? obj.domain
+      : 'unknown',
+    intent: obj.intent.slice(0, budget.limits.intentChars),
+    tone: String(obj.tone || '').slice(0, 130),
+    facts: Array.isArray(obj.facts)
+      ? obj.facts
+          .slice(0, budget.limits.facts)
+          .map((x) => String(x).slice(0, 180))
+      : [],
+    terms: Array.isArray(obj.terms)
+      ? obj.terms
+          .slice(0, budget.limits.terms)
+          .filter((x) => x && typeof x.source === 'string')
+          .map((x) => ({
+            source: x.source.slice(0, 80),
+            meaning: String(x.meaning || '').slice(0, 120)
+          }))
+      : [],
+    patterns: Array.isArray(obj.patterns)
+      ? obj.patterns
+          .slice(0, budget.limits.patterns)
+          .filter(
+            (x) =>
+              x && typeof x.source === 'string' && typeof x.meaning === 'string'
+          )
+          .map((x) => ({
+            source: x.source.slice(0, 80),
+            meaning: x.meaning.slice(0, 160)
+          }))
+      : [],
+    ambiguities: Array.isArray(obj.ambiguities)
+      ? obj.ambiguities
+          .slice(0, budget.limits.ambiguities)
+          .map((x) => String(x).slice(0, 180))
+      : [],
     // Keep legacy names from mocks and past callers while moving new output
     // to explicit classifications. Every source span is checked again below.
-    names:sanitizeProperNames(obj.names,sourceText),
-    entities:Array.isArray(obj.entities)?obj.entities.slice(0,16)
-      .filter(x=>x&&typeof x==='object'&&typeof x.source==='string')
-      .map(x=>({source:x.source.slice(0,40),
-        type:String(x.type||'').slice(0,20),
-        action:String(x.action||'').slice(0,12),
-        confidence:String(x.confidence||'').slice(0,12)})):[]
+    names: sanitizeProperNames(obj.names, sourceText),
+    entities: Array.isArray(obj.entities)
+      ? obj.entities
+          .slice(0, 16)
+          .filter(
+            (x) => x && typeof x === 'object' && typeof x.source === 'string'
+          )
+          .map((x) => ({
+            source: x.source.slice(0, 40),
+            type: String(x.type || '').slice(0, 20),
+            action: String(x.action || '').slice(0, 12),
+            confidence: String(x.confidence || '').slice(0, 12)
+          }))
+      : []
   };
 }
 function cleanTranslation(raw) {
-  const value=parseObject(raw);
-  if(typeof value.translation!=='string'||!value.translation.trim()||
-    value.translation.length>9000)throw safeError('V2_INVALID_TRANSLATION');
-  return {translation:value.translation.trim(),
-    backTranslation:typeof value.backTranslation==='string'
-      ?value.backTranslation.trim().slice(0,5000):'',
-    vocabulary:typeof value.vocabulary==='string'
-      ?value.vocabulary.trim().slice(0,3500):'',
+  const value = parseObject(raw);
+  if (
+    typeof value.translation !== 'string' ||
+    !value.translation.trim() ||
+    value.translation.length > 9000
+  )
+    throw safeError('V2_INVALID_TRANSLATION');
+  return {
+    translation: value.translation.trim(),
+    backTranslation:
+      typeof value.backTranslation === 'string'
+        ? value.backTranslation.trim().slice(0, 5000)
+        : '',
+    vocabulary:
+      typeof value.vocabulary === 'string'
+        ? value.vocabulary.trim().slice(0, 3500)
+        : '',
     // Optional natural-language notes are not themselves evidence of an error.
     // A model must explicitly identify a MATERIAL unresolved semantic choice
     // before that warning can affect the translation's review status.
-    semanticReviewRequired:value.semanticReviewRequired===true,
-    uncertainties:Array.isArray(value.uncertainties)?
-      value.uncertainties.filter(x=>typeof x==='string').slice(0,3).map(x=>x.slice(0,180)):[]};
+    semanticReviewRequired: value.semanticReviewRequired === true,
+    uncertainties: Array.isArray(value.uncertainties)
+      ? value.uncertainties
+          .filter((x) => typeof x === 'string')
+          .slice(0, 3)
+          .map((x) => x.slice(0, 180))
+      : []
+  };
 }
-async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
-  backTranslation=true,vocabulary=true,inspectStage=null,env=process.env,
-  translationModel=null},
-  providers=createProviders()) {
-  if(typeof text!=='string'||!text.trim()||text.length>2000||
-    !['auto','friend','colleague','superior'].includes(context))
+async function deepTranslate(
+  {
+    text,
+    context = 'auto',
+    loadGlossary = async () => [],
+    backTranslation = true,
+    vocabulary = true,
+    inspectStage = null,
+    env = process.env,
+    translationModel = null
+  },
+  providers = createProviders()
+) {
+  if (
+    typeof text !== 'string' ||
+    !text.trim() ||
+    text.length > 2000 ||
+    !['auto', 'friend', 'colleague', 'superior'].includes(context)
+  )
     throw safeError('V2_INVALID_INPUT');
-  if(translationModel!=null&&
-     !['gpt-4o','gpt-4o-mini'].includes(translationModel))
+  if (
+    translationModel != null &&
+    !['gpt-4o', 'gpt-4o-mini'].includes(translationModel)
+  )
     throw safeError('V2_INVALID_TRANSLATION_MODEL');
-  const sourceText=text.trim(),direction=detectDirection(sourceText);
-  const analysisBudget=analyzerBudget(sourceText);
+  const sourceText = text.trim(),
+    direction = detectDirection(sourceText);
+  const analysisBudget = analyzerBudget(sourceText);
   // The separate Chinese learning library is not used for Vietnamese input
   // or when the vocabulary option is off. Don't ask Claude to generate it.
-  const learningTermsEnabled=vocabulary===true&&direction.source==='zh';
-  const analysisLimits=learningTermsEnabled?analysisBudget.limits:{
-    ...analysisBudget.limits,terms:0,patterns:0
-  };
-  const effectiveAnalysisBudget={...analysisBudget,limits:analysisLimits};
+  const learningTermsEnabled = vocabulary === true && direction.source === 'zh';
+  const analysisLimits = learningTermsEnabled
+    ? analysisBudget.limits
+    : {
+        ...analysisBudget.limits,
+        terms: 0,
+        patterns: 0
+      };
+  const effectiveAnalysisBudget = { ...analysisBudget, limits: analysisLimits };
   // Zero-model-call fallback for unambiguous source markers and operational
   // labels. Claude may still detect names the JS recognizer cannot.
-  const nameCandidates=direction.source==='zh'
-    ?entityCandidates(sourceText):{strong:[],candidates:[]};
-  const stages=[];
-  const used=new Set();
-  async function stage(role,provider,fn,request=null) {
-    const at=Date.now();
-    try{
-      const r=await fn();
+  const nameCandidates =
+    direction.source === 'zh'
+      ? entityCandidates(sourceText)
+      : { strong: [], candidates: [] };
+  const stages = [];
+  const used = new Set();
+  async function stage(role, provider, fn, request = null) {
+    const at = Date.now();
+    try {
+      const r = await fn();
       used.add(provider);
-      const ms=Date.now()-at;
-      stages.push({role,provider,model:r.model||provider,ms,
-        usage:r.usage||{input:0,output:0}});
+      const ms = Date.now() - at;
+      stages.push({
+        role,
+        provider,
+        model: r.model || provider,
+        ms,
+        usage: r.usage || { input: 0, output: 0 }
+      });
       // Explicit on-demand inspection only: record provider-visible messages,
       // not hidden internal reasoning, secrets, headers or API credentials.
-      if(typeof inspectStage==='function'&&request){
-        inspectStage({role,provider,model:r.model||provider,ms,
-          system:request.system,input:request.input,
-          rawOutput:typeof r.text==='string'?r.text:'',
-          usage:r.usage||{input:0,output:0}});
+      if (typeof inspectStage === 'function' && request) {
+        inspectStage({
+          role,
+          provider,
+          model: r.model || provider,
+          ms,
+          system: request.system,
+          input: request.input,
+          rawOutput: typeof r.text === 'string' ? r.text : '',
+          usage: r.usage || { input: 0, output: 0 }
+        });
       }
       return r;
-    }catch(e) {
-      stages.push({role,provider,error:String(e.code||'V2_PROVIDER_ERROR'),ms:Date.now()-at});
-      if(e && typeof e==='object' && !e.diagnostics){
-        e.diagnostics={stage:role,attempts:1,stages:stages.map(x=>({
-          role:x.role,provider:x.provider,model:x.model,ms:x.ms,
-          usage:x.usage||{input:0,output:0}
-        }))};
+    } catch (e) {
+      stages.push({
+        role,
+        provider,
+        error: String(e.code || 'V2_PROVIDER_ERROR'),
+        ms: Date.now() - at
+      });
+      if (e && typeof e === 'object' && !e.diagnostics) {
+        e.diagnostics = {
+          stage: role,
+          attempts: 1,
+          stages: stages.map((x) => ({
+            role: x.role,
+            provider: x.provider,
+            model: x.model,
+            ms: x.ms,
+            usage: x.usage || { input: 0, output: 0 }
+          }))
+        };
       }
       throw e;
     }
   }
   // Stable English system prefix across all requests/contexts.
   // Dynamic context, limits, names and source stay in USER JSON.
-  const analyzing=ANALYZER_SYSTEM;
+  const analyzing = ANALYZER_SYSTEM;
   // Count Unicode characters once and set both output quotas and provider
   // token headroom from the same policy, with no extra AI request.
   // Dynamic quotas stay in USER data so the analyzer rules remain stable.
-  const analysisTokenLimit=analysisBudget.maxOutputTokens;
-  const analysisRetryLimit=analysisBudget.retryMaxOutputTokens;
-  const analyzerInput=JSON.stringify({original:sourceText,context,
-    sourceLanguage:direction.source,targetLanguage:direction.target,
+  const analysisTokenLimit = analysisBudget.maxOutputTokens;
+  const analysisRetryLimit = analysisBudget.retryMaxOutputTokens;
+  const analyzerInput = JSON.stringify({
+    original: sourceText,
+    context,
+    sourceLanguage: direction.source,
+    targetLanguage: direction.target,
     analysisLimits,
-    ...(nameCandidates.candidates.length?{nameHints:nameCandidates.candidates}:{})});
-  const isMalformed=(e)=>['V2_INVALID_AGENT_JSON','V2_INVALID_ANALYSIS','V2_CLAUDE_TRUNCATED'].includes(e?.code);
-  async function analyze(role,limit,retry=false){
-    const system=analyzing; // identical prefix on retry keeps cache eligibility
-    const result=await stage(role,'claude',()=>providers.claude(
-      system,analyzerInput,{maxOutputTokens:limit,
-        jsonSchema:ANALYZER_JSON_SCHEMA}),
-      {system,input:analyzerInput});
-    if(result.stopReason==='max_tokens')throw safeError('V2_CLAUDE_TRUNCATED');
-    return safeFrame(parseObject(result.text),effectiveAnalysisBudget,sourceText);
+    ...(nameCandidates.candidates.length
+      ? { nameHints: nameCandidates.candidates }
+      : {})
+  });
+  const isMalformed = (e) =>
+    [
+      'V2_INVALID_AGENT_JSON',
+      'V2_INVALID_ANALYSIS',
+      'V2_CLAUDE_TRUNCATED'
+    ].includes(e?.code);
+  async function analyze(role, limit, retry = false) {
+    const system = analyzing; // identical prefix on retry keeps cache eligibility
+    const result = await stage(
+      role,
+      'claude',
+      () =>
+        providers.claude(system, analyzerInput, {
+          maxOutputTokens: limit,
+          debugRole: role,
+          jsonSchema: ANALYZER_JSON_SCHEMA
+        }),
+      { system, input: analyzerInput }
+    );
+    if (result.stopReason === 'max_tokens')
+      throw safeError('V2_CLAUDE_TRUNCATED');
+    return safeFrame(
+      parseObject(result.text),
+      effectiveAnalysisBudget,
+      sourceText
+    );
   }
   let frame;
-  try{
-    frame=await analyze('analyzer',analysisTokenLimit);
-  }catch(firstError){
-    if(!isMalformed(firstError))throw firstError;
-    try{
-      frame=await analyze('analyzer-retry',analysisRetryLimit,true);
-    }catch(secondError){
-      const code=secondError?.code==='V2_CLAUDE_TRUNCATED'
-        ?'V2_CLAUDE_ANALYSIS_TRUNCATED':
-        isMalformed(secondError)?'V2_CLAUDE_ANALYSIS_INVALID_JSON':
-        (secondError?.code||'V2_CLAUDE_ANALYSIS_UNAVAILABLE');
-      const failed=safeError(code);
-      failed.diagnostics={stage:'claude_analysis',attempts:2,
-        firstError:firstError?.code||'UNKNOWN',
-        secondError:secondError?.code||'UNKNOWN',
+  try {
+    frame = await analyze('analyzer', analysisTokenLimit);
+  } catch (firstError) {
+    if (!isMalformed(firstError)) throw firstError;
+    try {
+      frame = await analyze('analyzer-retry', analysisRetryLimit, true);
+    } catch (secondError) {
+      const code =
+        secondError?.code === 'V2_CLAUDE_TRUNCATED'
+          ? 'V2_CLAUDE_ANALYSIS_TRUNCATED'
+          : isMalformed(secondError)
+            ? 'V2_CLAUDE_ANALYSIS_INVALID_JSON'
+            : secondError?.code || 'V2_CLAUDE_ANALYSIS_UNAVAILABLE';
+      const failed = safeError(code);
+      failed.diagnostics = {
+        stage: 'claude_analysis',
+        attempts: 2,
+        firstError: firstError?.code || 'UNKNOWN',
+        secondError: secondError?.code || 'UNKNOWN',
         // Billing and timing only; never leak provider output or source text.
-        stages:stages.map(x=>({
-          role:x.role,provider:x.provider,model:x.model,ms:x.ms,
-          usage:x.usage||{input:0,output:0}
-        }))};
+        stages: stages.map((x) => ({
+          role: x.role,
+          provider: x.provider,
+          model: x.model,
+          ms: x.ms,
+          usage: x.usage || { input: 0, output: 0 }
+        }))
+      };
       throw failed;
     }
   }
@@ -232,166 +403,282 @@ async function deepTranslate({text,context='auto',loadGlossary=async()=>[],
   // DB lookup is performed AFTER the Claude analysis, but DB's confirmed
   // meaning always overrides Claude when the entry matches the selected domain.
   let glossary;
-  try{
-    glossary=await loadGlossary(sourceText,{context,
-      analyzedDomain:frame.domain,sourceLang:direction.source,targetLang:direction.target});
-    if(!Array.isArray(glossary))throw Error('Invalid glossary rows');
-  }catch(_){throw safeError('V2_GLOSSARY_UNAVAILABLE');}
+  try {
+    glossary = await loadGlossary(sourceText, {
+      context,
+      analyzedDomain: frame.domain,
+      sourceLang: direction.source,
+      targetLang: direction.target
+    });
+    if (!Array.isArray(glossary)) throw Error('Invalid glossary rows');
+  } catch (_) {
+    throw safeError('V2_GLOSSARY_UNAVAILABLE');
+  }
   // Claude analysis is advisory: keep its original domain for diagnostics,
   // but forward the RESOLVED domain and remove conflicting guessed meanings
   // for exact source terms that have approved dictionary entries.
-  const resolvedDomain=contextDomain(context,frame.domain);
+  const resolvedDomain = contextDomain(context, frame.domain);
   // Source-grounded decisions, with explicit common-word overrides and
   // exact glossary span precedence. One canonical list goes to GPT.
-  const entityPlan=classifyNames({sourceText,
-    candidates:nameCandidates.candidates,strong:nameCandidates.strong,
-    claudeNames:frame.names,claudeEntities:frame.entities,approvedTerms:glossary});
-  const protectedNames=entityPlan.protectedNames;
+  const entityPlan = classifyNames({
+    sourceText,
+    candidates: nameCandidates.candidates,
+    strong: nameCandidates.strong,
+    claudeNames: frame.names,
+    claudeEntities: frame.entities,
+    approvedTerms: glossary
+  });
+  const protectedNames = entityPlan.protectedNames;
   // GPT receives semantic facts, not Claude's separate study vocabulary,
   // redundant source-name arrays or unverified lexical meanings.
-  const translationAnalysis=conciseTranslationAnalysis(frame,resolvedDomain);
+  const translationAnalysis = conciseTranslationAnalysis(frame, resolvedDomain);
   // One canonical approved-terminology payload for both translator and repair.
   // Do not serialize the same glossary as a second system-prompt block.
-  const approvedTerminology=glossary.map(t=>({
-    source:t.source,meaning:t.translation,domain:t.domain
+  const approvedTerminology = glossary.map((t) => ({
+    source: t.source,
+    meaning: t.translation,
+    domain: t.domain
   }));
-  const translating=TRANSLATOR_SYSTEM;
-  const tier=chooseTranslatorTier({
-    sourceText,context,frame,glossary,protectedNames,direction,
-    backTranslation:backTranslation&&direction.source==='vi',
-    learningVocabulary:vocabulary&&direction.source==='vi'
-  },getV2ModelSettings(env));
-  const jsonSchema={type:'object',additionalProperties:false,
-    properties:{translation:{type:'string'},backTranslation:{type:'string'},
-      vocabulary:{type:'string'},semanticReviewRequired:{type:'boolean'},
-      uncertainties:{type:'array',items:{type:'string'}}},
-    required:['translation','backTranslation','vocabulary','semanticReviewRequired','uncertainties']};
-  const userPayload=JSON.stringify({original:sourceText,context,
-    sourceLanguage:direction.source,targetLanguage:direction.target,
-    outputLanguageName:direction.target==='vi'?'Vietnamese':'Simplified Chinese',
-    analysis:translationAnalysis,
+  const translating = TRANSLATOR_SYSTEM;
+  const tier = chooseTranslatorTier(
+    {
+      sourceText,
+      context,
+      frame,
+      glossary,
+      protectedNames,
+      direction,
+      backTranslation: backTranslation && direction.source === 'vi',
+      learningVocabulary: vocabulary && direction.source === 'vi'
+    },
+    getV2ModelSettings(env)
+  );
+  const jsonSchema = {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      translation: { type: 'string' },
+      backTranslation: { type: 'string' },
+      vocabulary: { type: 'string' },
+      semanticReviewRequired: { type: 'boolean' },
+      uncertainties: { type: 'array', items: { type: 'string' } }
+    },
+    required: [
+      'translation',
+      'backTranslation',
+      'vocabulary',
+      'semanticReviewRequired',
+      'uncertainties'
+    ]
+  };
+  const userPayload = JSON.stringify({
+    original: sourceText,
+    context,
+    sourceLanguage: direction.source,
+    targetLanguage: direction.target,
+    outputLanguageName:
+      direction.target === 'vi' ? 'Vietnamese' : 'Simplified Chinese',
+    analysis: translationAnalysis,
     protectedNames,
-    includeBackTranslation:backTranslation&&direction.source==='vi',
-    includeChineseVocabulary:vocabulary&&direction.source==='vi',
-    approvedTerminology});
-  const modelTranslation=await stage('translator','openai',()=>
-    providers.openai(translating,userPayload,{maxOutputTokens:1500,
-      jsonSchema,...(translationModel?{translationModel}:
-        tier.modelOverride?{modelOverride:tier.modelOverride}:{})}),
-    {system:translating,input:userPayload});
+    includeBackTranslation: backTranslation && direction.source === 'vi',
+    includeChineseVocabulary: vocabulary && direction.source === 'vi',
+    approvedTerminology
+  });
+  const modelTranslation = await stage(
+    'translator',
+    'openai',
+    () =>
+      providers.openai(translating, userPayload, {
+        maxOutputTokens: 1500,
+        jsonSchema,
+        ...(translationModel
+          ? { translationModel }
+          : tier.modelOverride
+            ? { modelOverride: tier.modelOverride }
+            : {})
+      }),
+    { system: translating, input: userPayload }
+  );
   let translated;
-  try{
-    if(modelTranslation.responseStatus==='incomplete')
+  try {
+    if (modelTranslation.responseStatus === 'incomplete')
       throw safeError('V2_OPENAI_TRANSLATION_INCOMPLETE');
-    translated=cleanTranslation(modelTranslation.text);
+    translated = cleanTranslation(modelTranslation.text);
     // Wrong-language output must never trigger a second, paid translator call.
     // The user-requested target language is authoritative over analyzer prose.
-    if(translationLanguageIssue(sourceText,translated.translation))
+    if (translationLanguageIssue(sourceText, translated.translation))
       throw safeError('V2_WRONG_TARGET_LANGUAGE');
-  }catch(error){
-    const failed=safeError(
-      error?.code==='V2_OPENAI_TRANSLATION_INCOMPLETE'
-        ?'V2_OPENAI_TRANSLATION_INCOMPLETE':
-      error?.code==='V2_WRONG_TARGET_LANGUAGE'
-        ?'V2_WRONG_TARGET_LANGUAGE':'V2_OPENAI_TRANSLATION_INVALID_JSON');
-    failed.diagnostics={stage:'openai_translation',attempts:1,
-      lastError:error?.code||'UNKNOWN',
-      stages:stages.map(x=>({role:x.role,provider:x.provider,model:x.model,
-        ms:x.ms,usage:x.usage||{input:0,output:0}}))};
+  } catch (error) {
+    const failed = safeError(
+      error?.code === 'V2_OPENAI_TRANSLATION_INCOMPLETE'
+        ? 'V2_OPENAI_TRANSLATION_INCOMPLETE'
+        : error?.code === 'V2_WRONG_TARGET_LANGUAGE'
+          ? 'V2_WRONG_TARGET_LANGUAGE'
+          : 'V2_OPENAI_TRANSLATION_INVALID_JSON'
+    );
+    failed.diagnostics = {
+      stage: 'openai_translation',
+      attempts: 1,
+      lastError: error?.code || 'UNKNOWN',
+      stages: stages.map((x) => ({
+        role: x.role,
+        provider: x.provider,
+        model: x.model,
+        ms: x.ms,
+        usage: x.usage || { input: 0, output: 0 }
+      }))
+    };
     throw failed;
   }
   // A repair is a candidate, not automatically a better translation.
   // Compare the same deterministic constraints before replacing the original.
   function verifiedIssues(candidate) {
     return [
-      ...validateAppliedTerms(candidate,glossary).map(x=>'Thuật ngữ chưa được áp dụng: '+x),
-      ...missingProtected(sourceText,candidate).map(x=>'Có thể thiếu mã/số liệu: '+x),
-      ...missingProtectedNameOccurrences(sourceText,candidate,protectedNames,glossary)
-        .map(x=>'Thiếu tên riêng/nhãn cần giữ nguyên: '+x)
+      ...validateAppliedTerms(candidate, glossary).map(
+        (x) => 'Thuật ngữ chưa được áp dụng: ' + x
+      ),
+      ...missingProtected(sourceText, candidate).map(
+        (x) => 'Có thể thiếu mã/số liệu: ' + x
+      ),
+      ...missingProtectedNameOccurrences(
+        sourceText,
+        candidate,
+        protectedNames,
+        glossary
+      ).map((x) => 'Thiếu tên riêng/nhãn cần giữ nguyên: ' + x)
     ];
   }
-  let issues=verifiedIssues(translated.translation);
-  if(issues.length) {
+  let issues = verifiedIssues(translated.translation);
+  if (issues.length) {
     // One targeted correction only; never silently replace a confirmed
     // glossary meaning with an AI guess or loop until both models agree.
-    try{
-      const repairSystem=translating+'\nRepair ONLY the verified issues in the user JSON. For targetLanguage vi, the translation must be Vietnamese, NOT English or a Chinese paraphrase.';
-      const repairInput=JSON.stringify({original:sourceText,current:translated.translation,
-        errors:issues,protectedNames,
-        includeBackTranslation:backTranslation&&direction.source==='vi',
-        includeChineseVocabulary:vocabulary&&direction.source==='vi',
-        approvedTerminology});
-      const repairResponse=await stage('repair','openai',()=>
-        providers.openai(repairSystem,repairInput,
-          {maxOutputTokens:1200,jsonSchema,translationModel:'gpt-4o-mini'}),
-        {system:repairSystem,input:repairInput});
-      if(repairResponse.responseStatus==='incomplete')
+    try {
+      const repairSystem =
+        translating +
+        '\nRepair ONLY the verified issues in the user JSON. For targetLanguage vi, the translation must be Vietnamese, NOT English or a Chinese paraphrase.';
+      const repairInput = JSON.stringify({
+        original: sourceText,
+        current: translated.translation,
+        errors: issues,
+        protectedNames,
+        includeBackTranslation: backTranslation && direction.source === 'vi',
+        includeChineseVocabulary: vocabulary && direction.source === 'vi',
+        approvedTerminology
+      });
+      const repairResponse = await stage(
+        'repair',
+        'openai',
+        () =>
+          providers.openai(repairSystem, repairInput, {
+            maxOutputTokens: 1200,
+            debugRole: 'repair',
+            jsonSchema,
+            translationModel: 'gpt-4o-mini'
+          }),
+        { system: repairSystem, input: repairInput }
+      );
+      if (repairResponse.responseStatus === 'incomplete')
         throw safeError('V2_OPENAI_REPAIR_INCOMPLETE');
-      const candidate=cleanTranslation(repairResponse.text);
-      const candidateIssues=verifiedIssues(candidate.translation);
-      const newIssues=candidateIssues.filter(issue=>!issues.includes(issue));
+      const candidate = cleanTranslation(repairResponse.text);
+      const candidateIssues = verifiedIssues(candidate.translation);
+      const newIssues = candidateIssues.filter(
+        (issue) => !issues.includes(issue)
+      );
       // Never accept a correction that adds a new verified failure, or one
       // that fails to fix any original failure. A semantic warning is sticky.
-      if(!newIssues.length&&candidateIssues.length<issues.length){
+      if (!newIssues.length && candidateIssues.length < issues.length) {
         candidate.semanticReviewRequired ||= translated.semanticReviewRequired;
-        candidate.uncertainties=[...new Set([
-          ...translated.uncertainties,...candidate.uncertainties
-        ])].slice(0,3);
-        translated=candidate;
-        issues=candidateIssues;
+        candidate.uncertainties = [
+          ...new Set([...translated.uncertainties, ...candidate.uncertainties])
+        ].slice(0, 3);
+        translated = candidate;
+        issues = candidateIssues;
       }
-    }catch(_){/* keep original, mark review below */}
+    } catch (_) {
+      /* keep original, mark review below */
+    }
   }
   // A wrong-language output is never an acceptable translation or cache entry.
   // After a different, verified-term repair, fail closed if the result changes language.
-  if(translationLanguageIssue(sourceText,translated.translation))
+  if (translationLanguageIssue(sourceText, translated.translation))
     throw safeError('V2_WRONG_TARGET_LANGUAGE');
   // Analyst hypotheses do not automatically mean the translation is wrong.
   // Preserve them for transparency; only verified constraints or a *material*
   // unresolved semantic choice from the translator trigger REVIEW.
-  if(translated.semanticReviewRequired) {
-    issues.push('Câu có mơ hồ quan trọng ảnh hưởng nghĩa bản dịch; cần kiểm tra thủ công.');
+  if (translated.semanticReviewRequired) {
+    issues.push(
+      'Câu có mơ hồ quan trọng ảnh hưởng nghĩa bản dịch; cần kiểm tra thủ công.'
+    );
   }
-  const analysisTerms=sanitizeClaudeTerms(
-    frame.terms,sourceText,direction.source,analysisLimits.terms)
-    .filter(term=>!protectedNames.some(name=>
-      term.source.includes(name)||name.includes(term.source)))
-    .map(term=>{
+  const analysisTerms = sanitizeClaudeTerms(
+    frame.terms,
+    sourceText,
+    direction.source,
+    analysisLimits.terms
+  )
+    .filter(
+      (term) =>
+        !protectedNames.some(
+          (name) => term.source.includes(name) || name.includes(term.source)
+        )
+    )
+    .map((term) => {
       // Confirmed user glossary wins over speculative analyzer meanings in
       // the learning suggestions as well as in the final translation.
-      const approved=glossary.find(item=>item.source===term.source);
-      return approved&&direction.source==='zh'
-        ? {...term,meaning:approved.translation}
+      const approved = glossary.find((item) => item.source === term.source);
+      return approved && direction.source === 'zh'
+        ? { ...term, meaning: approved.translation }
         : term;
     });
   // Auxiliary output has its own language requirement. A wrong-language
   // BACK_TRANSLATION is omitted, not passed to UI/cache or repaired with
   // an additional GPT call. Preserve the original valid translation.
-  const rawBackTranslation=backTranslation&&direction.source==='vi'
-    ?translated.backTranslation:'';
-  const backTranslationWarning=rawBackTranslation
-    ?backTranslationLanguageIssue(sourceText,rawBackTranslation):null;
+  const rawBackTranslation =
+    backTranslation && direction.source === 'vi'
+      ? translated.backTranslation
+      : '';
+  const backTranslationWarning = rawBackTranslation
+    ? backTranslationLanguageIssue(sourceText, rawBackTranslation)
+    : null;
   return {
-    ...(backTranslationWarning?{backTranslationWarning}:{}),
+    ...(backTranslationWarning ? { backTranslationWarning } : {}),
     analysisTerms,
-    analysisPatterns:direction.source==='zh'?frame.patterns:[],
+    analysisPatterns: direction.source === 'zh' ? frame.patterns : [],
     // Back-translation is generated by the same GPT-4o response as translation.
-    backTranslation:backTranslationWarning?'':rawBackTranslation,
+    backTranslation: backTranslationWarning ? '' : rawBackTranslation,
     // Chinese target vocabulary follows V1's [WORD]/[PHRASE]/[PATTERN] contract.
-    studyVocabulary:vocabulary&&direction.source==='vi'?translated.vocabulary:'',
-    engine:ENGINE_VERSION,translationTier:tier.tier,
-    sourceLanguage:direction.source,
-    targetLanguage:direction.target,translation:translated.translation,
-    status:issues.length?'REVIEW':'PASS',needsReview:Boolean(issues.length),
-    issues:[...new Set(issues)].slice(0,8),
-    appliedTerms:termHighlights(translated.translation,glossary),
-    analysis:{domain:frame.domain,resolvedDomain,intent:frame.intent,
-      ambiguities:frame.ambiguities,names:protectedNames,
-      entities:entityPlan.entityDecisions},
-    translationNotes:translated.uncertainties,
-    usage:{stages,totalInputTokens:stages.reduce((n,x)=>n+(x.usage?.input||0),0),
-      totalOutputTokens:stages.reduce((n,x)=>n+(x.usage?.output||0),0),
-      providers:[...used]}
+    studyVocabulary:
+      vocabulary && direction.source === 'vi' ? translated.vocabulary : '',
+    engine: ENGINE_VERSION,
+    translationTier: tier.tier,
+    sourceLanguage: direction.source,
+    targetLanguage: direction.target,
+    translation: translated.translation,
+    status: issues.length ? 'REVIEW' : 'PASS',
+    needsReview: Boolean(issues.length),
+    issues: [...new Set(issues)].slice(0, 8),
+    appliedTerms: termHighlights(translated.translation, glossary),
+    analysis: {
+      domain: frame.domain,
+      resolvedDomain,
+      intent: frame.intent,
+      ambiguities: frame.ambiguities,
+      names: protectedNames,
+      entities: entityPlan.entityDecisions
+    },
+    translationNotes: translated.uncertainties,
+    usage: {
+      stages,
+      totalInputTokens: stages.reduce((n, x) => n + (x.usage?.input || 0), 0),
+      totalOutputTokens: stages.reduce((n, x) => n + (x.usage?.output || 0), 0),
+      providers: [...used]
+    }
   };
 }
-module.exports={deepTranslate,detectDirection,parseObject,missingProtected,ENGINE_VERSION};
+module.exports = {
+  deepTranslate,
+  detectDirection,
+  parseObject,
+  missingProtected,
+  ENGINE_VERSION
+};

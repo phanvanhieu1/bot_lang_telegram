@@ -7,13 +7,19 @@ function validateTestConfig(env, productionBotToken) {
   const adminId = (env.TELEGRAM_TEST_MASTER_ADMIN || '').trim();
 
   if (!/^\d{5,16}:[A-Za-z0-9_-]{30,150}$/.test(token)) {
-    throw new Error('Thiếu hoặc sai TELEGRAM_TEST_BOT_TOKEN. Tạo bot thử nghiệm bằng @BotFather.');
+    throw new Error(
+      'Thiếu hoặc sai TELEGRAM_TEST_BOT_TOKEN. Tạo bot thử nghiệm bằng @BotFather.'
+    );
   }
   if (productionBotToken && token === productionBotToken) {
-    throw new Error('Token test trùng token production. Không khởi động để tránh xung đột VPS.');
+    throw new Error(
+      'Token test trùng token production. Không khởi động để tránh xung đột VPS.'
+    );
   }
   if (!/^\d{5,20}$/.test(adminId)) {
-    throw new Error('Thiếu TELEGRAM_TEST_MASTER_ADMIN (Telegram user ID dạng số).');
+    throw new Error(
+      'Thiếu TELEGRAM_TEST_MASTER_ADMIN (Telegram user ID dạng số).'
+    );
   }
   return {
     token,

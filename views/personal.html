@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hồ sơ dịch thuật</title>
+    <script>
+      try {
+        document.documentElement.dataset.theme =
+          localStorage.getItem('translatorTheme') === 'dark' ? 'dark' : 'light';
+      } catch {}
+    </script>
+    <link rel="stylesheet" href="/personal.css" />
+    <script defer src="/personal.js"></script>
+  </head>
+  <body>
+    <main>
+      <nav><a href="/">← Quay lại trang dịch</a></nav>
+      <h1>Hồ sơ dịch thuật</h1>
+      <p id="personalStatus" role="status" aria-live="polite"></p>
+      <section>
+        <h2>Thông tin và tùy chọn</h2>
+        <form id="profileForm">
+          <label
+            >Nghề nghiệp hoặc lĩnh vực <input name="occupation" maxlength="120"
+          /></label>
+          <fieldset>
+            <legend>Chủ đề thường dịch</legend>
+            <div id="presetTopics"></div>
+            <label
+              >Chủ đề tùy chỉnh, mỗi dòng một mục
+              <textarea name="customTopics" rows="3"></textarea>
+            </label>
+          </fieldset>
+          <div class="columns">
+            <label
+              >Ngôn ngữ nguồn ưu tiên
+              <select name="sourceLanguage"></select
+            ></label>
+            <label
+              >Ngôn ngữ đích ưu tiên
+              <select name="targetLanguage"></select
+            ></label>
+          </div>
+          <label>Văn phong <input name="style" maxlength="160" /></label>
+          <label
+            >Cách xưng hô <input name="addressTerms" maxlength="160"
+          /></label>
+          <div class="actions">
+            <button>Lưu và đồng bộ ngữ cảnh</button>
+          </div>
+        </form>
+      </section>
+      <section>
+        <h2>Ngữ cảnh cá nhân</h2>
+        <button id="newContext" type="button">Thêm ngữ cảnh</button>
+        <div id="contextList"></div>
+      </section>
+      <section>
+        <h2>Phiên hội thoại web</h2>
+        <div id="conversationList"></div>
+        <div id="conversationDetail"></div>
+      </section>
+    </main>
+    <dialog id="contextDialog">
+      <form id="contextForm">
+        <h2 id="contextTitle">Ngữ cảnh</h2>
+        <label>Tên <input name="name" required maxlength="80" /></label>
+        <label>Lĩnh vực <input name="domain" maxlength="80" /></label>
+        <label
+          >Mô tả
+          <textarea name="description" maxlength="500" rows="2"></textarea>
+        </label>
+        <label
+          >Phạm vi sử dụng
+          <textarea name="scope" maxlength="400" rows="2"></textarea>
+        </label>
+        <label
+          >Tình huống, mỗi dòng một mục
+          <textarea name="situations" rows="3"></textarea>
+        </label>
+        <label
+          >Từ khóa, mỗi dòng một mục
+          <textarea name="keywords" rows="3"></textarea>
+        </label>
+        <label
+          >Ví dụ nhận diện, mỗi dòng một mục
+          <textarea name="exampleUtterances" rows="3"></textarea>
+        </label>
+        <p id="contextError" role="status"></p>
+        <div class="actions">
+          <button>Lưu ngữ cảnh</button>
+          <button id="closeContext" type="button">Đóng</button>
+        </div>
+      </form>
+    </dialog>
+  </body>
+</html>

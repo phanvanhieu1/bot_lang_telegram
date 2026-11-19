@@ -60,10 +60,17 @@
   }
 
   function visibleBlockHeight(el) {
-    if (!el || el.hidden || el.classList.contains('hidden') ||
-        window.getComputedStyle(el).display === 'none') return 0;
+    if (
+      !el ||
+      el.hidden ||
+      el.classList.contains('hidden') ||
+      window.getComputedStyle(el).display === 'none'
+    )
+      return 0;
 
-    const content = el.querySelector('.realtime-pinyin-text, #backTranslation, #pronunciation');
+    const content = el.querySelector(
+      '.realtime-pinyin-text, #backTranslation, #pronunciation'
+    );
     const height = content ? textHeight(content, content.textContent || '') : 0;
     // Preserve room for secondary pronunciation/back-translation, but do not
     // allow them to dominate the main panes: they scroll independently.
@@ -74,17 +81,27 @@
   let lastHeight = 0;
   function calculate() {
     frame = 0;
-    if (!workspace.getClientRects().length || input.getBoundingClientRect().width < 40) return;
+    if (
+      !workspace.getClientRects().length ||
+      input.getBoundingClientRect().width < 40
+    )
+      return;
 
     const sourceText = textHeight(input, input.value);
     const outputText = textHeight(output, output.textContent || 'Bản dịch');
-    const sourceExtras = visibleBlockHeight(realtime) + visibleBlockHeight(backTranslation);
+    const sourceExtras =
+      visibleBlockHeight(realtime) + visibleBlockHeight(backTranslation);
     const resultExtras = visibleBlockHeight(pronunciation);
-    const next = Math.round(Math.min(MAX_PANE_HEIGHT, Math.max(
-      MIN_PANE_HEIGHT,
-      sourceText + sourceExtras + ACTION_HEIGHT + 14,
-      outputText + resultExtras + ACTION_HEIGHT + 18
-    )));
+    const next = Math.round(
+      Math.min(
+        MAX_PANE_HEIGHT,
+        Math.max(
+          MIN_PANE_HEIGHT,
+          sourceText + sourceExtras + ACTION_HEIGHT + 14,
+          outputText + resultExtras + ACTION_HEIGHT + 18
+        )
+      )
+    );
     if (lastHeight !== next) {
       lastHeight = next;
       workspace.style.setProperty('--compact-pane-height', next + 'px');
@@ -95,7 +112,7 @@
   }
 
   input.addEventListener('input', schedule);
-  window.addEventListener('resize', schedule, { passive:true });
+  window.addEventListener('resize', schedule, { passive: true });
   window.addEventListener('learning-language-change', () => {
     lastHeight = 0;
     schedule();
@@ -108,8 +125,11 @@
   for (const element of [result, realtime, backTranslation, pronunciation]) {
     if (!element) continue;
     observer.observe(element, {
-      subtree:true, childList:true, characterData:true,
-      attributes:true, attributeFilter:['hidden', 'class']
+      subtree: true,
+      childList: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ['hidden', 'class']
     });
   }
 
@@ -122,7 +142,8 @@
     const resizeObserver = new ResizeObserver(() => {
       const inputWidth = Math.round(input.getBoundingClientRect().width);
       const outputWidth = Math.round(output.getBoundingClientRect().width);
-      if (inputWidth === lastInputWidth && outputWidth === lastOutputWidth) return;
+      if (inputWidth === lastInputWidth && outputWidth === lastOutputWidth)
+        return;
       lastInputWidth = inputWidth;
       lastOutputWidth = outputWidth;
       schedule();
@@ -131,7 +152,8 @@
     resizeObserver.observe(output);
   }
   // Respect late-loaded fonts: their glyph metrics affect text wrapping.
-  if (document.fonts?.ready) document.fonts.ready.then(schedule).catch(() => {});
+  if (document.fonts?.ready)
+    document.fonts.ready.then(schedule).catch(() => {});
   schedule();
-  window.addEventListener('load', schedule, { once:true });
+  window.addEventListener('load', schedule, { once: true });
 })();

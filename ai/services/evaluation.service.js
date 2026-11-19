@@ -1,6 +1,4 @@
-const {
-  getRandomOpenAIClient
-} = require('../providers/openai.provider');
+const { getRandomOpenAIClient } = require('../providers/openai.provider');
 
 async function evaluateChinese(text) {
   const client = getRandomOpenAIClient();

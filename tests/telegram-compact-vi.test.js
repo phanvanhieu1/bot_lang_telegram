@@ -5,7 +5,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const crypto = require('node:crypto');
-const { buildCompactTranslation, getChineseSentence, getSpeechLanguage } = require('../telegram-translation');
+const {
+  buildCompactTranslation,
+  getChineseSentence,
+  getSpeechLanguage
+} = require('../telegram-translation');
 const { generatePinyin } = require('../ai/utils/pinyin');
 const { buildProPrompt } = require('../ai/prompts/pro.prompt');
 const sharedTts = require('../tts-shared');
@@ -14,7 +18,9 @@ test('Mandarin Telegram shows translation, pinyin and back translation in one bu
   const zh = '今晚喝点什么吗，兄弟？';
   const compact = buildCompactTranslation({
     translation: zh,
-    pinyin: generatePinyin(getChineseSentence('Tối nay uống gì không anh em?', zh)),
+    pinyin: generatePinyin(
+      getChineseSentence('Tối nay uống gì không anh em?', zh)
+    ),
     backTranslation: 'Tối nay uống chút gì không, anh em?'
   });
   const lines = compact.split('\n');
@@ -31,7 +37,10 @@ test('Chinese source yields pinyin from original and Vietnamese TTS voice', () =
   assert.equal(getChineseSentence(input, translation), input);
   assert.equal(getSpeechLanguage(input, translation, 'zh'), 'vi');
   assert.equal(getSpeechLanguage(translation, input, 'zh'), 'zh');
-  assert.match(generatePinyin(getChineseSentence(input, translation)), /jīn|wǎn/);
+  assert.match(
+    generatePinyin(getChineseSentence(input, translation)),
+    /jīn|wǎn/
+  );
 });
 
 test('Telegram prompt reverses both directions without changing web PRO prompt', () => {
@@ -46,7 +55,10 @@ test('Telegram prompt reverses both directions without changing web PRO prompt',
 test('both Vietnamese TTS routes require provider keys on server, web is PRO-only', () => {
   const root = path.join(__dirname, '..');
   const server = fs.readFileSync(path.join(root, 'server.js'), 'utf8');
-  const client = fs.readFileSync(path.join(root, 'public/google-style.js'), 'utf8');
+  const client = fs.readFileSync(
+    path.join(root, 'public/google-style.js'),
+    'utf8'
+  );
   const bot = fs.readFileSync(path.join(root, 'bot.js'), 'utf8');
   assert.match(server, /app\.post\('\/api\/tts\/vietnamese', requirePro/);
   assert.match(client, /\/api\/tts\/vietnamese/);
@@ -56,8 +68,12 @@ test('both Vietnamese TTS routes require provider keys on server, web is PRO-onl
 });
 
 function mockedWebTts() {
-  const source = fs.readFileSync(path.join(__dirname, '..', 'web-tts.js'), 'utf8');
-  const requests = [], saved = [];
+  const source = fs.readFileSync(
+    path.join(__dirname, '..', 'web-tts.js'),
+    'utf8'
+  );
+  const requests = [],
+    saved = [];
   const AudioCache = {
     findOne: () => ({ lean: async () => null }),
     updateOne: async (...args) => saved.push(args),
@@ -68,14 +84,15 @@ function mockedWebTts() {
   }
   const sandbox = {
     module: { exports: {} },
-    require: name => {
+    require: (name) => {
       if (name === 'crypto') return crypto;
       if (name === './tts-shared') return sharedTts;
-      if (name === 'mongoose') return {
-        Schema,
-        models: { WebAudioCache: AudioCache },
-        model: () => AudioCache
-      };
+      if (name === 'mongoose')
+        return {
+          Schema,
+          models: { WebAudioCache: AudioCache },
+          model: () => AudioCache
+        };
       throw new Error('Unexpected dependency: ' + name);
     },
     process: { env: { ELEVENLABS_API_KEY: 'fake-key' } },
@@ -100,10 +117,16 @@ test('Vietnamese synthesis uses the exact dedicated ElevenLabs voice', async () 
   assert.equal(result.audio.toString(), 'mp3');
   assert.equal(api.VIETNAMESE_VOICE_ID, 'CQAD6iKxS73fEAGjSwt5');
   assert.match(api.requests[0].url, /CQAD6iKxS73fEAGjSwt5/);
-  assert.equal(JSON.parse(api.requests[0].options.body).text, 'Tối nay uống chút gì không?');
+  assert.equal(
+    JSON.parse(api.requests[0].options.body).text,
+    'Tối nay uống chút gì không?'
+  );
   assert.equal(api.saved.length, 1);
   assert.equal(JSON.parse(api.requests[0].options.body).language_code, 'vi');
-  assert.equal(JSON.parse(api.requests[0].options.body).model_id, 'eleven_flash_v2_5');
+  assert.equal(
+    JSON.parse(api.requests[0].options.body).model_id,
+    'eleven_flash_v2_5'
+  );
 });
 
 test('Vietnamese synthesis rejects Chinese input instead of misrouting it', async () => {
