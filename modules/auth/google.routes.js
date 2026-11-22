@@ -18,14 +18,18 @@ router.get('/google', async (req, res) => {
     // Lưu state, nonce và PKCE trước khi redirect
     req.session.save((error) => {
       if (error) {
-        console.error('OAuth session error:', error);
+        console.error('Google OAuth session save failed');
         return res.status(500).send('Không thể bắt đầu đăng nhập Google');
       }
 
       res.redirect(url);
     });
   } catch (error) {
-    console.error('Google OAuth error:', error);
+    console.error(
+      error.message === 'INVALID_GOOGLE_REDIRECT_URI'
+        ? 'Google OAuth redirect URI configuration is invalid'
+        : 'Google OAuth initiation failed'
+    );
     res.status(500).send('Không thể kết nối Google');
   }
 });
@@ -34,13 +38,8 @@ router.get('/google', async (req, res) => {
 
 router.get('/google/callback', async (req, res) => {
   try {
-    const currentUrl = new URL(
-      req.originalUrl,
-      process.env.GOOGLE_REDIRECT_URI
-    );
-
     // 1. Xác minh danh tính với Google
-    const googleUser = await verifyGoogleCallback(currentUrl, req.session);
+    const googleUser = await verifyGoogleCallback(req.originalUrl, req.session);
 
     // 2. Kiểm tra kết nối MongoDB
     if (mongoose.connection.readyState !== 1) {
@@ -81,8 +80,6 @@ router.get('/google/callback', async (req, res) => {
 
     return res.redirect('/');
   } catch (error) {
-    console.error('Google callback error:', error.message);
-
     if (error.message === 'ACCOUNT_DISABLED') {
       return res.status(403).send('Tài khoản đã bị khóa');
     }
@@ -93,6 +90,11 @@ router.get('/google/callback', async (req, res) => {
         .send('Email đã liên kết với một phương thức đăng nhập khác');
     }
 
+    if (error.message === 'GOOGLE_OAUTH_SESSION_MISSING') {
+      return res.status(400).send('Phiên đăng nhập đã hết hạn. Hãy quay lại trang đăng nhập và thử lại.');
+    }
+
+    console.error('Google OAuth callback failed');
     return res.status(500).send('Đăng nhập Google thất bại');
   }
 });
